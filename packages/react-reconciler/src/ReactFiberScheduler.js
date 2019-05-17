@@ -1140,6 +1140,7 @@ function completeUnitOfWork(unitOfWork: Fiber): Fiber | null {
         returnFiber.effectTag |= Incomplete;
       }
     }
+    resetContextPropagationTime(workInProgress);
 
     const siblingFiber = workInProgress.sibling;
     if (siblingFiber !== null) {
@@ -1155,6 +1156,21 @@ function completeUnitOfWork(unitOfWork: Fiber): Fiber | null {
     workInProgressRootExitStatus = RootCompleted;
   }
   return null;
+}
+
+function resetContextPropagationTime(completedWork: Fiber) {
+  // @TODO do we need to have a Never check similar to resetChildExpirationTime?
+  let newContextPropagationTime = NoWork;
+
+  // @TODO do we need to have anything done for Profiler similar to resetChildExpirationTime?
+  completedWork.contextPropagationTime = newContextPropagationTime;
+
+  // we reset context propagation on alternate because we cannot reuse propagations from
+  // previous work in progress
+  let alternate = completedWork.alternate;
+  if (alternate !== null) {
+    alternate.contextPropagationTime = newContextPropagationTime;
+  }
 }
 
 function resetChildExpirationTime(completedWork: Fiber) {

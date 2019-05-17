@@ -13,6 +13,7 @@ import type {FiberRoot} from './ReactFiberRoot';
 import type {ExpirationTime} from './ReactFiberExpirationTime';
 import type {SuspenseState} from './ReactFiberSuspenseComponent';
 import type {SuspenseContext} from './ReactFiberSuspenseContext';
+import MAX_SIGNED_31_BIT_INT from './maxSigned31BitInt';
 
 import checkPropTypes from 'prop-types/checkPropTypes';
 
@@ -56,6 +57,9 @@ import {
   enableProfilerTimer,
   enableSuspenseServerRenderer,
   enableEventAPI,
+  enableIncrementalContextPropagation,
+  enableIncrementalUnifiedContextPropagation,
+  traceContextPropagation,
 } from 'shared/ReactFeatureFlags';
 import invariant from 'shared/invariant';
 import shallowEqual from 'shared/shallowEqual';
@@ -119,6 +123,10 @@ import {
 import {
   pushProvider,
   propagateContextChange,
+  propagateContextChangeAlt,
+  clearContextPropagationMarks,
+  propagateContextFromProvider,
+  continueAllContextPropagations,
   readContext,
   prepareToReadContext,
   calculateChangedBits,
@@ -1925,17 +1933,23 @@ function updateContextProvider(
     }
   }
 
-  pushProvider(workInProgress, newValue);
+  const changedBits =
+    oldProps !== null
+      ? calculateChangedBits(context, newValue, oldProps.value)
+      : MAX_SIGNED_31_BIT_INT;
+
+  pushProvider(workInProgress, newValue, changedBits);
 
   if (oldProps !== null) {
-    const oldValue = oldProps.value;
-    const changedBits = calculateChangedBits(context, newValue, oldValue);
     if (changedBits === 0) {
       // No change. Bailout early if children are the same.
       if (
         oldProps.children === newProps.children &&
         !hasLegacyContextChanged()
       ) {
+        if (__DEV__ && traceContextPropagation) {
+          console.log('bailing out b/c children are same and changedBits is 0');
+        }
         return bailoutOnAlreadyFinishedWork(
           current,
           workInProgress,
@@ -1945,7 +1959,10 @@ function updateContextProvider(
     } else {
       // The context value changed. Search for matching consumers and schedule
       // them to update.
-      propagateContextChange(
+      if (__DEV__ && traceContextPropagation) {
+        console.log('in branch where we may propagate context');
+      }
+      propagateContextFromProvider(
         workInProgress,
         context,
         changedBits,
@@ -1956,6 +1973,13 @@ function updateContextProvider(
 
   const newChildren = newProps.children;
   reconcileChildren(current, workInProgress, newChildren, renderExpirationTime);
+  if (__DEV__ && traceContextPropagation) {
+    console.log(
+      'updateContextProvider is going to return child',
+      workInProgress.child && getComponentName(workInProgress.child.type),
+    );
+  }
+
   return workInProgress.child;
 }
 
@@ -2008,6 +2032,9 @@ function updateContextConsumer(
 
   prepareToReadContext(workInProgress, renderExpirationTime);
   const newValue = readContext(context, newProps.unstable_observedBits);
+  if (__DEV__ && traceContextPropagation) {
+    console.log('read new context value', newValue);
+  }
   let newChildren;
   if (__DEV__) {
     ReactCurrentOwner.current = workInProgress;
@@ -2081,6 +2108,35 @@ function bailoutOnAlreadyFinishedWork(
 ): Fiber | null {
   cancelWorkTimer(workInProgress);
 
+  // If propagate all context changes to lazily schedule new work before deteriming
+  // if we can bail out
+  // console.log('continuing context propagation during bailout');
+  if (enableIncrementalContextPropagation) {
+    let child = workInProgress.child;
+    if (child !== null) {
+      let childContextPropagationTime = child.contextPropagationTime;
+      if (childContextPropagationTime < renderExpirationTime) {
+        if (__DEV__ && traceContextPropagation) {
+          console.log(
+            'Continuing all context propagations because child was NOT visited by propagator',
+            renderExpirationTime,
+            childContextPropagationTime,
+            workInProgress.contextPropagationTime,
+          );
+        }
+        // child fiber has not had contexts propagated yet. continue propagation
+        continueAllContextPropagations(workInProgress, renderExpirationTime);
+      } else if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'NOT continuing all context propagations because child was already visited by propagator',
+          renderExpirationTime,
+          childContextPropagationTime,
+          workInProgress.contextPropagationTime,
+        );
+      }
+    }
+  }
+
   if (current !== null) {
     // Reuse previous context list
     workInProgress.contextDependencies = current.contextDependencies;
@@ -2097,6 +2153,9 @@ function bailoutOnAlreadyFinishedWork(
     // The children don't have any work either. We can skip them.
     // TODO: Once we add back resuming, we should check if the children are
     // a work-in-progress set. If so, we need to transfer their effects.
+    if (enableIncrementalUnifiedContextPropagation) {
+      clearContextPropagationMarks(workInProgress);
+    }
     return null;
   } else {
     // This fiber doesn't have work, but its subtree does. Clone the child
@@ -2232,6 +2291,13 @@ function beginWork(
           break;
         }
       }
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          `beginning work on ${getComponentName(
+            workInProgress.type,
+          )}, bailing out`,
+        );
+      }
       return bailoutOnAlreadyFinishedWork(
         current,
         workInProgress,
@@ -2240,6 +2306,9 @@ function beginWork(
     }
   } else {
     didReceiveUpdate = false;
+  }
+  if (__DEV__ && traceContextPropagation) {
+    console.log('beginning work on', getComponentName(workInProgress.type));
   }
 
   // Before entering the begin phase, clear the expiration time.

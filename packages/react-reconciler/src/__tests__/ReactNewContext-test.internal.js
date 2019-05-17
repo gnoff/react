@@ -1049,6 +1049,124 @@ describe('ReactNewContext', () => {
           span(2),
         ]);
       });
+      describe('stress test', () => {
+        it('lots of contexts', () => {
+          function Multiplier(props) {
+            return (
+              <MultiplierContext.Consumer>
+                {({multiplier, depth}) => {
+                  let {Consumer, Context} = getContextAndConsumer(
+                    props.index % depth,
+                  );
+                  return (
+                    <Consumer>
+                      {value => {
+                        return (
+                          <Context.Provider
+                            value={(value * multiplier) % depth}>
+                            {props.children}
+                          </Context.Provider>
+                        );
+                      }}
+                    </Consumer>
+                  );
+                }}
+              </MultiplierContext.Consumer>
+            );
+          }
+
+          class Indirection extends React.Component {
+            shouldComponentUpdate() {
+              return false;
+            }
+            render() {
+              return this.props.children;
+            }
+          }
+
+          let contextsAndConsumers = [];
+
+          function getContextAndConsumer(index) {
+            if (contextsAndConsumers[index]) {
+              return contextsAndConsumers[index];
+            }
+            let Context = React.createContext(index);
+            let Consumer = getConsumer(Context);
+            let pair = {
+              Context,
+              Consumer,
+            };
+            contextsAndConsumers[index] = pair;
+            return pair;
+          }
+
+          let MultiplierContext = React.createContext({
+            multiplier: 2,
+            depth: 2,
+          });
+
+          function NextProvider(props) {
+            let depth = props.depth;
+            if (depth > -1) {
+              let {Context} = getContextAndConsumer(depth);
+              return (
+                <Context.Provider value={depth}>
+                  <Indirection>
+                    <NextProvider depth={--depth}>
+                      {props.children}
+                    </NextProvider>
+                  </Indirection>
+                </Context.Provider>
+              );
+            } else {
+              return <Indirection>{props.children}</Indirection>;
+            }
+          }
+
+          function Foo(props) {
+            let depth = props.depth;
+            if (depth > -1) {
+              return (
+                <Multiplier index={props.index}>
+                  <Indirection>
+                    <Foo depth={--depth}>{props.children}</Foo>
+                  </Indirection>
+                </Multiplier>
+              );
+            } else {
+              return <span>finito</span>;
+            }
+          }
+
+          function App(props) {
+            let slots = new Array(props.depth).fill(null);
+            return (
+              <MultiplierContext.Provider value={props}>
+                <NextProvider depth={props.depth}>
+                  {slots.map((_, i) => (
+                    <Foo key={i} depth={props.depth} index={i} />
+                  ))}
+                </NextProvider>
+              </MultiplierContext.Provider>
+            );
+          }
+
+          for (let i = 0; i < 100; i++) {
+            ReactNoop.render(<App multiplier={2} depth={8} />);
+            expect(Scheduler).toFlushAndYield([]);
+            ReactNoop.render(<App multiplier={4} depth={8} />);
+            expect(Scheduler).toFlushAndYield([]);
+            ReactNoop.render(<App multiplier={3} depth={8} />);
+            expect(Scheduler).toFlushAndYield([]);
+            ReactNoop.render(<App multiplier={5} depth={8} />);
+            expect(Scheduler).toFlushAndYield([]);
+            ReactNoop.render(<App multiplier={2} depth={8} />);
+            expect(Scheduler).toFlushAndYield([]);
+            ReactNoop.render(<App multiplier={1} depth={8} />);
+            expect(Scheduler).toFlushAndYield([]);
+          }
+        });
+      });
     });
   }
 
