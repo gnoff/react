@@ -127,6 +127,7 @@ import {
   readContext,
   prepareToReadContext,
   calculateChangedBits,
+  requiresPropagation,
 } from './ReactFiberNewContext';
 import {resetHooks, renderWithHooks, bailoutHooks} from './ReactFiberHooks';
 import {stopProfilerTimerIfRunning} from './ReactProfilerTimer';
@@ -2111,14 +2112,11 @@ function bailoutOnAlreadyFinishedWork(
   if (enableIncrementalUnifiedContextPropagation) {
     let child = workInProgress.child;
     if (child !== null) {
-      let childContextPropagationTime = child.contextPropagationTime;
-      if (childContextPropagationTime < renderExpirationTime) {
+      if (requiresPropagation(child)) {
         if (__DEV__ && traceContextPropagation) {
           console.log(
             'Continuing all context propagations because child was NOT visited by propagator',
             renderExpirationTime,
-            childContextPropagationTime,
-            workInProgress.contextPropagationTime,
           );
         }
         // child fiber has not had contexts propagated yet. continue propagation
@@ -2127,8 +2125,6 @@ function bailoutOnAlreadyFinishedWork(
         console.log(
           'NOT continuing all context propagations because child was already visited by propagator',
           renderExpirationTime,
-          childContextPropagationTime,
-          workInProgress.contextPropagationTime,
         );
       }
     }
@@ -2150,9 +2146,6 @@ function bailoutOnAlreadyFinishedWork(
     // The children don't have any work either. We can skip them.
     // TODO: Once we add back resuming, we should check if the children are
     // a work-in-progress set. If so, we need to transfer their effects.
-    if (enableIncrementalUnifiedContextPropagation) {
-      clearContextPropagationMarks(workInProgress);
-    }
     return null;
   } else {
     // This fiber doesn't have work, but its subtree does. Clone the child

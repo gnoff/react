@@ -88,6 +88,25 @@ export function exitDisallowedContextReadInDEV(): void {
 }
 
 let contextSet: Set<ReactContext<mixed>> = new Set();
+let propagationSigil = null;
+let unifiedChangedbits = 0;
+
+export function requiresPropagation(fiber: Fiber | null): boolean {
+  if (fiber !== null) {
+    if (__DEV__ && traceContextPropagation) {
+      if (fiber.propagationSigil === propagationSigil) {
+        console.log(
+          'fiber does not require propagation',
+          getComponentName(fiber.type),
+        );
+      } else {
+        console.log('fiber requires propagation', getComponentName(fiber.type));
+      }
+    }
+    return fiber.propagationSigil !== propagationSigil;
+  }
+  return false;
+}
 
 export function pushProvider<T>(
   providerFiber: Fiber,
@@ -97,21 +116,22 @@ export function pushProvider<T>(
   const context: ReactContext<T> = providerFiber.type._context;
 
   if (enableIncrementalUnifiedContextPropagation) {
-    contextSet.add(context);
-  }
+    if (__DEV__ && traceContextPropagation) {
+      console.log('pushing Provider with nextChangedBits', nextChangedBits);
+    }
 
-  if (__DEV__ && traceContextPropagation) {
-    console.log('pushing Provider with nextChangedBits', nextChangedBits);
+    contextSet.add(context);
+
+    push(valueCursor, context._currentChangedBits, providerFiber);
+    context._currentChangedBits = nextChangedBits;
+
+    push(valueCursor, propagationSigil, providerFiber);
+    propagationSigil = {};
   }
 
   if (isPrimaryRenderer) {
     push(valueCursor, context._currentValue, providerFiber);
     context._currentValue = nextValue;
-
-    if (enableIncrementalUnifiedContextPropagation) {
-      push(valueCursor, context._currentChangedBits, providerFiber);
-      context._currentChangedBits = nextChangedBits;
-    }
 
     if (__DEV__) {
       warningWithoutStack(
@@ -127,11 +147,6 @@ export function pushProvider<T>(
     push(valueCursor, context._currentValue2, providerFiber);
     context._currentValue2 = nextValue;
 
-    if (enableIncrementalUnifiedContextPropagation) {
-      push(valueCursor, context._currentChangedBits, providerFiber);
-      context._currentChangedBits = nextChangedBits;
-    }
-
     if (__DEV__) {
       warningWithoutStack(
         context._currentRenderer2 === undefined ||
@@ -146,13 +161,6 @@ export function pushProvider<T>(
 }
 
 export function popProvider(providerFiber: Fiber): void {
-  // pop changedBits value
-  let currentChangedBits;
-  if (enableIncrementalUnifiedContextPropagation) {
-    currentChangedBits = valueCursor.current;
-    pop(valueCursor, providerFiber);
-  }
-
   const currentValue = valueCursor.current;
   // pop context value
   pop(valueCursor, providerFiber);
@@ -166,7 +174,13 @@ export function popProvider(providerFiber: Fiber): void {
   }
 
   if (enableIncrementalUnifiedContextPropagation) {
-    context._currentChangedBits = currentChangedBits;
+    // restore previous propagationSigil
+    propagationSigil = valueCursor.current;
+    pop(valueCursor, providerFiber);
+
+    // pop changedBits value
+    context._currentChangedBits = valueCursor.current;
+    pop(valueCursor, providerFiber);
   }
 }
 
@@ -290,31 +304,10 @@ export function propagateContexts(
 
     let alternate = fiber.alternate;
 
-    let originalContextPropagationTime = fiber.contextPropagationTime;
-    let originalAlternateContextPropagationTime =
-      alternate && alternate.contextPropagationTime;
-
-    // mark fiber contextPropagationTime
-    if (fiber.contextPropagationTime < renderExpirationTime) {
-      fiber.contextPropagationTime = renderExpirationTime;
-    }
-    if (
-      alternate !== null &&
-      alternate.contextPropagationTime < renderExpirationTime
-    ) {
-      alternate.contextPropagationTime = renderExpirationTime;
-    }
-
-    if (__DEV__ && traceContextPropagation) {
-      console.log(
-        'fiber has contextPropagationTime',
-        getComponentName(fiber.type),
-        originalContextPropagationTime,
-        originalAlternateContextPropagationTime,
-        renderExpirationTime,
-        fiber.contextPropagationTime,
-        alternate && alternate.contextPropagationTime,
-      );
+    // mark fiber propagationSigil
+    fiber.propagationSigil = propagationSigil;
+    if (alternate !== null) {
+      alternate.propagationSigil = propagationSigil;
     }
 
     // Visit this fiber.
@@ -369,7 +362,7 @@ export function propagateContexts(
             console.log(
               'found match, bailing out of context propagation for this child tree',
               getComponentName(fiber.type),
-              fiber.contextPropagationTime,
+              fiber.propagationSigil === propagationSigil,
             );
           }
           nextFiber = null;
@@ -436,73 +429,6 @@ export function propagateContexts(
     } else {
       // Traverse down.
       nextFiber = fiber.child;
-    }
-
-    if (nextFiber !== null) {
-      // Set the return pointer of the child to the work-in-progress fiber.
-      nextFiber.return = fiber;
-    } else {
-      // No child. Traverse to next sibling.
-      nextFiber = fiber;
-      while (nextFiber !== null) {
-        if (nextFiber === workInProgress) {
-          // We're back to the root of this subtree. Exit.
-          nextFiber = null;
-          break;
-        }
-        let sibling = nextFiber.sibling;
-        if (sibling !== null) {
-          // Set the return pointer of the sibling to the work-in-progress fiber.
-          sibling.return = nextFiber.return;
-          nextFiber = sibling;
-          break;
-        }
-        // No more siblings. Traverse up.
-        nextFiber = nextFiber.return;
-      }
-    }
-    fiber = nextFiber;
-  }
-}
-
-export function clearContextPropagationMarks(workInProgress: Fiber): void {
-  let fiber = workInProgress.child;
-  if (fiber !== null) {
-    // Set the return pointer of the child to the work-in-progress fiber.
-    fiber.return = workInProgress;
-  }
-  while (fiber !== null) {
-    let nextFiber;
-
-    let alternate = fiber.alternate;
-
-    if (
-      fiber.contextPropagationTime > NoWork ||
-      (alternate !== null && alternate.contextPropagationTime > NoWork)
-    ) {
-      // this fiber was visited during contextPropagation but work may not have
-      // been done so contextPropagationTime was not reset on completion of work
-      fiber.contextPropagationTime = NoWork;
-      if (alternate !== null) {
-        alternate.contextPropagationTime = NoWork;
-      }
-
-      if (__DEV__ && traceContextPropagation) {
-        console.log(
-          'fiber has contextPropagationTime and it has been reset, moving on to child',
-          getComponentName(fiber.type),
-        );
-      }
-
-      nextFiber = fiber.child;
-    } else {
-      if (__DEV__ && traceContextPropagation) {
-        console.log(
-          'fiber does not have contextPropagationTime and, moving on to sibling',
-          getComponentName(fiber.type),
-        );
-      }
-      nextFiber = null;
     }
 
     if (nextFiber !== null) {
