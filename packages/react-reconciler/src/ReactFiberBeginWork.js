@@ -57,7 +57,6 @@ import {
   enableProfilerTimer,
   enableSuspenseServerRenderer,
   enableEventAPI,
-  enableIncrementalContextPropagation,
   enableIncrementalUnifiedContextPropagation,
   traceContextPropagation,
 } from 'shared/ReactFeatureFlags';
@@ -122,8 +121,6 @@ import {
 } from './ReactFiberSuspenseContext';
 import {
   pushProvider,
-  propagateContextChange,
-  propagateContextChangeAlt,
   clearContextPropagationMarks,
   propagateContextFromProvider,
   continueAllContextPropagations,
@@ -2111,7 +2108,7 @@ function bailoutOnAlreadyFinishedWork(
   // If propagate all context changes to lazily schedule new work before deteriming
   // if we can bail out
   // console.log('continuing context propagation during bailout');
-  if (enableIncrementalContextPropagation) {
+  if (enableIncrementalUnifiedContextPropagation) {
     let child = workInProgress.child;
     if (child !== null) {
       let childContextPropagationTime = child.contextPropagationTime;
@@ -2290,13 +2287,6 @@ function beginWork(
           }
           break;
         }
-      }
-      if (__DEV__ && traceContextPropagation) {
-        console.log(
-          `beginning work on ${getComponentName(
-            workInProgress.type,
-          )}, bailing out`,
-        );
       }
       return bailoutOnAlreadyFinishedWork(
         current,

@@ -68,9 +68,6 @@ export const enableEventAPI = false;
 // New API for JSX transforms to target - https://github.com/reactjs/rfcs/pull/107
 export const enableJSXTransformAPI = false;
 
-// Alternate Context Propagation algorithm
-export const enableIncrementalContextPropagation = true;
-
 // Alternate Context Propagation algorithm, variation that propagates all contexts together
 export const enableIncrementalUnifiedContextPropagation = true;
 
