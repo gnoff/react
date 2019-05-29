@@ -35,6 +35,15 @@ function toFlushAndYield(Scheduler, expectedYields) {
   });
 }
 
+function toFlushAndYieldCount(Scheduler, expectedYieldCount) {
+  assertYieldsWereCleared(Scheduler);
+  Scheduler.unstable_flushWithoutYielding();
+  const actualYields = Scheduler.unstable_clearYields();
+  return captureAssertion(() => {
+    expect(actualYields.length).toEqual(expectedYieldCount);
+  });
+}
+
 function toFlushAndYieldThrough(Scheduler, expectedYields) {
   assertYieldsWereCleared(Scheduler);
   Scheduler.unstable_flushNumberOfYields(expectedYields.length);
@@ -75,6 +84,7 @@ function toFlushAndThrow(Scheduler, ...rest) {
 
 module.exports = {
   toFlushAndYield,
+  toFlushAndYieldCount,
   toFlushAndYieldThrough,
   toFlushWithoutYielding,
   toFlushExpired,

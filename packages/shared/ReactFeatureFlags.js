@@ -69,10 +69,13 @@ export const enableEventAPI = false;
 export const enableJSXTransformAPI = false;
 
 // Alternate Context Propagation algorithm
-export const enableIncrementalContextPropagation = true;
+export const enableIncrementalContextPropagation = false;
 
 // Alternate Context Propagation algorithm, variation that propagates all contexts together
-export const enableIncrementalUnifiedContextPropagation = true;
+export const enableIncrementalUnifiedContextPropagation = false;
+
+// Alternate Context Propagation algorithm, variation that accumulates readers into fast path linked list
+export const enableContextDependencyTracking = true;
 
 // tracing flag for Context Propagation for debugging
-export const traceContextPropagation = false;
+export const traceContextPropagation = true;

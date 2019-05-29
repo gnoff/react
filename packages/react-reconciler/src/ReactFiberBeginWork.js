@@ -59,6 +59,7 @@ import {
   enableEventAPI,
   enableIncrementalContextPropagation,
   enableIncrementalUnifiedContextPropagation,
+  enableContextDependencyTracking,
   traceContextPropagation,
 } from 'shared/ReactFeatureFlags';
 import invariant from 'shared/invariant';
@@ -122,6 +123,7 @@ import {
 } from './ReactFiberSuspenseContext';
 import {
   pushProvider,
+  updateFromContextDependencies,
   propagateContextChange,
   propagateContextChangeAlt,
   clearContextPropagationMarks,
@@ -2147,19 +2149,37 @@ function bailoutOnAlreadyFinishedWork(
     stopProfilerTimerIfRunning(workInProgress);
   }
 
+  if (
+    enableContextDependencyTracking &&
+    workInProgress.childExpirationTime < renderExpirationTime
+  ) {
+    continueAllContextPropagations(workInProgress, renderExpirationTime);
+  }
+
   // Check if the children have any pending work.
-  const childExpirationTime = workInProgress.childExpirationTime;
-  if (childExpirationTime < renderExpirationTime) {
+  if (workInProgress.childExpirationTime < renderExpirationTime) {
     // The children don't have any work either. We can skip them.
     // TODO: Once we add back resuming, we should check if the children are
     // a work-in-progress set. If so, we need to transfer their effects.
     if (enableIncrementalUnifiedContextPropagation) {
       clearContextPropagationMarks(workInProgress);
     }
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'bailout of not going deeper (child expiration) for ',
+        getComponentName(workInProgress.type),
+      );
+    }
     return null;
   } else {
     // This fiber doesn't have work, but its subtree does. Clone the child
     // fibers and continue.
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'bailout going deeper for ',
+        getComponentName(workInProgress.type),
+      );
+    }
     cloneChildFibers(current, workInProgress);
     return workInProgress.child;
   }
@@ -2171,6 +2191,7 @@ function beginWork(
   renderExpirationTime: ExpirationTime,
 ): Fiber | null {
   const updateExpirationTime = workInProgress.expirationTime;
+  const childExpirationTime = workInProgress.childExpirationTime;
 
   if (current !== null) {
     const oldProps = current.memoizedProps;
@@ -2182,127 +2203,146 @@ function beginWork(
       didReceiveUpdate = true;
     } else if (updateExpirationTime < renderExpirationTime) {
       didReceiveUpdate = false;
-      // This fiber does not have any pending work. Bailout without entering
-      // the begin phase. There's still some bookkeeping we that needs to be done
-      // in this optimized path, mostly pushing stuff onto the stack.
-      switch (workInProgress.tag) {
-        case HostRoot:
-          pushHostRootContext(workInProgress);
-          resetHydrationState();
-          break;
-        case HostComponent:
-          pushHostContext(workInProgress);
-          break;
-        case ClassComponent: {
-          const Component = workInProgress.type;
-          if (isLegacyContextProvider(Component)) {
-            pushLegacyContextProvider(workInProgress);
+      const contextDependencies = workInProgress.contextDependencies;
+
+      if (
+        enableContextDependencyTracking &&
+        childExpirationTime >= renderExpirationTime &&
+        contextDependencies !== null &&
+        contextDependencies.expirationTime < renderExpirationTime
+        // && contextPropagationSigil !== workInProgress.contextPropagationSigil
+      ) {
+        // check this fibers context dependencies and update if necessary
+        didReceiveUpdate = updateFromContextDependencies(
+          workInProgress,
+          renderExpirationTime,
+        );
+      }
+
+      if (didReceiveUpdate === false) {
+        // This fiber does not have any pending work. Bailout without entering
+        // the begin phase. There's still some bookkeeping we that needs to be done
+        // in this optimized path, mostly pushing stuff onto the stack.
+        switch (workInProgress.tag) {
+          case HostRoot:
+            pushHostRootContext(workInProgress);
+            resetHydrationState();
+            break;
+          case HostComponent:
+            pushHostContext(workInProgress);
+            break;
+          case ClassComponent: {
+            const Component = workInProgress.type;
+            if (isLegacyContextProvider(Component)) {
+              pushLegacyContextProvider(workInProgress);
+            }
+            break;
           }
-          break;
-        }
-        case HostPortal:
-          pushHostContainer(
-            workInProgress,
-            workInProgress.stateNode.containerInfo,
-          );
-          break;
-        case ContextProvider: {
-          const newValue = workInProgress.memoizedProps.value;
-          pushProvider(workInProgress, newValue);
-          break;
-        }
-        case Profiler:
-          if (enableProfilerTimer) {
-            workInProgress.effectTag |= Update;
+          case HostPortal:
+            pushHostContainer(
+              workInProgress,
+              workInProgress.stateNode.containerInfo,
+            );
+            break;
+          case ContextProvider: {
+            const newValue = workInProgress.memoizedProps.value;
+            let newChangedBits = 0;
+            pushProvider(workInProgress, newValue, newChangedBits);
+            break;
           }
-          break;
-        case SuspenseComponent: {
-          const state: SuspenseState | null = workInProgress.memoizedState;
-          const didTimeout = state !== null;
-          if (didTimeout) {
-            // If this boundary is currently timed out, we need to decide
-            // whether to retry the primary children, or to skip over it and
-            // go straight to the fallback. Check the priority of the primary
-            // child fragment.
-            const primaryChildFragment: Fiber = (workInProgress.child: any);
-            const primaryChildExpirationTime =
-              primaryChildFragment.childExpirationTime;
-            if (
-              primaryChildExpirationTime !== NoWork &&
-              primaryChildExpirationTime >= renderExpirationTime
-            ) {
-              // The primary children have pending work. Use the normal path
-              // to attempt to render the primary children again.
-              return updateSuspenseComponent(
-                current,
-                workInProgress,
-                renderExpirationTime,
-              );
+          case Profiler:
+            if (enableProfilerTimer) {
+              workInProgress.effectTag |= Update;
+            }
+            break;
+          case SuspenseComponent: {
+            const state: SuspenseState | null = workInProgress.memoizedState;
+            const didTimeout = state !== null;
+            if (didTimeout) {
+              // If this boundary is currently timed out, we need to decide
+              // whether to retry the primary children, or to skip over it and
+              // go straight to the fallback. Check the priority of the primary
+              // child fragment.
+              const primaryChildFragment: Fiber = (workInProgress.child: any);
+              const primaryChildExpirationTime =
+                primaryChildFragment.childExpirationTime;
+              if (
+                primaryChildExpirationTime !== NoWork &&
+                primaryChildExpirationTime >= renderExpirationTime
+              ) {
+                // The primary children have pending work. Use the normal path
+                // to attempt to render the primary children again.
+                return updateSuspenseComponent(
+                  current,
+                  workInProgress,
+                  renderExpirationTime,
+                );
+              } else {
+                pushSuspenseContext(
+                  workInProgress,
+                  setDefaultShallowSuspenseContext(suspenseStackCursor.current),
+                );
+                // The primary children do not have pending work with sufficient
+                // priority. Bailout.
+                const child = bailoutOnAlreadyFinishedWork(
+                  current,
+                  workInProgress,
+                  renderExpirationTime,
+                );
+                if (child !== null) {
+                  // The fallback children have pending work. Skip over the
+                  // primary children and work on the fallback.
+                  return child.sibling;
+                } else {
+                  return null;
+                }
+              }
             } else {
               pushSuspenseContext(
                 workInProgress,
                 setDefaultShallowSuspenseContext(suspenseStackCursor.current),
               );
-              // The primary children do not have pending work with sufficient
-              // priority. Bailout.
-              const child = bailoutOnAlreadyFinishedWork(
-                current,
-                workInProgress,
-                renderExpirationTime,
-              );
-              if (child !== null) {
-                // The fallback children have pending work. Skip over the
-                // primary children and work on the fallback.
-                return child.sibling;
-              } else {
-                return null;
-              }
             }
-          } else {
-            pushSuspenseContext(
-              workInProgress,
-              setDefaultShallowSuspenseContext(suspenseStackCursor.current),
-            );
+            break;
           }
-          break;
+          case DehydratedSuspenseComponent: {
+            if (enableSuspenseServerRenderer) {
+              pushSuspenseContext(
+                workInProgress,
+                setDefaultShallowSuspenseContext(suspenseStackCursor.current),
+              );
+              // We know that this component will suspend again because if it has
+              // been unsuspended it has committed as a regular Suspense component.
+              // If it needs to be retried, it should have work scheduled on it.
+              workInProgress.effectTag |= DidCapture;
+            }
+            break;
+          }
+          case EventComponent:
+            if (enableEventAPI) {
+              pushHostContextForEventComponent(workInProgress);
+            }
+            break;
+          case EventTarget: {
+            if (enableEventAPI) {
+              pushHostContextForEventTarget(workInProgress);
+            }
+            break;
+          }
         }
-        case DehydratedSuspenseComponent: {
-          if (enableSuspenseServerRenderer) {
-            pushSuspenseContext(
-              workInProgress,
-              setDefaultShallowSuspenseContext(suspenseStackCursor.current),
-            );
-            // We know that this component will suspend again because if it has
-            // been unsuspended it has committed as a regular Suspense component.
-            // If it needs to be retried, it should have work scheduled on it.
-            workInProgress.effectTag |= DidCapture;
-          }
-          break;
+        if (__DEV__ && traceContextPropagation) {
+          console.log(
+            `beginning work on ${getComponentName(
+              workInProgress.type,
+            )}, bailing out`,
+          );
         }
-        case EventComponent:
-          if (enableEventAPI) {
-            pushHostContextForEventComponent(workInProgress);
-          }
-          break;
-        case EventTarget: {
-          if (enableEventAPI) {
-            pushHostContextForEventTarget(workInProgress);
-          }
-          break;
-        }
-      }
-      if (__DEV__ && traceContextPropagation) {
-        console.log(
-          `beginning work on ${getComponentName(
-            workInProgress.type,
-          )}, bailing out`,
+        return bailoutOnAlreadyFinishedWork(
+          current,
+          workInProgress,
+          renderExpirationTime,
         );
       }
-      return bailoutOnAlreadyFinishedWork(
-        current,
-        workInProgress,
-        renderExpirationTime,
-      );
     }
   } else {
     didReceiveUpdate = false;

@@ -177,6 +177,15 @@ export type Fiber = {|
   firstEffect: Fiber | null,
   lastEffect: Fiber | null,
 
+  // Singly linked list fast path to next fiber with context dependencies
+  nextContextReader: Fiber | null,
+
+  // The first fiber (self or a descendent fiber) that has context
+  // dependencies and the last fiber that has context dependencies within
+  // the sub-tree of this fiber.
+  firstContextReader: Fiber | null,
+  lastContextReader: Fiber | null,
+
   // Represents a time in the future by which this work should be completed.
   // Does not include work found in its subtree.
   expirationTime: ExpirationTime,
@@ -269,6 +278,10 @@ function FiberNode(
 
   this.firstEffect = null;
   this.lastEffect = null;
+
+  this.nextContextReader = null;
+  this.firstContextReader = null;
+  this.lastContextReader = null;
 
   this.expirationTime = NoWork;
   this.childExpirationTime = NoWork;
@@ -410,6 +423,10 @@ export function createWorkInProgress(
     workInProgress.nextEffect = null;
     workInProgress.firstEffect = null;
     workInProgress.lastEffect = null;
+
+    workInProgress.nextContextReader = current.nextContextReader;
+    workInProgress.firstContextReader = current.firstContextReader;
+    workInProgress.lastContextReader = current.lastContextReader;
 
     if (enableProfilerTimer) {
       // We intentionally reset, rather than copy, actualDuration & actualStartTime.

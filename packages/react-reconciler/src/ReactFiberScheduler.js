@@ -24,6 +24,8 @@ import {
   enableProfilerTimer,
   disableYielding,
   enableSchedulerTracing,
+  enableContextDependencyTracking,
+  traceContextPropagation,
 } from 'shared/ReactFeatureFlags';
 import ReactSharedInternals from 'shared/ReactSharedInternals';
 import invariant from 'shared/invariant';
@@ -1012,6 +1014,14 @@ function performUnitOfWork(unitOfWork: Fiber): Fiber | null {
     next = beginWork(current, unitOfWork, renderExpirationTime);
   }
 
+  // reset context reader list as it will be reconstituted with updated Readers
+  // when work completes for this fiber.
+  if (enableContextDependencyTracking) {
+    unitOfWork.firstContextReader = null;
+    unitOfWork.lastContextReader = null;
+    unitOfWork.nextContextReader = null;
+  }
+
   resetCurrentDebugFiberInDEV();
   unitOfWork.memoizedProps = unitOfWork.pendingProps;
   if (next === null) {
@@ -1094,6 +1104,67 @@ function completeUnitOfWork(unitOfWork: Fiber): Fiber | null {
             returnFiber.firstEffect = workInProgress;
           }
           returnFiber.lastEffect = workInProgress;
+        }
+
+        if (enableContextDependencyTracking) {
+          // the contextDependentFiber may be set during beginWork if that fiber
+          // read from contexts. If set, append workInProgress's contextReaders's
+          // to returnFiber's context
+
+          let contextDependencies = workInProgress.contextDependencies;
+          let firstContextReader = workInProgress.firstContextReader;
+          let lastContextReader = workInProgress.lastContextReader;
+
+          let parentFirstContextReader = returnFiber.firstContextReader;
+          let parentLastContextReader = returnFiber.lastContextReader;
+
+          // if this fiber has contextDependencies put this fiber on returnFiber
+          if (contextDependencies !== null) {
+            if (parentFirstContextReader === null) {
+              returnFiber.firstContextReader = workInProgress;
+            } else {
+              if (parentLastContextReader !== null) {
+                parentLastContextReader.nextContextReader = workInProgress;
+              }
+            }
+            returnFiber.lastContextReader = workInProgress;
+
+            // if this fiber has dependent contextReaders make sure it points to the first
+            // one as it's next reader
+            if (firstContextReader !== null) {
+              workInProgress.nextContextReader = firstContextReader;
+              returnFiber.lastContextReader = lastContextReader;
+            }
+          } else if (firstContextReader !== null) {
+            // If this fiber does not have contextDependencies but has descendent
+            // context Readers append them to the return fiber
+            if (parentFirstContextReader === null) {
+              returnFiber.firstContextReader = firstContextReader;
+            } else {
+              if (parentLastContextReader !== null) {
+                parentLastContextReader.nextContextReader = firstContextReader;
+              }
+            }
+            returnFiber.lastContextReader = lastContextReader;
+          }
+
+          if (__DEV__ && traceContextPropagation) {
+            if (returnFiber !== null) {
+              console.log(
+                'completedWork return Fiber has these readers',
+                getComponentName(returnFiber.type),
+                returnFiber.nextContextReader === null
+                  ? 'null'
+                  : getComponentName(returnFiber.nextContextReader.type),
+                returnFiber.firstContextReader === null
+                  ? 'null'
+                  : getComponentName(returnFiber.firstContextReader.type),
+                returnFiber.lastContextReader === null
+                  ? 'null'
+                  : getComponentName(returnFiber.lastContextReader.type),
+              );
+            }
+          }
         }
       }
     } else {

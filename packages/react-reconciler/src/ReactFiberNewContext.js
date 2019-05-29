@@ -31,7 +31,6 @@ import MAX_SIGNED_31_BIT_INT from './maxSigned31BitInt';
 import {
   ContextProvider,
   ClassComponent,
-  FunctionComponent,
   DehydratedSuspenseComponent,
 } from 'shared/ReactWorkTags';
 
@@ -49,6 +48,7 @@ import {
   enableSuspenseServerRenderer,
   enableIncrementalContextPropagation,
   enableIncrementalUnifiedContextPropagation,
+  enableContextDependencyTracking,
   traceContextPropagation,
 } from 'shared/ReactFeatureFlags';
 
@@ -65,6 +65,14 @@ let lastContextDependency: ContextDependency<mixed> | null = null;
 let lastContextWithAllBitsObserved: ReactContext<any> | null = null;
 
 let isDisallowedContextReadInDEV: boolean = false;
+
+if (enableIncrementalUnifiedContextPropagation) {
+  console.log('using incremental unified context propagation');
+} else if (enableContextDependencyTracking) {
+  console.log('using context dependency tracking');
+} else {
+  console.log('using react standard context propagation');
+}
 
 export function resetContextDependences(): void {
   // This is called right before React yields execution, to ensure `readContext`
@@ -117,6 +125,18 @@ export function pushProvider<T>(
   nextChangedBits: number,
 ): void {
   const context: ReactContext<T> = providerFiber.type._context;
+
+  let returnFib = providerFiber.return;
+  while (returnFib !== null) {
+    if (returnFib.tag <= 1) {
+      context.debug_name_context =
+        context.debug_name_context || returnFib.type.displayName;
+      context.debug_name_provider = returnFib.type.displayName;
+      break;
+    }
+    returnFib = returnFib.return;
+  }
+  returnFib = null;
 
   if (enableIncrementalContextPropagation) {
     pushContext(context);
@@ -254,13 +274,84 @@ function scheduleWorkOnParentPath(
   }
 }
 
-const propagateAll = true;
+export function updateFromContextDependencies(
+  fiber: Fiber,
+  renderExpirationTime: ExpirationTime,
+): boolean {
+  if (enableContextDependencyTracking) {
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'updating from context dependencies of ',
+        getComponentName(fiber.type),
+      );
+    }
+
+    const list = fiber.contextDependencies;
+    let dependency = list.first;
+    while (dependency !== null) {
+      // Check if dependency bits have changed for context
+      let context = dependency.context;
+      let observedBits = dependency.observedBits;
+      let hasContext = contextSet.has(context);
+      if (
+        hasContext === true &&
+        (observedBits & context._currentChangedBits) !== 0
+      ) {
+        // Match! Schedule an update on this fiber.
+
+        if (fiber.tag === ClassComponent) {
+          // Schedule a force update on the work-in-progress.
+          const update = createUpdate(renderExpirationTime);
+          update.tag = ForceUpdate;
+          // TODO: Because we don't have a work-in-progress, this will add the
+          // update to the current fiber, too, which means it will persist even if
+          // this render is thrown away. Since it's a race condition, not sure it's
+          // worth fixing.
+          enqueueUpdate(fiber, update);
+        }
+
+        let alternate = fiber.alternate;
+        if (fiber.expirationTime < renderExpirationTime) {
+          fiber.expirationTime = renderExpirationTime;
+        }
+        if (
+          alternate !== null &&
+          alternate.expirationTime < renderExpirationTime
+        ) {
+          alternate.expirationTime = renderExpirationTime;
+        }
+
+        scheduleWorkOnParentPath(fiber.return, renderExpirationTime);
+
+        // Mark the expiration time on the list, too.
+        if (list.expirationTime < renderExpirationTime) {
+          list.expirationTime = renderExpirationTime;
+        }
+
+        // Since we already found a match, we can stop traversing the
+        // dependency list.
+        return true;
+      }
+      dependency = dependency.next;
+    }
+    return false;
+  } else {
+    return false;
+  }
+}
 
 export function continueAllContextPropagations(
   workInProgress: Fiber,
   renderExpirationTime: ExpirationTime,
 ): boolean {
-  if (enableIncrementalUnifiedContextPropagation) {
+  if (enableContextDependencyTracking) {
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'continueAllContextPropagations, propagating along ContextReader list',
+      );
+    }
+    propagateToContextReaders(workInProgress, renderExpirationTime);
+  } else if (enableIncrementalUnifiedContextPropagation) {
     if (__DEV__ && traceContextPropagation) {
       console.log(
         'continueAllContextPropagations, propagating all contexts together',
@@ -279,13 +370,59 @@ export function continueAllContextPropagations(
   }
 }
 
+function propagateToContextReaders(
+  workInProgress: Fiber,
+  renderExpirationTime,
+) {
+  let reader = workInProgress.firstContextReader;
+  const finalReader = workInProgress.lastContextReader;
+
+  if (__DEV__ && traceContextPropagation) {
+    console.log(
+      'propagateToContextReaders, for fiber first and last readers are',
+      getComponentName(workInProgress.type),
+      reader === null ? 'null' : getComponentName(reader.type),
+      finalReader === null ? 'null' : getComponentName(finalReader.type),
+      reader === null ? 'null' : reader === finalReader,
+    );
+  }
+
+  while (reader !== null) {
+    let didUpdate = updateFromContextDependencies(reader, renderExpirationTime);
+    if (didUpdate === true) {
+      // skip over this readers list segment by going straigth to it's last reader
+      reader = reader.lastContextReader;
+    }
+    // @TODO we need to add support for marking Providers that are not yet scoped
+    // in the render. If we had masked ealier we need to check and see if we need to pop
+    // If Providers are in the ContextReader list we can use their lastContextReader
+    // property and store it on a stack. when we visit the
+
+    // check if this reader was the last one scoped to the workInProgress fiber
+    // that hosts this propagation. If so, halt propagation to avoid escaping out
+    // of the workInProgress's sub-tree
+    if (reader === finalReader) {
+      break;
+    }
+    // advance to next reader. we may have skipped over a number of readers if
+    // the previous reader did update
+    reader = reader.nextContextReader;
+  }
+}
+
 export function propagateContextFromProvider(
   workInProgress: Fiber,
   context: ReactContext<mixed>,
   changedBits: number,
   renderExpirationTime: ExpirationTime,
 ) {
-  if (enableIncrementalUnifiedContextPropagation) {
+  if (enableContextDependencyTracking) {
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'propagateContextFromProvider, not propagating because we are tracking context readers',
+      );
+    }
+  } else if (enableIncrementalUnifiedContextPropagation) {
     if (__DEV__ && traceContextPropagation) {
       console.log(
         'propagateContextFromProvider, propagating all contexts together',
@@ -422,10 +559,7 @@ export function propagateContexts(
         }
         dependency = dependency.next;
       }
-    } else if (
-      fiber.expirationTime >= renderExpirationTime ||
-      (alternate !== null && alternate.expirationTime >= renderExpirationTime)
-    ) {
+    } else if (fiber.expirationTime >= renderExpirationTime) {
       // this fiber is already scheduled for work.
       // on to siblings
       if (__DEV__ && traceContextPropagation) {

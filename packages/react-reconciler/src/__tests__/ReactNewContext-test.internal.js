@@ -48,7 +48,7 @@ describe('ReactNewContext', () => {
   // We have several ways of reading from context. sharedContextTests runs
   // a suite of tests for a given context consumer implementation.
   sharedContextTests('Context.Consumer', Context => Context.Consumer);
-  sharedContextTests(
+  /*sharedContextTests(
     'useContext inside function component',
     Context =>
       function Consumer(props) {
@@ -121,7 +121,7 @@ describe('ReactNewContext', () => {
           return render(contextValue);
         }
       },
-  );
+  );*/
 
   function sharedContextTests(label, getConsumer) {
     describe(`reading context with ${label}`, () => {
@@ -679,7 +679,7 @@ describe('ReactNewContext', () => {
         ]);
       });
 
-      it('can skip parents with bitmask bailout while updating their children', () => {
+      it.only('can skip parents with bitmask bailout while updating their children', () => {
         const Context = React.createContext({foo: 0, bar: 0}, (a, b) => {
           let result = 0;
           if (a.foo !== b.foo) {
@@ -764,6 +764,7 @@ describe('ReactNewContext', () => {
           );
         }
 
+        console.log('BEFORE first render');
         ReactNoop.render(<App foo={1} bar={1} />);
         expect(Scheduler).toFlushAndYield(['Foo', 'Bar', 'Foo']);
         expect(ReactNoop.getChildren()).toEqual([
@@ -773,6 +774,7 @@ describe('ReactNewContext', () => {
         ]);
 
         // Update only foo
+        console.log('BEFORE first update');
         ReactNoop.render(<App foo={2} bar={1} />);
         expect(Scheduler).toFlushAndYield(['Foo', 'Foo']);
         expect(ReactNoop.getChildren()).toEqual([
@@ -782,6 +784,7 @@ describe('ReactNewContext', () => {
         ]);
 
         // Update only bar
+        console.log('BEFORE second update');
         ReactNoop.render(<App foo={2} bar={2} />);
         expect(Scheduler).toFlushAndYield(['Bar']);
         expect(ReactNoop.getChildren()).toEqual([
@@ -791,6 +794,7 @@ describe('ReactNewContext', () => {
         ]);
 
         // Update both
+        console.log('BEFORE third update');
         ReactNoop.render(<App foo={3} bar={3} />);
         expect(Scheduler).toFlushAndYield(['Foo', 'Bar', 'Foo']);
         expect(ReactNoop.getChildren()).toEqual([
@@ -1050,7 +1054,7 @@ describe('ReactNewContext', () => {
         ]);
       });
       describe('stress test', () => {
-        it('lots of contexts', () => {
+        xit('lots of contexts', () => {
           function Multiplier(props) {
             return (
               <MultiplierContext.Consumer>
@@ -1124,46 +1128,89 @@ describe('ReactNewContext', () => {
           }
 
           function Foo(props) {
+            let slots = new Array(props.width).fill(null);
             let depth = props.depth;
-            if (depth > -1) {
+            if (depth > 0) {
+              let newDepth = depth - 1;
               return (
                 <Multiplier index={props.index}>
                   <Indirection>
-                    <Foo depth={--depth}>{props.children}</Foo>
+                    {slots.map((_, i) => (
+                      <Foo key={i} depth={newDepth} index={i} width={i}>
+                        {props.children}
+                      </Foo>
+                    ))}
                   </Indirection>
                 </Multiplier>
               );
             } else {
-              return <span>finito</span>;
+              return (
+                <NextPlainDeepChild depth={10}>
+                  {props.children}
+                </NextPlainDeepChild>
+              );
+            }
+          }
+
+          function NextPlainDeepChild(props) {
+            let depth = props.depth;
+            if (depth > 0) {
+              let newDepth = depth - 1;
+              return (
+                <NextPlainDeepChild depth={newDepth}>
+                  {props.children}
+                </NextPlainDeepChild>
+              );
+            } else {
+              Scheduler.yieldValue('final');
+              return props.children;
             }
           }
 
           function App(props) {
-            let slots = new Array(props.depth).fill(null);
+            let slots = new Array(props.width).fill(null);
             return (
               <MultiplierContext.Provider value={props}>
                 <NextProvider depth={props.depth}>
                   {slots.map((_, i) => (
-                    <Foo key={i} depth={props.depth} index={i} />
+                    <Foo
+                      key={i}
+                      depth={props.depth * 2}
+                      index={i}
+                      width={props.width}>
+                      finito
+                    </Foo>
                   ))}
                 </NextProvider>
               </MultiplierContext.Provider>
             );
           }
 
+          ReactNoop.render(<App multiplier={2} depth={1} width={4} />);
+          expect(Scheduler).toFlushAndYieldCount(24);
+          ReactNoop.render(<App multiplier={4} depth={1} width={3} />);
+          expect(Scheduler).toFlushAndYieldCount(0);
+          ReactNoop.render(<App multiplier={3} depth={1} width={1} />);
+          expect(Scheduler).toFlushAndYieldCount(0);
+          ReactNoop.render(<App multiplier={5} depth={1} width={2} />);
+          expect(Scheduler).toFlushAndYieldCount(0);
+          ReactNoop.render(<App multiplier={2} depth={1} width={3} />);
+          expect(Scheduler).toFlushAndYieldCount(0);
+          ReactNoop.render(<App multiplier={1} depth={1} width={1} />);
+          expect(Scheduler).toFlushAndYieldCount(0);
           for (let i = 0; i < 100; i++) {
-            ReactNoop.render(<App multiplier={2} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={4} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={3} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={5} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={2} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={1} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
+            ReactNoop.render(<App multiplier={2} depth={1} width={4} />);
+            expect(Scheduler).toFlushAndYieldCount(0);
+            ReactNoop.render(<App multiplier={4} depth={1} width={3} />);
+            expect(Scheduler).toFlushAndYieldCount(0);
+            ReactNoop.render(<App multiplier={3} depth={1} width={1} />);
+            expect(Scheduler).toFlushAndYieldCount(0);
+            ReactNoop.render(<App multiplier={5} depth={1} width={2} />);
+            expect(Scheduler).toFlushAndYieldCount(0);
+            ReactNoop.render(<App multiplier={2} depth={1} width={3} />);
+            expect(Scheduler).toFlushAndYieldCount(0);
+            ReactNoop.render(<App multiplier={1} depth={1} width={1} />);
+            expect(Scheduler).toFlushAndYieldCount(0);
           }
         });
       });
@@ -1933,7 +1980,7 @@ describe('ReactNewContext', () => {
         const seed = Math.random()
           .toString(36)
           .substr(2, 5);
-        const actions = randomActions(5);
+        const actions = randomActions(50);
         try {
           simulate(seed, actions);
         } catch (error) {
