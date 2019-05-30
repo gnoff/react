@@ -89,7 +89,7 @@ export function exitDisallowedContextReadInDEV(): void {
 
 let contextSet: Set<ReactContext<mixed>> = new Set();
 let propagationSigil = null;
-let unifiedChangedbits = 0;
+let propagationHasChangedBits = false;
 
 export function requiresPropagation(fiber: Fiber | null): boolean {
   if (fiber !== null) {
@@ -122,9 +122,24 @@ export function pushProvider<T>(
 
     contextSet.add(context);
 
-    push(valueCursor, context._currentChangedBits, providerFiber);
+    let currentChangedBits = context._currentChangedBits;
+    // update propagationHasChangedBits. only do full check if nextChangedBits
+    // is zero and currentChangedBits is greater than zero. Otherwise can can
+    // infer without checking each context
+    let nextPropagationHasChangedBits =
+      nextChangedBits > 0 ||
+      (currentChangedBits > 0 && someChangedBits()) ||
+      propagationHasChangedBits;
+
+    // set next changed bits on the context
+    push(valueCursor, currentChangedBits, providerFiber);
     context._currentChangedBits = nextChangedBits;
 
+    // set next propagationHasChangedBits
+    push(valueCursor, propagationHasChangedBits, providerFiber);
+    propagationHasChangedBits = nextPropagationHasChangedBits;
+
+    // create a new propagationSigil and save the previous one
     push(valueCursor, propagationSigil, providerFiber);
     propagationSigil = {};
   }
@@ -160,6 +175,18 @@ export function pushProvider<T>(
   }
 }
 
+function someChangedBits(): boolean {
+  let iter = contextSet.values();
+  let step = iter.next();
+  for (; !step.done; step = iter.next()) {
+    const context = step.value;
+    if (context._currentChangedBits > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function popProvider(providerFiber: Fiber): void {
   const currentValue = valueCursor.current;
   // pop context value
@@ -176,6 +203,10 @@ export function popProvider(providerFiber: Fiber): void {
   if (enableIncrementalUnifiedContextPropagation) {
     // restore previous propagationSigil
     propagationSigil = valueCursor.current;
+    pop(valueCursor, providerFiber);
+
+    // restore previous propagationHasChangedBits
+    propagationHasChangedBits = valueCursor.current;
     pop(valueCursor, providerFiber);
 
     // pop changedBits value
@@ -282,16 +313,14 @@ export function propagateContexts(
   workInProgress: Fiber,
   renderExpirationTime: ExpirationTime,
 ): void {
-  let changedBits = 0;
-  for (let context of contextSet) {
-    changedBits |= context._currentChangedBits;
-    if (changedBits > 0) break;
-  }
   if (__DEV__ && traceContextPropagation) {
-    console.log('propagateContexts changedBits & values', changedBits);
+    console.log(
+      'propagateContexts propagationHasChangedBits',
+      propagationHasChangedBits,
+    );
   }
-  // no need to propagate if context value has not changed
-  if (changedBits === 0) {
+  // no need to propagate if no context values have not changed
+  if (propagationHasChangedBits === false) {
     return;
   }
   let fiber = workInProgress.child;
@@ -320,11 +349,7 @@ export function propagateContexts(
         // Check if dependency bits have changed for context
         let context = dependency.context;
         let observedBits = dependency.observedBits;
-        let hasContext = contextSet.has(context);
-        if (
-          hasContext === true &&
-          (observedBits & context._currentChangedBits) !== 0
-        ) {
+        if ((observedBits & context._currentChangedBits) !== 0) {
           // Match! Schedule an update on this fiber.
 
           if (fiber.tag === ClassComponent) {
