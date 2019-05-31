@@ -350,48 +350,62 @@ export function propagateContexts(
         let context = dependency.context;
         let observedBits = dependency.observedBits;
         if ((observedBits & context._currentChangedBits) !== 0) {
-          // Match! Schedule an update on this fiber.
+          let requiresUpdate = true;
 
-          if (fiber.tag === ClassComponent) {
-            // Schedule a force update on the work-in-progress.
-            const update = createUpdate(renderExpirationTime);
-            update.tag = ForceUpdate;
-            // TODO: Because we don't have a work-in-progress, this will add the
-            // update to the current fiber, too, which means it will persist even if
-            // this render is thrown away. Since it's a race condition, not sure it's
-            // worth fixing.
-            enqueueUpdate(fiber, update);
-          }
-
-          if (fiber.expirationTime < renderExpirationTime) {
-            fiber.expirationTime = renderExpirationTime;
-          }
-          if (
-            alternate !== null &&
-            alternate.expirationTime < renderExpirationTime
-          ) {
-            alternate.expirationTime = renderExpirationTime;
-          }
-
-          scheduleWorkOnParentPath(fiber.return, renderExpirationTime);
-
-          // Mark the expiration time on the list, too.
-          if (list.expirationTime < renderExpirationTime) {
-            list.expirationTime = renderExpirationTime;
-          }
-
-          // Since we already found a match, we can stop traversing the
-          // dependency list.
-          // we can also stop traversing down and simply move on to fiber siblings
-          if (__DEV__ && traceContextPropagation) {
-            console.log(
-              'found match, bailing out of context propagation for this child tree',
-              getComponentName(fiber.type),
-              fiber.propagationSigil === propagationSigil,
+          let selector = dependency.selector;
+          if (typeof selector === 'function') {
+            let [, isNew] = selector(
+              isPrimaryRenderer
+                ? context._currentValue
+                : context._currentValue2,
             );
+            requiresUpdate = isNew;
           }
-          nextFiber = null;
-          break;
+
+          if (requiresUpdate) {
+            // Match! Schedule an update on this fiber.
+
+            if (fiber.tag === ClassComponent) {
+              // Schedule a force update on the work-in-progress.
+              const update = createUpdate(renderExpirationTime);
+              update.tag = ForceUpdate;
+              // TODO: Because we don't have a work-in-progress, this will add the
+              // update to the current fiber, too, which means it will persist even if
+              // this render is thrown away. Since it's a race condition, not sure it's
+              // worth fixing.
+              enqueueUpdate(fiber, update);
+            }
+
+            if (fiber.expirationTime < renderExpirationTime) {
+              fiber.expirationTime = renderExpirationTime;
+            }
+            if (
+              alternate !== null &&
+              alternate.expirationTime < renderExpirationTime
+            ) {
+              alternate.expirationTime = renderExpirationTime;
+            }
+
+            scheduleWorkOnParentPath(fiber.return, renderExpirationTime);
+
+            // Mark the expiration time on the list, too.
+            if (list.expirationTime < renderExpirationTime) {
+              list.expirationTime = renderExpirationTime;
+            }
+
+            // Since we already found a match, we can stop traversing the
+            // dependency list.
+            // we can also stop traversing down and simply move on to fiber siblings
+            if (__DEV__ && traceContextPropagation) {
+              console.log(
+                'found match, bailing out of context propagation for this child tree',
+                getComponentName(fiber.type),
+                fiber.propagationSigil === propagationSigil,
+              );
+            }
+            nextFiber = null;
+            break;
+          }
         }
         dependency = dependency.next;
       }
@@ -507,7 +521,11 @@ export function propagateContextChange(
         // Check if the context matches.
         if (
           dependency.context === context &&
-          (dependency.observedBits & changedBits) !== 0
+          (dependency.observedBits & changedBits) !== 0 &&
+          // @TODO cleanup this case where we want to ignore useContextSelector if we're not doing
+          // unified context propagation
+          (!enableIncrementalUnifiedContextPropagation ||
+            typeof dependency.selector !== 'function')
         ) {
           // Match! Schedule an update on this fiber.
 
@@ -685,4 +703,58 @@ export function readContext<T>(
     }
   }
   return isPrimaryRenderer ? context._currentValue : context._currentValue2;
+}
+
+export function selectFromContext<T, S>(
+  context: ReactContext<T>,
+  select: T => [S, boolean],
+): [S, boolean] {
+  if (__DEV__) {
+    // This warning would fire if you read context inside a Hook like useMemo.
+    // Unlike the class check below, it's not enforced in production for perf.
+    warning(
+      !isDisallowedContextReadInDEV,
+      'Context can only be read while React is rendering. ' +
+        'In classes, you can read it in the render method or getDerivedStateFromProps. ' +
+        'In function components, you can read it directly in the function body, but not ' +
+        'inside Hooks like useReducer() or useMemo().',
+    );
+  }
+
+  if (typeof select !== 'function') {
+    // Nothing to do. We already observe everything in this context.
+    console.error(
+      'selectFromContext has not implemented support for null selectors',
+    );
+  } else {
+    let contextItem = {
+      context: ((context: any): ReactContext<mixed>),
+      observedBits: MAX_SIGNED_31_BIT_INT,
+      selector: select,
+      next: null,
+    };
+
+    if (lastContextDependency === null) {
+      invariant(
+        currentlyRenderingFiber !== null,
+        'Context can only be read while React is rendering. ' +
+          'In classes, you can read it in the render method or getDerivedStateFromProps. ' +
+          'In function components, you can read it directly in the function body, but not ' +
+          'inside Hooks like useReducer() or useMemo().',
+      );
+
+      // This is the first dependency for this component. Create a new list.
+      lastContextDependency = contextItem;
+      currentlyRenderingFiber.contextDependencies = {
+        first: contextItem,
+        expirationTime: NoWork,
+      };
+    } else {
+      // Append a new context item.
+      lastContextDependency = lastContextDependency.next = contextItem;
+    }
+  }
+  return isPrimaryRenderer
+    ? select(context._currentValue)
+    : select(context._currentValue2);
 }

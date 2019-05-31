@@ -32,6 +32,7 @@ import memo from './memo';
 import {
   useCallback,
   useContext,
+  useContextSelector,
   useEffect,
   useImperativeHandle,
   useDebugValue,
@@ -80,6 +81,7 @@ const React = {
 
   useCallback,
   useContext,
+  useContextSelector,
   useEffect,
   useImperativeHandle,
   useDebugValue,

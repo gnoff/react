@@ -16,7 +16,7 @@ import type {HookEffectTag} from './ReactHookEffectTags';
 import ReactSharedInternals from 'shared/ReactSharedInternals';
 
 import {NoWork} from './ReactFiberExpirationTime';
-import {readContext} from './ReactFiberNewContext';
+import {readContext, selectFromContext} from './ReactFiberNewContext';
 import {
   Update as UpdateEffect,
   Passive as PassiveEffect,
@@ -582,6 +582,52 @@ function updateWorkInProgressHook(): Hook {
   return workInProgressHook;
 }
 
+function makeSelect<T, S>(context: ReactContext<T>, selector: T => S) {
+  let previousValue, previousSelection;
+  return function select(value: T) {
+    let selection = previousSelection;
+    let isNew = false;
+    if (value !== previousValue) {
+      selection = selector(value);
+      if (!is(selection, previousSelection)) {
+        // if same we can still consider the selection memoized since the selected values are identical
+        isNew = true;
+      }
+    }
+    previousValue = value;
+    previousSelection = selection;
+    return [selection, isNew];
+  };
+}
+
+function mountContextSelector<T, S>(
+  context: ReactContext<T>,
+  selector: T => S,
+): S {
+  const hook = mountWorkInProgressHook();
+  let select = makeSelect(context, selector);
+  let [selection] = selectFromContext(context, select);
+  hook.memoizedState = [context, selector, select];
+  return selection;
+}
+
+function updateContextSelector<T, S>(
+  context: ReactContext<T>,
+  selector: T => S,
+): S {
+  const hook = updateWorkInProgressHook();
+  let [previousContext, previousSelector, previousSelect] = hook.memoizedState;
+
+  if (context !== previousContext || selector !== previousSelector) {
+    let select = makeSelect(context, selector);
+    let [selection] = selectFromContext(context, select);
+    hook.memoizedState = [context, selector, select];
+    return selection;
+  } else {
+    return selectFromContext(context, previousSelect)[0];
+  }
+}
+
 function createFunctionComponentUpdateQueue(): FunctionComponentUpdateQueue {
   return {
     lastEffect: null,
@@ -1057,6 +1103,17 @@ function updateMemo<T>(
   return nextValue;
 }
 
+function readSelectionFromContext<T, S>(selector: T => S, value: T) {
+  if (__DEV__) {
+    warning(
+      arguments.length <= 3,
+      "State updates from the useState() and useReducer() Hooks don't support the " +
+        'second callback argument. To execute a side effect after ' +
+        'rendering, declare it in the component body with useEffect().',
+    );
+  }
+}
+
 function dispatchAction<S, A>(
   fiber: Fiber,
   queue: UpdateQueue<S, A>,
@@ -1192,6 +1249,7 @@ export const ContextOnlyDispatcher: Dispatcher = {
 
   useCallback: throwInvalidHookError,
   useContext: throwInvalidHookError,
+  useContextSelector: throwInvalidHookError,
   useEffect: throwInvalidHookError,
   useImperativeHandle: throwInvalidHookError,
   useLayoutEffect: throwInvalidHookError,
@@ -1207,6 +1265,7 @@ const HooksDispatcherOnMount: Dispatcher = {
 
   useCallback: mountCallback,
   useContext: readContext,
+  useContextSelector: mountContextSelector,
   useEffect: mountEffect,
   useImperativeHandle: mountImperativeHandle,
   useLayoutEffect: mountLayoutEffect,
@@ -1222,6 +1281,7 @@ const HooksDispatcherOnUpdate: Dispatcher = {
 
   useCallback: updateCallback,
   useContext: readContext,
+  useContextSelector: updateContextSelector,
   useEffect: updateEffect,
   useImperativeHandle: updateImperativeHandle,
   useLayoutEffect: updateLayoutEffect,
@@ -1280,6 +1340,11 @@ if (__DEV__) {
       currentHookNameInDev = 'useContext';
       mountHookTypesDev();
       return readContext(context, observedBits);
+    },
+    useContextSelector<T, S>(context: ReactContext<T>, selector: T => S): S {
+      currentHookNameInDev = 'useContextSelector';
+      mountHookTypesDev();
+      return mountContextSelector(context, selector);
     },
     useEffect(
       create: () => (() => void) | void,
@@ -1382,6 +1447,11 @@ if (__DEV__) {
       updateHookTypesDev();
       return readContext(context, observedBits);
     },
+    useContextSelector<T, S>(context: ReactContext<T>, selector: T => S): S {
+      currentHookNameInDev = 'useContextSelector';
+      updateHookTypesDev();
+      return mountContextSelector(context, selector);
+    },
     useEffect(
       create: () => (() => void) | void,
       deps: Array<mixed> | void | null,
@@ -1478,6 +1548,11 @@ if (__DEV__) {
       currentHookNameInDev = 'useContext';
       updateHookTypesDev();
       return readContext(context, observedBits);
+    },
+    useContextSelector<T, S>(context: ReactContext<T>, selector: T => S): S {
+      currentHookNameInDev = 'useContextSelector';
+      updateHookTypesDev();
+      return updateContextSelector(context, selector);
     },
     useEffect(
       create: () => (() => void) | void,
@@ -1578,6 +1653,12 @@ if (__DEV__) {
       warnInvalidHookAccess();
       mountHookTypesDev();
       return readContext(context, observedBits);
+    },
+    useContextSelector<T, S>(context: ReactContext<T>, selector: T => S): S {
+      currentHookNameInDev = 'useContextSelector';
+      warnInvalidHookAccess();
+      mountHookTypesDev();
+      return mountContextSelector(context, selector);
     },
     useEffect(
       create: () => (() => void) | void,
@@ -1686,6 +1767,12 @@ if (__DEV__) {
       warnInvalidHookAccess();
       updateHookTypesDev();
       return readContext(context, observedBits);
+    },
+    useContextSelector<T, S>(context: ReactContext<T>, selector: T => S): S {
+      currentHookNameInDev = 'useContextSelector';
+      warnInvalidHookAccess();
+      updateHookTypesDev();
+      return updateContextSelector(context, selector);
     },
     useEffect(
       create: () => (() => void) | void,

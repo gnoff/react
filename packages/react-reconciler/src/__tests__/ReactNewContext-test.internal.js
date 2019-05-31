@@ -1337,6 +1337,115 @@ describe('ReactNewContext', () => {
     });
   });
 
+  describe('useContextSelector', () => {
+    it('general test', () => {
+      const Context = React.createContext('abcdefg');
+      const FooContext = React.createContext(0);
+      const BarContext = React.createContext(0);
+
+      function Provider(props) {
+        return (
+          <Context.Provider value={props.string}>
+            {props.children}
+          </Context.Provider>
+        );
+      }
+
+      function Foo(props) {
+        let index = React.useContext(FooContext);
+        let selector = React.useCallback(v => v.substring(0, index), [index]);
+        let selection = React.useContextSelector(Context, selector);
+        Scheduler.yieldValue('Foo');
+        return <span prop={'foo selection: ' + selection} />;
+      }
+
+      function Bar(props) {
+        let index = React.useContext(BarContext);
+        let selector = React.useCallback(v => v.substring(index), [index]);
+        let selection = React.useContextSelector(Context, selector);
+        Scheduler.yieldValue('Bar');
+        return <span prop={'bar selection: ' + selection} />;
+      }
+
+      class Indirection extends React.Component {
+        shouldComponentUpdate() {
+          return false;
+        }
+        render() {
+          return this.props.children;
+        }
+      }
+
+      function App(props) {
+        return (
+          <FooContext.Provider value={props.fooIndex}>
+            <BarContext.Provider value={props.barIndex}>
+              <Provider string={props.string}>
+                <Indirection {...props}>
+                  <Indirection>
+                    <Foo />
+                  </Indirection>
+                  <Indirection>
+                    <Bar />
+                  </Indirection>
+                </Indirection>
+              </Provider>
+            </BarContext.Provider>
+          </FooContext.Provider>
+        );
+      }
+
+      ReactNoop.render(<App string="abcdefg" fooIndex={2} barIndex={2} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: ab'),
+        span('bar selection: cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="abcdefg" fooIndex={3} barIndex={2} />);
+      expect(Scheduler).toFlushAndYield(['Foo']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: abc'),
+        span('bar selection: cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a*cdefg" fooIndex={3} barIndex={2} />);
+      expect(Scheduler).toFlushAndYield(['Foo']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a*c'),
+        span('bar selection: cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a*cdefg" fooIndex={3} barIndex={1} />);
+      expect(Scheduler).toFlushAndYield(['Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a*c'),
+        span('bar selection: *cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a|cdefg" fooIndex={3} barIndex={1} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a|c'),
+        span('bar selection: |cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a|cdefg" fooIndex={3} barIndex={4} />);
+      expect(Scheduler).toFlushAndYield(['Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a|c'),
+        span('bar selection: efg'),
+      ]);
+
+      ReactNoop.render(<App string="a|c-efg" fooIndex={3} barIndex={4} />);
+      expect(Scheduler).toFlushAndYield([]);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a|c'),
+        span('bar selection: efg'),
+      ]);
+    });
+  });
+
   describe('Context.Consumer', () => {
     it('warns if child is not a function', () => {
       spyOnDev(console, 'error');
