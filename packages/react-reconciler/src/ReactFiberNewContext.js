@@ -272,6 +272,89 @@ function scheduleWorkOnParentPath(
   }
 }
 
+export function updateFromContextDependencies(
+  fiber: Fiber,
+  renderExpirationTime: ExpirationTime,
+): boolean {
+  if (enableIncrementalUnifiedContextPropagation) {
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'updating from context dependencies of ',
+        fiber.childExpirationTime,
+        fiber.expirationTime,
+        getComponentName(fiber.type),
+      );
+    }
+
+    let alternate = fiber.alternate;
+
+    // mark fiber propagationSigil
+    fiber.propagationSigil = propagationSigil;
+    if (alternate !== null) {
+      alternate.propagationSigil = propagationSigil;
+    }
+
+    const list = fiber.contextDependencies;
+    if (list != null) {
+      let dependency = list.first;
+      while (dependency !== null) {
+        // Check if dependency bits have changed for context
+        let context = dependency.context;
+        let observedBits = dependency.observedBits;
+        if ((observedBits & context._currentChangedBits) !== 0) {
+          let requiresUpdate = true;
+
+          let selector = dependency.selector;
+          if (typeof selector === 'function') {
+            let [, isNew] = selector(
+              isPrimaryRenderer
+                ? context._currentValue
+                : context._currentValue2,
+            );
+            requiresUpdate = isNew;
+          }
+
+          if (requiresUpdate) {
+            if (fiber.tag === ClassComponent) {
+              // Schedule a force update on the work-in-progress.
+              const update = createUpdate(renderExpirationTime);
+              update.tag = ForceUpdate;
+              // TODO: Because we don't have a work-in-progress, this will add the
+              // update to the current fiber, too, which means it will persist even if
+              // this render is thrown away. Since it's a race condition, not sure it's
+              // worth fixing.
+              enqueueUpdate(fiber, update);
+            }
+
+            if (fiber.expirationTime < renderExpirationTime) {
+              fiber.expirationTime = renderExpirationTime;
+            }
+            if (
+              alternate !== null &&
+              alternate.expirationTime < renderExpirationTime
+            ) {
+              alternate.expirationTime = renderExpirationTime;
+            }
+
+            scheduleWorkOnParentPath(fiber.return, renderExpirationTime);
+
+            // Mark the expiration time on the list, too.
+            if (list.expirationTime < renderExpirationTime) {
+              list.expirationTime = renderExpirationTime;
+            }
+
+            // Since we already found a match, we can stop traversing the
+            // dependency list.
+            return true;
+          }
+        }
+        dependency = dependency.next;
+      }
+    }
+  }
+  return false;
+}
+
 export function continueAllContextPropagations(
   workInProgress: Fiber,
   renderExpirationTime: ExpirationTime,
@@ -315,7 +398,7 @@ export function propagateContexts(
 ): void {
   if (__DEV__ && traceContextPropagation) {
     console.log(
-      'propagateContexts propagationHasChangedBits',
+      'propagateContexts, propagationHasChangedBits',
       propagationHasChangedBits,
     );
   }
@@ -333,91 +416,32 @@ export function propagateContexts(
 
     let alternate = fiber.alternate;
 
-    // mark fiber propagationSigil
-    fiber.propagationSigil = propagationSigil;
-    if (alternate !== null) {
-      alternate.propagationSigil = propagationSigil;
+    // Visit this fiber
+    let didUpdateFromContext = updateFromContextDependencies(
+      fiber,
+      renderExpirationTime,
+    );
+
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'propagateContexts, didUpdateFromContext',
+        didUpdateFromContext,
+        getComponentName(fiber.type),
+      );
     }
 
-    // Visit this fiber.
-    const list = fiber.contextDependencies;
-    if (list !== null) {
-      nextFiber = fiber.child;
-
-      let dependency = list.first;
-      while (dependency !== null) {
-        // Check if dependency bits have changed for context
-        let context = dependency.context;
-        let observedBits = dependency.observedBits;
-        if ((observedBits & context._currentChangedBits) !== 0) {
-          let requiresUpdate = true;
-
-          let selector = dependency.selector;
-          if (typeof selector === 'function') {
-            let [, isNew] = selector(
-              isPrimaryRenderer
-                ? context._currentValue
-                : context._currentValue2,
-            );
-            requiresUpdate = isNew;
-          }
-
-          if (requiresUpdate) {
-            // Match! Schedule an update on this fiber.
-
-            if (fiber.tag === ClassComponent) {
-              // Schedule a force update on the work-in-progress.
-              const update = createUpdate(renderExpirationTime);
-              update.tag = ForceUpdate;
-              // TODO: Because we don't have a work-in-progress, this will add the
-              // update to the current fiber, too, which means it will persist even if
-              // this render is thrown away. Since it's a race condition, not sure it's
-              // worth fixing.
-              enqueueUpdate(fiber, update);
-            }
-
-            if (fiber.expirationTime < renderExpirationTime) {
-              fiber.expirationTime = renderExpirationTime;
-            }
-            if (
-              alternate !== null &&
-              alternate.expirationTime < renderExpirationTime
-            ) {
-              alternate.expirationTime = renderExpirationTime;
-            }
-
-            scheduleWorkOnParentPath(fiber.return, renderExpirationTime);
-
-            // Mark the expiration time on the list, too.
-            if (list.expirationTime < renderExpirationTime) {
-              list.expirationTime = renderExpirationTime;
-            }
-
-            // Since we already found a match, we can stop traversing the
-            // dependency list.
-            // we can also stop traversing down and simply move on to fiber siblings
-            if (__DEV__ && traceContextPropagation) {
-              console.log(
-                'found match, bailing out of context propagation for this child tree',
-                getComponentName(fiber.type),
-                fiber.propagationSigil === propagationSigil,
-              );
-            }
-            nextFiber = null;
-            break;
-          }
-        }
-        dependency = dependency.next;
-      }
+    if (didUpdateFromContext) {
+      // fiber required work based on it's context dependencies. do not go deeper
+      nextFiber = null;
     } else if (
       fiber.expirationTime >= renderExpirationTime ||
-      (alternate !== null && alternate.expirationTime >= renderExpirationTime)
+      fiber.childExpirationTime >= renderExpirationTime
     ) {
-      // this fiber is already scheduled for work.
+      // this fiber or a descendent are already scheduled for work.
       // on to siblings
       if (__DEV__ && traceContextPropagation) {
         console.log(
-          'fiber scheduled for work, bailing out of context propagation for this child tree',
+          'propagateContexts, fiber scheduled for work, bailing out of context propagation for this child tree',
           getComponentName(fiber.type),
         );
       }

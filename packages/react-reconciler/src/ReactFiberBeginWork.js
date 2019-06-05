@@ -121,13 +121,13 @@ import {
 } from './ReactFiberSuspenseContext';
 import {
   pushProvider,
-  clearContextPropagationMarks,
   propagateContextFromProvider,
   continueAllContextPropagations,
   readContext,
   prepareToReadContext,
   calculateChangedBits,
   requiresPropagation,
+  updateFromContextDependencies,
 } from './ReactFiberNewContext';
 import {resetHooks, renderWithHooks, bailoutHooks} from './ReactFiberHooks';
 import {stopProfilerTimerIfRunning} from './ReactProfilerTimer';
@@ -364,6 +364,12 @@ function updateMemoComponent(
       // SimpleMemoComponent codepath doesn't resolve outer props either.
       Component.defaultProps === undefined
     ) {
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'updateMemoComponent: converting to a SimpleMemoComponent',
+          getComponentName(workInProgress.type),
+        );
+      }
       // If this is a plain function component without default props,
       // and with only the default shallow comparison, we upgrade it
       // to a SimpleMemoComponent to allow fast path updates.
@@ -432,12 +438,24 @@ function updateMemoComponent(
     let compare = Component.compare;
     compare = compare !== null ? compare : shallowEqual;
     if (compare(prevProps, nextProps) && current.ref === workInProgress.ref) {
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'updateMemoComponent: bailing out of render becasue everythign is the same',
+          getComponentName(workInProgress.type),
+        );
+      }
       return bailoutOnAlreadyFinishedWork(
         current,
         workInProgress,
         renderExpirationTime,
       );
     }
+  }
+  if (__DEV__ && traceContextPropagation) {
+    console.log(
+      'updateMemoComponent: returning child',
+      getComponentName(workInProgress.type),
+    );
   }
   // React DevTools reads this flag.
   workInProgress.effectTag |= PerformedWork;
@@ -488,21 +506,80 @@ function updateSimpleMemoComponent(
       // Inner propTypes will be validated in the function component path.
     }
   }
+
   if (current !== null) {
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'updateSimpleMemoComponent: work in progress has a current',
+        getComponentName(current.type),
+        getComponentName(workInProgress.type),
+      );
+    }
     const prevProps = current.memoizedProps;
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'updateSimpleMemoComponent: shallow equal props?',
+        prevProps,
+        nextProps,
+        shallowEqual(prevProps, nextProps),
+        getComponentName(workInProgress.type),
+      );
+    }
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'updateSimpleMemoComponent: refs equal?',
+        current.ref,
+        workInProgress.ref,
+        current.ref === workInProgress.ref,
+        getComponentName(workInProgress.type),
+      );
+    }
     if (
       shallowEqual(prevProps, nextProps) &&
       current.ref === workInProgress.ref
     ) {
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'updateSimpleMemoComponent: prev and next props were shallow equal and refs were identical',
+          getComponentName(workInProgress.type),
+        );
+      }
       didReceiveUpdate = false;
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'updateSimpleMemoComponent: updateExpirationTime < renderExpirationTime',
+          updateExpirationTime,
+          renderExpirationTime,
+          updateExpirationTime < renderExpirationTime,
+          getComponentName(workInProgress.type),
+        );
+      }
       if (updateExpirationTime < renderExpirationTime) {
+        if (__DEV__ && traceContextPropagation) {
+          console.log(
+            'updateSimpleMemoComponent: bailing out of update b/c props are shallow equal',
+            getComponentName(workInProgress.type),
+          );
+        }
         return bailoutOnAlreadyFinishedWork(
           current,
           workInProgress,
           renderExpirationTime,
         );
       }
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'updateSimpleMemoComponent: update priority high enough, doing regular update component',
+          getComponentName(workInProgress.type),
+        );
+      }
     }
+  }
+  if (__DEV__ && traceContextPropagation) {
+    console.log(
+      'updateSimpleMemoComponent: moving on to updateFunctionComponent',
+      getComponentName(workInProgress.type),
+    );
   }
   return updateFunctionComponent(
     current,
@@ -596,6 +673,14 @@ function updateFunctionComponent(
       }
     }
   }
+  if (__DEV__ && traceContextPropagation) {
+    console.log(
+      'updateFunctionComponent: begin',
+      current !== null,
+      !didReceiveUpdate,
+      getComponentName(workInProgress.type),
+    );
+  }
 
   const unmaskedContext = getUnmaskedContext(workInProgress, Component, true);
   const context = getMaskedContext(workInProgress, unmaskedContext);
@@ -629,6 +714,15 @@ function updateFunctionComponent(
           renderExpirationTime,
         );
       }
+
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'updateFunctionComponent: after render with hooks',
+          current !== null,
+          !didReceiveUpdate,
+          getComponentName(workInProgress.type),
+        );
+      }
     }
     setCurrentPhase(null);
   } else {
@@ -643,6 +737,14 @@ function updateFunctionComponent(
   }
 
   if (current !== null && !didReceiveUpdate) {
+    if (__DEV__ && traceContextPropagation) {
+      console.log(
+        'updateFunctionComponent: bailing out of update',
+        current !== null,
+        !didReceiveUpdate,
+        getComponentName(workInProgress.type),
+      );
+    }
     bailoutHooks(current, workInProgress, renderExpirationTime);
     return bailoutOnAlreadyFinishedWork(
       current,
@@ -659,6 +761,14 @@ function updateFunctionComponent(
     nextChildren,
     renderExpirationTime,
   );
+  if (__DEV__ && traceContextPropagation) {
+    console.log(
+      'updateFunctionComponent: returning a regular child after reconciliation',
+      current !== null,
+      !didReceiveUpdate,
+      getComponentName(workInProgress.type),
+    );
+  }
   return workInProgress.child;
 }
 
@@ -1946,7 +2056,9 @@ function updateContextProvider(
         !hasLegacyContextChanged()
       ) {
         if (__DEV__ && traceContextPropagation) {
-          console.log('bailing out b/c children are same and changedBits is 0');
+          console.log(
+            'updateContextProvider: bailing out b/c children are same and changedBits is 0',
+          );
         }
         return bailoutOnAlreadyFinishedWork(
           current,
@@ -1958,7 +2070,9 @@ function updateContextProvider(
       // The context value changed. Search for matching consumers and schedule
       // them to update.
       if (__DEV__ && traceContextPropagation) {
-        console.log('in branch where we may propagate context');
+        console.log(
+          'updateContextProvider: in branch where we may propagate context',
+        );
       }
       propagateContextFromProvider(
         workInProgress,
@@ -1971,13 +2085,6 @@ function updateContextProvider(
 
   const newChildren = newProps.children;
   reconcileChildren(current, workInProgress, newChildren, renderExpirationTime);
-  if (__DEV__ && traceContextPropagation) {
-    console.log(
-      'updateContextProvider is going to return child',
-      workInProgress.child && getComponentName(workInProgress.child.type),
-    );
-  }
-
   return workInProgress.child;
 }
 
@@ -2106,30 +2213,6 @@ function bailoutOnAlreadyFinishedWork(
 ): Fiber | null {
   cancelWorkTimer(workInProgress);
 
-  // If propagate all context changes to lazily schedule new work before deteriming
-  // if we can bail out
-  // console.log('continuing context propagation during bailout');
-  if (enableIncrementalUnifiedContextPropagation) {
-    let child = workInProgress.child;
-    if (child !== null) {
-      if (requiresPropagation(child)) {
-        if (__DEV__ && traceContextPropagation) {
-          console.log(
-            'Continuing all context propagations because child was NOT visited by propagator',
-            renderExpirationTime,
-          );
-        }
-        // child fiber has not had contexts propagated yet. continue propagation
-        continueAllContextPropagations(workInProgress, renderExpirationTime);
-      } else if (__DEV__ && traceContextPropagation) {
-        console.log(
-          'NOT continuing all context propagations because child was already visited by propagator',
-          renderExpirationTime,
-        );
-      }
-    }
-  }
-
   if (current !== null) {
     // Reuse previous context list
     workInProgress.contextDependencies = current.contextDependencies;
@@ -2138,6 +2221,28 @@ function bailoutOnAlreadyFinishedWork(
   if (enableProfilerTimer) {
     // Don't update "base" render times for bailouts.
     stopProfilerTimerIfRunning(workInProgress);
+  }
+
+  if (
+    enableIncrementalUnifiedContextPropagation &&
+    workInProgress.childExpirationTime < renderExpirationTime
+  ) {
+    if (requiresPropagation(workInProgress.child)) {
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'Continuing all context propagations because now children work scheduled and we are bailing out otherwise',
+          renderExpirationTime,
+        );
+      }
+      continueAllContextPropagations(workInProgress, renderExpirationTime);
+    } else {
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'NOT Continuing all context propagations because this child was propagated to already and no additional child work is scheduled',
+          renderExpirationTime,
+        );
+      }
+    }
   }
 
   // Check if the children have any pending work.
@@ -2160,18 +2265,68 @@ function beginWork(
   workInProgress: Fiber,
   renderExpirationTime: ExpirationTime,
 ): Fiber | null {
-  const updateExpirationTime = workInProgress.expirationTime;
+  let updateExpirationTime = workInProgress.expirationTime;
+
+  if (__DEV__ && traceContextPropagation) {
+    console.log(
+      'beginWork, beginning work on',
+      getComponentName(workInProgress.type),
+    );
+  }
 
   if (current !== null) {
+    if (enableIncrementalUnifiedContextPropagation) {
+      if (updateExpirationTime < renderExpirationTime) {
+        if (__DEV__ && traceContextPropagation) {
+          console.log(
+            'beginWork, updateExpirationTime too low, checking if fiber has changed context dependencies',
+            getComponentName(workInProgress.type),
+          );
+        }
+        if (requiresPropagation(workInProgress)) {
+          didReceiveUpdate = updateFromContextDependencies(
+            workInProgress,
+            renderExpirationTime,
+          );
+        }
+        if (didReceiveUpdate === true) {
+          if (__DEV__ && traceContextPropagation) {
+            console.log(
+              'beginWork, context updates required this fiber to be updated',
+              getComponentName(workInProgress.type),
+            );
+          }
+        }
+        // reset local expiration time because it could have changed due to context dependencies
+        updateExpirationTime = workInProgress.expirationTime;
+      }
+    }
     const oldProps = current.memoizedProps;
     const newProps = workInProgress.pendingProps;
+    const legacyContextHasChanged = hasLegacyContextChanged();
 
-    if (oldProps !== newProps || hasLegacyContextChanged()) {
+    if (oldProps !== newProps || legacyContextHasChanged) {
       // If props or context changed, mark the fiber as having performed work.
       // This may be unset if the props are determined to be equal later (memo).
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'beginWork, old and new props are different',
+          oldProps !== newProps,
+          legacyContextHasChanged,
+          getComponentName(workInProgress.type),
+          oldProps,
+          newProps,
+        );
+      }
       didReceiveUpdate = true;
     } else if (updateExpirationTime < renderExpirationTime) {
       didReceiveUpdate = false;
+      if (__DEV__ && traceContextPropagation) {
+        console.log(
+          'beginWork, bailing out on',
+          getComponentName(workInProgress.type),
+        );
+      }
       // This fiber does not have any pending work. Bailout without entering
       // the begin phase. There's still some bookkeeping we that needs to be done
       // in this optimized path, mostly pushing stuff onto the stack.
@@ -2290,8 +2445,11 @@ function beginWork(
   } else {
     didReceiveUpdate = false;
   }
-  if (__DEV__ && traceContextPropagation) {
-    console.log('beginning work on', getComponentName(workInProgress.type));
+  if (__DEV__ && traceContextPropagation && didReceiveUpdate) {
+    console.log(
+      'beginWork, received update on',
+      getComponentName(workInProgress.type),
+    );
   }
 
   // Before entering the begin phase, clear the expiration time.

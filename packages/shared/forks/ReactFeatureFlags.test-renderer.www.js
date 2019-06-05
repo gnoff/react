@@ -27,6 +27,8 @@ export const disableJavaScriptURLs = false;
 export const disableYielding = false;
 export const enableEventAPI = true;
 export const enableJSXTransformAPI = true;
+export const enableIncrementalUnifiedContextPropagation = false;
+export const traceContextPropagation = false;
 
 // Only used in www builds.
 export function addUserTimingListener() {
