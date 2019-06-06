@@ -121,7 +121,7 @@ import {
 import {
   pushProvider,
   propagateContextChange,
-  continueAllContextPropagations,
+  propagateContexts,
   readContext,
   prepareToReadContext,
   calculateChangedBits,
@@ -2107,7 +2107,7 @@ function bailoutOnAlreadyFinishedWork(
     // to them first in case more work is required
     let child = workInProgress.child;
     if (child && child.propagationSigil !== currentPropagationSigil()) {
-      continueAllContextPropagations(workInProgress, renderExpirationTime);
+      propagateContexts(workInProgress, renderExpirationTime);
     }
   }
 
