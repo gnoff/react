@@ -57,7 +57,7 @@ import {
   enableProfilerTimer,
   enableSuspenseServerRenderer,
   enableEventAPI,
-  enableIncrementalUnifiedContextPropagation,
+  enableLazyContextPropagationAndUseContextSelector,
 } from 'shared/ReactFeatureFlags';
 import invariant from 'shared/invariant';
 import shallowEqual from 'shared/shallowEqual';
@@ -1950,7 +1950,7 @@ function updateContextProvider(
           renderExpirationTime,
         );
       }
-    } else if (!enableIncrementalUnifiedContextPropagation) {
+    } else if (!enableLazyContextPropagationAndUseContextSelector) {
       // The context value changed. Search for matching consumers and schedule
       // only propagateContextValue when not using the unified propagation flag
       propagateContextChange(
@@ -2100,7 +2100,7 @@ function bailoutOnAlreadyFinishedWork(
   }
 
   if (
-    enableIncrementalUnifiedContextPropagation &&
+    enableLazyContextPropagationAndUseContextSelector &&
     workInProgress.childExpirationTime < renderExpirationTime
   ) {
     // if we are otherwise going to skip children, propagate context changes
@@ -2133,7 +2133,7 @@ function beginWork(
   let updateExpirationTime = workInProgress.expirationTime;
 
   if (current !== null) {
-    if (enableIncrementalUnifiedContextPropagation) {
+    if (enableLazyContextPropagationAndUseContextSelector) {
       // if this workInProgress does not have sufficient update priority and it
       // hasn't had context values propagated to it already, check context
       // dependencies before determining how to handle this fiber

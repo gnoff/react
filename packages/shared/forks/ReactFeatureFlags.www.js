@@ -40,8 +40,7 @@ export const enableSuspenseServerRenderer = true;
 
 export const disableJavaScriptURLs = true;
 
-export const enableIncrementalUnifiedContextPropagation = true;
-export const traceContextPropagation = false;
+export const enableLazyContextPropagationAndUseContextSelector = true;
 
 let refCount = 0;
 export function addUserTimingListener() {

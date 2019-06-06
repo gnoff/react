@@ -45,7 +45,7 @@ import {NoWork} from './ReactFiberExpirationTime';
 import {markWorkInProgressReceivedUpdate} from './ReactFiberBeginWork';
 import {
   enableSuspenseServerRenderer,
-  enableIncrementalUnifiedContextPropagation,
+  enableLazyContextPropagationAndUseContextSelector,
 } from 'shared/ReactFeatureFlags';
 
 const valueCursor: StackCursor<mixed> = createCursor(null);
@@ -112,7 +112,7 @@ export function pushProvider<T>(
 ): void {
   const context: ReactContext<T> = providerFiber.type._context;
 
-  if (enableIncrementalUnifiedContextPropagation) {
+  if (enableLazyContextPropagationAndUseContextSelector) {
     // put the context in the set of contexts for use in computing whether
     // changedBits exist for current suite of contexts
     contextSet.add(context);
@@ -181,7 +181,7 @@ export function popProvider(providerFiber: Fiber): void {
     context._currentValue2 = currentValue;
   }
 
-  if (enableIncrementalUnifiedContextPropagation) {
+  if (enableLazyContextPropagationAndUseContextSelector) {
     // restore previous propagationSigil
     propagationSigil = valueCursor.current;
     pop(valueCursor, providerFiber);
@@ -257,7 +257,7 @@ export function updateFromContextDependencies(
   fiber: Fiber,
   renderExpirationTime: ExpirationTime,
 ): boolean {
-  if (enableIncrementalUnifiedContextPropagation) {
+  if (enableLazyContextPropagationAndUseContextSelector) {
     let alternate = fiber.alternate;
 
     // mark fiber propagationSigil

@@ -29,8 +29,7 @@ export const enableSchedulerDebugging = false;
 export const warnAboutDeprecatedSetNativeProps = false;
 export const enableEventAPI = false;
 export const enableJSXTransformAPI = false;
-export const enableIncrementalUnifiedContextPropagation = true;
-export const traceContextPropagation = false;
+export const enableLazyContextPropagationAndUseContextSelector = true;
 
 // Only used in www builds.
 export function addUserTimingListener() {

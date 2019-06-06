@@ -32,8 +32,7 @@ export const warnAboutDeprecatedLifecycles = true;
 export const warnAboutDeprecatedSetNativeProps = true;
 export const enableEventAPI = false;
 export const enableJSXTransformAPI = false;
-export const enableIncrementalUnifiedContextPropagation = false;
-export const traceContextPropagation = false;
+export const enableLazyContextPropagationAndUseContextSelector = false;
 
 // Only used in www builds.
 export function addUserTimingListener() {

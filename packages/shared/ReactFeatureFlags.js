@@ -69,10 +69,5 @@ export const enableEventAPI = false;
 export const enableJSXTransformAPI = false;
 
 // Alternate Context Propagation algorithm, variation that propagates all contexts together
-export const enableIncrementalUnifiedContextPropagation = true;
-
-// tracing flag for Context Propagation for debugging
-export const traceContextPropagation = false;
-
-// tracing flag for Context Propagation for debugging (time of exectuion)
-export const traceContextPropagationExecution = true;
+// also includes new useContextSelector hook
+export const enableLazyContextPropagationAndUseContextSelector = true;
