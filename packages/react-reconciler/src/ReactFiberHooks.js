@@ -14,7 +14,6 @@ import type {ExpirationTime} from './ReactFiberExpirationTime';
 import type {HookEffectTag} from './ReactHookEffectTags';
 
 import ReactSharedInternals from 'shared/ReactSharedInternals';
-import {traceContextPropagation} from 'shared/ReactFeatureFlags';
 
 import {NoWork} from './ReactFiberExpirationTime';
 import {readContext, selectFromContext} from './ReactFiberNewContext';
@@ -61,6 +60,7 @@ export type Dispatcher = {
     context: ReactContext<T>,
     observedBits: void | number | boolean,
   ): T,
+  useContextSelector<T, S>(context: ReactContext<T>, selector: (T) => S): S,
   useRef<T>(initialValue: T): {current: T},
   useEffect(
     create: () => (() => void) | void,
@@ -583,38 +583,27 @@ function updateWorkInProgressHook(): Hook {
   return workInProgressHook;
 }
 
-function makeSelect<T, S>(context: ReactContext<T>, selector: T => S) {
+function makeSelect<T, S>(
+  context: ReactContext<T>,
+  selector: T => S,
+): (T, (T) => S) => [S, boolean] {
+  // close over memoized value and selection
   let previousValue, previousSelection;
-  // if (__DEV__ && traceContextPropagation) {
-  //   console.log('makeSelect, making a new select function');
-  // }
+
+  // select function will return a tuple of the selection as well as whether
+  // the selection was a new value or not
   return function select(value: T) {
     let selection = previousSelection;
     let isNew = false;
-    if (value !== previousValue) {
-      // if (__DEV__ && traceContextPropagation) {
-      //   console.log(
-      //     'select, previous previousValue and Value are different. going to run select function',
-      //     previousValue,
-      //     value,
-      //   );
-      // }
+
+    // don't recompute if values are the same
+    if (!is(value, previousValue)) {
       selection = selector(value);
       if (!is(selection, previousSelection)) {
-        // if (__DEV__ && traceContextPropagation) {
-        //   console.log(
-        //     'select, previousSelection is different than this selection',
-        //     previousSelection,
-        //     selection,
-        //   );
-        // }
         // if same we can still consider the selection memoized since the selected values are identical
         isNew = true;
       }
     }
-    // if (__DEV__ && traceContextPropagation) {
-    //   console.log('select, select results', selection, isNew);
-    // }
     previousValue = value;
     previousSelection = selection;
     return [selection, isNew];
@@ -625,9 +614,6 @@ function mountContextSelector<T, S>(
   context: ReactContext<T>,
   selector: T => S,
 ): S {
-  // if (__DEV__ && traceContextPropagation) {
-  //   console.log('mountContextSelector');
-  // }
   const hook = mountWorkInProgressHook();
   let select = makeSelect(context, selector);
   let [selection] = selectFromContext(context, select);
@@ -639,13 +625,12 @@ function updateContextSelector<T, S>(
   context: ReactContext<T>,
   selector: T => S,
 ): S {
-  // if (__DEV__ && traceContextPropagation) {
-  //   console.log('updateContextSelector');
-  // }
   const hook = updateWorkInProgressHook();
   let [previousContext, previousSelector, previousSelect] = hook.memoizedState;
 
   if (context !== previousContext || selector !== previousSelector) {
+    // context and or selector have changed. we need to discard memoizedState
+    // and recreate our select function
     let select = makeSelect(context, selector);
     let [selection] = selectFromContext(context, select);
     hook.memoizedState = [context, selector, select];
@@ -1128,17 +1113,6 @@ function updateMemo<T>(
   const nextValue = nextCreate();
   hook.memoizedState = [nextValue, nextDeps];
   return nextValue;
-}
-
-function readSelectionFromContext<T, S>(selector: T => S, value: T) {
-  if (__DEV__) {
-    warning(
-      arguments.length <= 3,
-      "State updates from the useState() and useReducer() Hooks don't support the " +
-        'second callback argument. To execute a side effect after ' +
-        'rendering, declare it in the component body with useEffect().',
-    );
-  }
 }
 
 function dispatchAction<S, A>(

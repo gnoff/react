@@ -2103,6 +2103,8 @@ function bailoutOnAlreadyFinishedWork(
     enableIncrementalUnifiedContextPropagation &&
     workInProgress.childExpirationTime < renderExpirationTime
   ) {
+    // if we are otherwise going to skip children, propagate context changes
+    // to them first in case more work is required
     let child = workInProgress.child;
     if (child && child.propagationSigil !== currentPropagationSigil()) {
       continueAllContextPropagations(workInProgress, renderExpirationTime);
@@ -2132,14 +2134,14 @@ function beginWork(
 
   if (current !== null) {
     if (enableIncrementalUnifiedContextPropagation) {
+      // if this workInProgress does not have sufficient update priority and it
+      // hasn't had context values propagated to it already, check context
+      // dependencies before determining how to handle this fiber
       if (
         updateExpirationTime < renderExpirationTime &&
         workInProgress.propagationSigil !== currentPropagationSigil()
       ) {
-        didReceiveUpdate = updateFromContextDependencies(
-          workInProgress,
-          renderExpirationTime,
-        );
+        updateFromContextDependencies(workInProgress, renderExpirationTime);
         // reset local expiration time because it could have changed due to context dependencies
         updateExpirationTime = workInProgress.expirationTime;
       }
@@ -2147,9 +2149,8 @@ function beginWork(
 
     const oldProps = current.memoizedProps;
     const newProps = workInProgress.pendingProps;
-    const legacyContextHasChanged = hasLegacyContextChanged();
 
-    if (oldProps !== newProps || legacyContextHasChanged) {
+    if (oldProps !== newProps || hasLegacyContextChanged()) {
       // If props or context changed, mark the fiber as having performed work.
       // This may be unset if the props are determined to be equal later (memo).
       didReceiveUpdate = true;
