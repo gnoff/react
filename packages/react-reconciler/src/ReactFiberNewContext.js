@@ -48,6 +48,7 @@ import {
   enableSuspenseServerRenderer,
   enableIncrementalUnifiedContextPropagation,
   traceContextPropagation,
+  traceContextPropagationExecution,
 } from 'shared/ReactFeatureFlags';
 
 const valueCursor: StackCursor<mixed> = createCursor(null);
@@ -87,25 +88,57 @@ export function exitDisallowedContextReadInDEV(): void {
   }
 }
 
+// let propagationTotalCount = 0;
+// let propagationTotalTime = 0;
+// let startTimes = [];
+
+// window.getExecutionReport = () => {
+//   console.log('propagationTotalCount', propagationTotalCount);
+//   console.log('propagationTotalTime', propagationTotalTime);
+// };
+//
+// const startExecutionTimer = !traceContextPropagationExecution
+//   ? () => {}
+//   : () => {
+//       startTimes.push(performance.now());
+//       propagationTotalCount++;
+//     };
+//
+// const stopExecutionTimer = !traceContextPropagationExecution
+//   ? () => {}
+//   : () => {
+//       let previousTime = startTimes.pop();
+//       if (startTimes.length === 0 && previousTime != null) {
+//         propagationTotalTime += performance.now() - previousTime;
+//       }
+//     };
+
 let contextSet: Set<ReactContext<mixed>> = new Set();
 let propagationSigil = null;
 let propagationHasChangedBits = false;
 
 export function requiresPropagation(fiber: Fiber | null): boolean {
-  if (fiber !== null) {
-    if (__DEV__ && traceContextPropagation) {
-      if (fiber.propagationSigil === propagationSigil) {
-        console.log(
-          'fiber does not require propagation',
-          getComponentName(fiber.type),
-        );
-      } else {
-        console.log('fiber requires propagation', getComponentName(fiber.type));
-      }
-    }
-    return fiber.propagationSigil !== propagationSigil;
+  // startExecutionTimer();
+  if (fiber !== null && fiber.propagationSigil !== propagationSigil) {
+    // if (__DEV__ && traceContextPropagation) {
+    //   if (fiber.propagationSigil === propagationSigil) {
+    //     console.log(
+    //       'fiber does not require propagation',
+    //       getComponentName(fiber.type),
+    //     );
+    //   } else {
+    //     console.log('fiber requires propagation', getComponentName(fiber.type));
+    //   }
+    // }
+    // stopExecutionTimer();
+    return true;
   }
+  // stopExecutionTimer();
   return false;
+}
+
+export function currentPropagationSigil(): mixed {
+  return propagationSigil;
 }
 
 export function pushProvider<T>(
@@ -116,9 +149,9 @@ export function pushProvider<T>(
   const context: ReactContext<T> = providerFiber.type._context;
 
   if (enableIncrementalUnifiedContextPropagation) {
-    if (__DEV__ && traceContextPropagation) {
-      console.log('pushing Provider with nextChangedBits', nextChangedBits);
-    }
+    // if (__DEV__ && traceContextPropagation) {
+    //   console.log('pushing Provider with nextChangedBits', nextChangedBits);
+    // }
 
     contextSet.add(context);
 
@@ -277,14 +310,14 @@ export function updateFromContextDependencies(
   renderExpirationTime: ExpirationTime,
 ): boolean {
   if (enableIncrementalUnifiedContextPropagation) {
-    if (__DEV__ && traceContextPropagation) {
-      console.log(
-        'updating from context dependencies of ',
-        fiber.childExpirationTime,
-        fiber.expirationTime,
-        getComponentName(fiber.type),
-      );
-    }
+    // if (__DEV__ && traceContextPropagation) {
+    //   console.log(
+    //     'updating from context dependencies of ',
+    //     fiber.childExpirationTime,
+    //     fiber.expirationTime,
+    //     getComponentName(fiber.type),
+    //   );
+    // }
 
     let alternate = fiber.alternate;
 
@@ -360,11 +393,11 @@ export function continueAllContextPropagations(
   renderExpirationTime: ExpirationTime,
 ): boolean {
   if (enableIncrementalUnifiedContextPropagation) {
-    if (__DEV__ && traceContextPropagation) {
-      console.log(
-        'continueAllContextPropagations, propagating all contexts together',
-      );
-    }
+    // if (__DEV__ && traceContextPropagation) {
+    //   console.log(
+    //     'continueAllContextPropagations, propagating all contexts together',
+    //   );
+    // }
     propagateContexts(workInProgress, renderExpirationTime);
   }
 }
@@ -376,11 +409,11 @@ export function propagateContextFromProvider(
   renderExpirationTime: ExpirationTime,
 ) {
   if (enableIncrementalUnifiedContextPropagation) {
-    if (__DEV__ && traceContextPropagation) {
-      console.log(
-        'propagateContextFromProvider, propagating all contexts together',
-      );
-    }
+    // if (__DEV__ && traceContextPropagation) {
+    //   console.log(
+    //     'propagateContextFromProvider, propagating all contexts together',
+    //   );
+    // }
     propagateContexts(workInProgress, renderExpirationTime);
   } else {
     propagateContextChange(
@@ -396,12 +429,12 @@ export function propagateContexts(
   workInProgress: Fiber,
   renderExpirationTime: ExpirationTime,
 ): void {
-  if (__DEV__ && traceContextPropagation) {
-    console.log(
-      'propagateContexts, propagationHasChangedBits',
-      propagationHasChangedBits,
-    );
-  }
+  // if (__DEV__ && traceContextPropagation) {
+  //   console.log(
+  //     'propagateContexts, propagationHasChangedBits',
+  //     propagationHasChangedBits,
+  //   );
+  // }
   // no need to propagate if no context values have not changed
   if (propagationHasChangedBits === false) {
     return;
@@ -422,13 +455,13 @@ export function propagateContexts(
       renderExpirationTime,
     );
 
-    if (__DEV__ && traceContextPropagation) {
-      console.log(
-        'propagateContexts, didUpdateFromContext',
-        didUpdateFromContext,
-        getComponentName(fiber.type),
-      );
-    }
+    // if (__DEV__ && traceContextPropagation) {
+    //   console.log(
+    //     'propagateContexts, didUpdateFromContext',
+    //     didUpdateFromContext,
+    //     getComponentName(fiber.type),
+    //   );
+    // }
 
     if (didUpdateFromContext) {
       // fiber required work based on it's context dependencies. do not go deeper
@@ -439,12 +472,12 @@ export function propagateContexts(
     ) {
       // this fiber or a descendent are already scheduled for work.
       // on to siblings
-      if (__DEV__ && traceContextPropagation) {
-        console.log(
-          'propagateContexts, fiber scheduled for work, bailing out of context propagation for this child tree',
-          getComponentName(fiber.type),
-        );
-      }
+      // if (__DEV__ && traceContextPropagation) {
+      //   console.log(
+      //     'propagateContexts, fiber scheduled for work, bailing out of context propagation for this child tree',
+      //     getComponentName(fiber.type),
+      //   );
+      // }
       nextFiber = null;
     } else if (fiber.tag === ContextProvider) {
       // Don't scan deeper since this is a ContextProvider
@@ -460,12 +493,12 @@ export function propagateContexts(
       }
       scheduleWorkOnParentPath(fiber.return, renderExpirationTime);
       // don't go deeper, visit siblings if any
-      if (__DEV__ && traceContextPropagation) {
-        console.log(
-          'fiber is a ContextProvider, scheduling for work and bailing out of context propagation for this child tree',
-          getComponentName(fiber.type),
-        );
-      }
+      // if (__DEV__ && traceContextPropagation) {
+      //   console.log(
+      //     'fiber is a ContextProvider, scheduling for work and bailing out of context propagation for this child tree',
+      //     getComponentName(fiber.type),
+      //   );
+      // }
       nextFiber = null;
     } else if (
       enableSuspenseServerRenderer &&
@@ -644,6 +677,7 @@ export function propagateContextChange(
     }
     fiber = nextFiber;
   }
+  // console.log('local iterations', localIterations);
 }
 
 export function prepareToReadContext(
@@ -745,38 +779,31 @@ export function selectFromContext<T, S>(
     );
   }
 
-  if (typeof select !== 'function') {
-    // Nothing to do. We already observe everything in this context.
-    console.error(
-      'selectFromContext has not implemented support for null selectors',
+  let contextItem = {
+    context: ((context: any): ReactContext<mixed>),
+    observedBits: MAX_SIGNED_31_BIT_INT,
+    selector: select,
+    next: null,
+  };
+
+  if (lastContextDependency === null) {
+    invariant(
+      currentlyRenderingFiber !== null,
+      'Context can only be read while React is rendering. ' +
+        'In classes, you can read it in the render method or getDerivedStateFromProps. ' +
+        'In function components, you can read it directly in the function body, but not ' +
+        'inside Hooks like useReducer() or useMemo().',
     );
-  } else {
-    let contextItem = {
-      context: ((context: any): ReactContext<mixed>),
-      observedBits: MAX_SIGNED_31_BIT_INT,
-      selector: select,
-      next: null,
+
+    // This is the first dependency for this component. Create a new list.
+    lastContextDependency = contextItem;
+    currentlyRenderingFiber.contextDependencies = {
+      first: contextItem,
+      expirationTime: NoWork,
     };
-
-    if (lastContextDependency === null) {
-      invariant(
-        currentlyRenderingFiber !== null,
-        'Context can only be read while React is rendering. ' +
-          'In classes, you can read it in the render method or getDerivedStateFromProps. ' +
-          'In function components, you can read it directly in the function body, but not ' +
-          'inside Hooks like useReducer() or useMemo().',
-      );
-
-      // This is the first dependency for this component. Create a new list.
-      lastContextDependency = contextItem;
-      currentlyRenderingFiber.contextDependencies = {
-        first: contextItem,
-        expirationTime: NoWork,
-      };
-    } else {
-      // Append a new context item.
-      lastContextDependency = lastContextDependency.next = contextItem;
-    }
+  } else {
+    // Append a new context item.
+    lastContextDependency = lastContextDependency.next = contextItem;
   }
   return isPrimaryRenderer
     ? select(context._currentValue)

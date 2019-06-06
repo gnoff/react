@@ -585,36 +585,36 @@ function updateWorkInProgressHook(): Hook {
 
 function makeSelect<T, S>(context: ReactContext<T>, selector: T => S) {
   let previousValue, previousSelection;
-  if (__DEV__ && traceContextPropagation) {
-    console.log('makeSelect, making a new select function');
-  }
+  // if (__DEV__ && traceContextPropagation) {
+  //   console.log('makeSelect, making a new select function');
+  // }
   return function select(value: T) {
     let selection = previousSelection;
     let isNew = false;
     if (value !== previousValue) {
-      if (__DEV__ && traceContextPropagation) {
-        console.log(
-          'select, previous previousValue and Value are different. going to run select function',
-          previousValue,
-          value,
-        );
-      }
+      // if (__DEV__ && traceContextPropagation) {
+      //   console.log(
+      //     'select, previous previousValue and Value are different. going to run select function',
+      //     previousValue,
+      //     value,
+      //   );
+      // }
       selection = selector(value);
       if (!is(selection, previousSelection)) {
-        if (__DEV__ && traceContextPropagation) {
-          console.log(
-            'select, previousSelection is different than this selection',
-            previousSelection,
-            selection,
-          );
-        }
+        // if (__DEV__ && traceContextPropagation) {
+        //   console.log(
+        //     'select, previousSelection is different than this selection',
+        //     previousSelection,
+        //     selection,
+        //   );
+        // }
         // if same we can still consider the selection memoized since the selected values are identical
         isNew = true;
       }
     }
-    if (__DEV__ && traceContextPropagation) {
-      console.log('select, select results', selection, isNew);
-    }
+    // if (__DEV__ && traceContextPropagation) {
+    //   console.log('select, select results', selection, isNew);
+    // }
     previousValue = value;
     previousSelection = selection;
     return [selection, isNew];
@@ -625,9 +625,9 @@ function mountContextSelector<T, S>(
   context: ReactContext<T>,
   selector: T => S,
 ): S {
-  if (__DEV__ && traceContextPropagation) {
-    console.log('mountContextSelector');
-  }
+  // if (__DEV__ && traceContextPropagation) {
+  //   console.log('mountContextSelector');
+  // }
   const hook = mountWorkInProgressHook();
   let select = makeSelect(context, selector);
   let [selection] = selectFromContext(context, select);
@@ -639,9 +639,9 @@ function updateContextSelector<T, S>(
   context: ReactContext<T>,
   selector: T => S,
 ): S {
-  if (__DEV__ && traceContextPropagation) {
-    console.log('updateContextSelector');
-  }
+  // if (__DEV__ && traceContextPropagation) {
+  //   console.log('updateContextSelector');
+  // }
   const hook = updateWorkInProgressHook();
   let [previousContext, previousSelector, previousSelect] = hook.memoizedState;
 

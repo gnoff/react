@@ -1050,30 +1050,15 @@ describe('ReactNewContext', () => {
         ]);
       });
       describe('stress test', () => {
-        it('lots of contexts', () => {
-          function Multiplier(props) {
-            return (
-              <MultiplierContext.Consumer>
-                {({multiplier, depth}) => {
-                  let {Consumer, Context} = getContextAndConsumer(
-                    props.index % depth,
-                  );
-                  return (
-                    <Consumer>
-                      {value => {
-                        return (
-                          <Context.Provider
-                            value={(value * multiplier) % depth}>
-                            {props.children}
-                          </Context.Provider>
-                        );
-                      }}
-                    </Consumer>
-                  );
-                }}
-              </MultiplierContext.Consumer>
-            );
-          }
+        it('controlled lots of contexts', () => {
+          let ContextA = React.createContext(0);
+          let ConsumerA = getConsumer(ContextA);
+
+          let ContextB = React.createContext(0);
+          let ConsumerB = getConsumer(ContextB);
+
+          let ContextC = React.createContext(0);
+          let ConsumerC = getConsumer(ContextC);
 
           class Indirection extends React.Component {
             shouldComponentUpdate() {
@@ -1084,86 +1069,119 @@ describe('ReactNewContext', () => {
             }
           }
 
-          let contextsAndConsumers = [];
+          const Foo = React.memo(({consumer, depth, name, children}) => {
+            let Consumer = consumer;
 
-          function getContextAndConsumer(index) {
-            if (contextsAndConsumers[index]) {
-              return contextsAndConsumers[index];
+            if (typeof depth !== 'number' || depth <= 1) {
+              return (
+                <Consumer>
+                  {value => <Yield name={name} value={value} />}
+                </Consumer>
+              );
+            } else {
+              return (
+                <Indirection>
+                  <Consumer>
+                    {_ => (
+                      <Foo name={name} consumer={consumer} depth={depth - 1}>
+                        {children}
+                      </Foo>
+                    )}
+                  </Consumer>
+                </Indirection>
+              );
             }
-            let Context = React.createContext(index);
-            let Consumer = getConsumer(Context);
-            let pair = {
-              Context,
-              Consumer,
-            };
-            contextsAndConsumers[index] = pair;
-            return pair;
-          }
-
-          let MultiplierContext = React.createContext({
-            multiplier: 2,
-            depth: 2,
           });
 
-          function NextProvider(props) {
-            let depth = props.depth;
-            if (depth > -1) {
-              let {Context} = getContextAndConsumer(depth);
-              return (
-                <Context.Provider value={depth}>
-                  <Indirection>
-                    <NextProvider depth={--depth}>
-                      {props.children}
-                    </NextProvider>
-                  </Indirection>
-                </Context.Provider>
-              );
-            } else {
-              return <Indirection>{props.children}</Indirection>;
-            }
-          }
-
-          function Foo(props) {
-            let depth = props.depth;
-            if (depth > -1) {
-              return (
-                <Multiplier index={props.index}>
-                  <Indirection>
-                    <Foo depth={--depth}>{props.children}</Foo>
-                  </Indirection>
-                </Multiplier>
-              );
-            } else {
-              return <span>finito</span>;
-            }
-          }
+          const Yield = ({name, value}) => {
+            let output = `${name}: ${value}`;
+            Scheduler.yieldValue(output);
+            return <span>{output}</span>;
+          };
 
           function App(props) {
-            let slots = new Array(props.depth).fill(null);
             return (
-              <MultiplierContext.Provider value={props}>
-                <NextProvider depth={props.depth}>
-                  {slots.map((_, i) => (
-                    <Foo key={i} depth={props.depth} index={i} />
-                  ))}
-                </NextProvider>
-              </MultiplierContext.Provider>
+              <ContextA.Provider value={props.a}>
+                <ContextB.Provider value={props.b}>
+                  <ContextC.Provider value={props.c}>
+                    <Foo name="A" consumer={ConsumerA} depth={props.depth} />
+                    <Foo name="B" consumer={ConsumerB} depth={props.depth} />
+                    <Foo name="C" consumer={ConsumerC} depth={props.depth} />
+                  </ContextC.Provider>
+                </ContextB.Provider>
+              </ContextA.Provider>
             );
           }
 
-          for (let i = 0; i < 100; i++) {
-            ReactNoop.render(<App multiplier={2} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={4} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={3} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={5} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={2} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
-            ReactNoop.render(<App multiplier={1} depth={8} />);
-            expect(Scheduler).toFlushAndYield([]);
+          for (let i = 0; i < 25; i++) {
+            // each individually
+            ReactNoop.render(<App a={0} b={0} c={0} depth={10} />);
+            expect(Scheduler).toFlushAndYield(['A: 0', 'B: 0', 'C: 0']);
+            ReactNoop.render(<App a={1} b={0} c={0} depth={20} />);
+            expect(Scheduler).toFlushAndYield(['A: 1']);
+            ReactNoop.render(<App a={1} b={1} c={0} depth={30} />);
+            expect(Scheduler).toFlushAndYield(['B: 1']);
+            ReactNoop.render(<App a={1} b={1} c={1} depth={40} />);
+            expect(Scheduler).toFlushAndYield(['C: 1']);
+            // two at a time
+            ReactNoop.render(<App a={2} b={2} c={1} depth={50} />);
+            expect(Scheduler).toFlushAndYield(['A: 2', 'B: 2']);
+            ReactNoop.render(<App a={2} b={3} c={3} depth={40} />);
+            expect(Scheduler).toFlushAndYield(['B: 3', 'C: 3']);
+            // all at once
+            ReactNoop.render(<App a={4} b={4} c={4} depth={30} />);
+            expect(Scheduler).toFlushAndYield(['A: 4', 'B: 4', 'C: 4']);
+          }
+        });
+        it.only('non-context stress test', () => {
+          const Foo = React.memo(({depth, name, children}) => {
+            if (typeof depth !== 'number' || depth <= 1) {
+              return <Yield name={name} />;
+            } else {
+              return (
+                <Foo name={name} depth={depth - 1}>
+                  {children}
+                </Foo>
+              );
+            }
+          });
+
+          const Yield = ({name}) => {
+            let output = `${name}`;
+            Scheduler.yieldValue(output);
+            return <span>{output}</span>;
+          };
+
+          function App(props) {
+            return (
+              <div>
+                <Foo name="A" depth={props.depth} />
+                <Foo name="B" depth={props.depth} />
+                <Foo name="C" depth={props.depth} />
+              </div>
+            );
+          }
+
+          for (let i = 0; i < 50; i++) {
+            // each individually
+            ReactNoop.render(<App depth={10} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={20} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={30} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={15} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={100} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={64} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={37} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={48} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={12} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
           }
         });
       });

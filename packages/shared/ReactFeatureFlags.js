@@ -73,3 +73,6 @@ export const enableIncrementalUnifiedContextPropagation = true;
 
 // tracing flag for Context Propagation for debugging
 export const traceContextPropagation = false;
+
+// tracing flag for Context Propagation for debugging (time of exectuion)
+export const traceContextPropagationExecution = true;
