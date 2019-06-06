@@ -1133,7 +1133,7 @@ describe('ReactNewContext', () => {
             expect(Scheduler).toFlushAndYield(['A: 4', 'B: 4', 'C: 4']);
           }
         });
-        it.only('non-context stress test', () => {
+        it('non-context stress test', () => {
           const Foo = React.memo(({depth, name, children}) => {
             if (typeof depth !== 'number' || depth <= 1) {
               return <Yield name={name} />;
