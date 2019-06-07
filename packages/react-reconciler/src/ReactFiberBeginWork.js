@@ -2131,15 +2131,18 @@ function canBailout(
   workInProgress: Fiber,
   renderExpirationTime: ExpirationTime,
 ): boolean {
-  if (preventBailout) {
-    return false;
+  if (enableLazyContextPropagationAndUseContextSelector) {
+    if (preventBailout) {
+      return false;
+    }
+    preventBailout = checkContextDependencies(
+      workInProgress,
+      renderExpirationTime,
+    );
+    uncheckedContextOnBailout = false;
+    return !preventBailout;
   }
-  preventBailout = checkContextDependencies(
-    workInProgress,
-    renderExpirationTime,
-  );
-  uncheckedContextOnBailout = false;
-  return !preventBailout;
+  return true;
 }
 
 function bailoutOnAlreadyFinishedWork(
@@ -2149,11 +2152,13 @@ function bailoutOnAlreadyFinishedWork(
 ): Fiber | null {
   cancelWorkTimer(workInProgress);
 
-  invariant(
-    uncheckedContextOnBailout === false,
-    'work bailed out without checking context dependencies. This error is likely caused by a bug in ' +
-      'React. Please file an issue.',
-  );
+  if (enableLazyContextPropagationAndUseContextSelector) {
+    invariant(
+      uncheckedContextOnBailout === false,
+      'work bailed out without checking context dependencies. This error is likely caused by a bug in ' +
+        'React. Please file an issue.',
+    );
+  }
 
   if (current !== null) {
     // Reuse previous context list
