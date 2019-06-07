@@ -127,6 +127,7 @@ import {
   calculateChangedBits,
   currentPropagationSigil,
   updateFromContextDependencies,
+  checkContextDependencies,
 } from './ReactFiberNewContext';
 import {resetHooks, renderWithHooks, bailoutHooks} from './ReactFiberHooks';
 import {stopProfilerTimerIfRunning} from './ReactProfilerTimer';
@@ -169,6 +170,8 @@ import {requestCurrentTime, retryTimedOutBoundary} from './ReactFiberScheduler';
 const ReactCurrentOwner = ReactSharedInternals.ReactCurrentOwner;
 
 let didReceiveUpdate: boolean = false;
+let uncheckedContextOnBailout: boolean = false;
+let preventBailout: boolean = false;
 
 let didWarnAboutBadClass;
 let didWarnAboutModulePatternComponent;
@@ -327,7 +330,13 @@ function updateForwardRef(
     );
   }
 
-  if (current !== null && !didReceiveUpdate) {
+  if (
+    current !== null &&
+    !didReceiveUpdate &&
+    // this check uses context dependencies from the renderWithHooks call which
+    // incorporates nextProps
+    canBailout(workInProgress, renderExpirationTime)
+  ) {
     bailoutHooks(current, workInProgress, renderExpirationTime);
     return bailoutOnAlreadyFinishedWork(
       current,
@@ -430,7 +439,14 @@ function updateMemoComponent(
     // Default to shallow comparison
     let compare = Component.compare;
     compare = compare !== null ? compare : shallowEqual;
-    if (compare(prevProps, nextProps) && current.ref === workInProgress.ref) {
+    if (
+      compare(prevProps, nextProps) &&
+      current.ref === workInProgress.ref &&
+      // this bailout check uses context dependencies from the previous render
+      // since we have not prepareToReadContext yet and have not rendered the
+      // component from workInProgress yet
+      canBailout(workInProgress, renderExpirationTime)
+    ) {
       return bailoutOnAlreadyFinishedWork(
         current,
         workInProgress,
@@ -491,7 +507,11 @@ function updateSimpleMemoComponent(
     const prevProps = current.memoizedProps;
     if (
       shallowEqual(prevProps, nextProps) &&
-      current.ref === workInProgress.ref
+      current.ref === workInProgress.ref &&
+      // this bailout check uses context dependencies from the previous render
+      // since we have not prepareToReadContext yet and have not rendered the
+      // component from workInProgress yet
+      canBailout(workInProgress, renderExpirationTime)
     ) {
       didReceiveUpdate = false;
       if (updateExpirationTime < renderExpirationTime) {
@@ -641,7 +661,15 @@ function updateFunctionComponent(
     );
   }
 
-  if (current !== null && !didReceiveUpdate) {
+  if (
+    current !== null &&
+    !didReceiveUpdate &&
+    // this bailout is using context dependencies from the renderWithHooks call
+    // which incorporates nextProps.
+    // we may be able to skip if we ran the context check in simple memo, forwardRef
+    // or other updaters prior to updateFunctionComponent
+    canBailout(workInProgress, renderExpirationTime)
+  ) {
     bailoutHooks(current, workInProgress, renderExpirationTime);
     return bailoutOnAlreadyFinishedWork(
       current,
@@ -694,6 +722,13 @@ function updateClassComponent(
     pushLegacyContextProvider(workInProgress);
   } else {
     hasContext = false;
+  }
+  if (enableLazyContextPropagationAndUseContextSelector) {
+    // class components cannot use context selectors (Yet) so we can check
+    // dependencies for just this fiber and if needed result in a ForceUpdate
+    // this most closely resembles the old context propagation behahvior
+    updateFromContextDependencies(workInProgress, renderExpirationTime);
+    uncheckedContextOnBailout = false;
   }
   prepareToReadContext(workInProgress, renderExpirationTime);
 
@@ -777,7 +812,7 @@ function finishClassComponent(
 
   const didCaptureError = (workInProgress.effectTag & DidCapture) !== NoEffect;
 
-  if (!shouldUpdate && !didCaptureError) {
+  if (!shouldUpdate && !didCaptureError && !preventBailout) {
     // Context providers should defer to sCU for rendering
     if (hasContext) {
       invalidateContextProvider(workInProgress, Component, false);
@@ -856,7 +891,6 @@ function finishClassComponent(
   if (hasContext) {
     invalidateContextProvider(workInProgress, Component, true);
   }
-
   return workInProgress.child;
 }
 
@@ -898,10 +932,12 @@ function updateHostRoot(current, workInProgress, renderExpirationTime) {
   // Caution: React DevTools currently depends on this property
   // being called "element".
   const nextChildren = nextState.element;
-  if (nextChildren === prevChildren) {
+  if (nextChildren === prevChildren && !preventBailout) {
     // If the state is the same as before, that's a bailout because we had
     // no work that expires at this time.
     resetHydrationState();
+    // @TODO need to understand if we can have an unchecked context bailout here
+    uncheckedContextOnBailout = false;
     return bailoutOnAlreadyFinishedWork(
       current,
       workInProgress,
@@ -1942,8 +1978,12 @@ function updateContextProvider(
       // No change. Bailout early if children are the same.
       if (
         oldProps.children === newProps.children &&
-        !hasLegacyContextChanged()
+        !hasLegacyContextChanged() &&
+        !preventBailout
       ) {
+        // Providers cannot read contexts so we can declare this fiber has checked
+        // context dependencies without actually checking
+        uncheckedContextOnBailout = false;
         return bailoutOnAlreadyFinishedWork(
           current,
           workInProgress,
@@ -2082,12 +2122,38 @@ export function markWorkInProgressReceivedUpdate() {
   didReceiveUpdate = true;
 }
 
+function resetBailout() {
+  preventBailout = false;
+  uncheckedContextOnBailout = true;
+}
+
+function canBailout(
+  workInProgress: Fiber,
+  renderExpirationTime: ExpirationTime,
+): boolean {
+  if (preventBailout) {
+    return false;
+  }
+  preventBailout = checkContextDependencies(
+    workInProgress,
+    renderExpirationTime,
+  );
+  uncheckedContextOnBailout = false;
+  return !preventBailout;
+}
+
 function bailoutOnAlreadyFinishedWork(
   current: Fiber | null,
   workInProgress: Fiber,
   renderExpirationTime: ExpirationTime,
 ): Fiber | null {
   cancelWorkTimer(workInProgress);
+
+  invariant(
+    uncheckedContextOnBailout === false,
+    'work bailed out without checking context dependencies. This error is likely caused by a bug in ' +
+      'React. Please file an issue.',
+  );
 
   if (current !== null) {
     // Reuse previous context list
@@ -2130,23 +2196,12 @@ function beginWork(
   workInProgress: Fiber,
   renderExpirationTime: ExpirationTime,
 ): Fiber | null {
+  // on work start we assume we have not checked contexts before bailout
+  resetBailout();
+
   let updateExpirationTime = workInProgress.expirationTime;
 
   if (current !== null) {
-    if (enableLazyContextPropagationAndUseContextSelector) {
-      // if this workInProgress does not have sufficient update priority and it
-      // hasn't had context values propagated to it already, check context
-      // dependencies before determining how to handle this fiber
-      if (
-        updateExpirationTime < renderExpirationTime &&
-        workInProgress.propagationSigil !== currentPropagationSigil()
-      ) {
-        updateFromContextDependencies(workInProgress, renderExpirationTime);
-        // reset local expiration time because it could have changed due to context dependencies
-        updateExpirationTime = workInProgress.expirationTime;
-      }
-    }
-
     const oldProps = current.memoizedProps;
     const newProps = workInProgress.pendingProps;
 
@@ -2154,7 +2209,10 @@ function beginWork(
       // If props or context changed, mark the fiber as having performed work.
       // This may be unset if the props are determined to be equal later (memo).
       didReceiveUpdate = true;
-    } else if (updateExpirationTime < renderExpirationTime) {
+    } else if (
+      updateExpirationTime < renderExpirationTime &&
+      canBailout(workInProgress, renderExpirationTime)
+    ) {
       didReceiveUpdate = false;
       // This fiber does not have any pending work. Bailout without entering
       // the begin phase. There's still some bookkeeping we that needs to be done
@@ -2182,7 +2240,7 @@ function beginWork(
           break;
         case ContextProvider: {
           const newValue = workInProgress.memoizedProps.value;
-          pushProvider(workInProgress, newValue);
+          pushProvider(workInProgress, newValue, 0);
           break;
         }
         case Profiler:

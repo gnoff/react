@@ -253,6 +253,45 @@ function scheduleWorkOnParentPath(
   }
 }
 
+export function checkContextDependencies(
+  fiber: Fiber,
+  renderExpirationTime: ExpirationTime,
+): boolean {
+  if (
+    enableLazyContextPropagationAndUseContextSelector &&
+    propagationHasChangedBits
+  ) {
+    const list = fiber.contextDependencies;
+    if (list != null) {
+      let dependency = list.first;
+      while (dependency !== null) {
+        // Check if dependency bits have changed for context
+        let context = dependency.context;
+        let observedBits = dependency.observedBits;
+        if ((observedBits & context._currentChangedBits) !== 0) {
+          let requiresUpdate = true;
+
+          let selector = dependency.selector;
+          if (typeof selector === 'function') {
+            let [, isNew] = selector(
+              isPrimaryRenderer
+                ? context._currentValue
+                : context._currentValue2,
+            );
+            requiresUpdate = isNew;
+          }
+
+          if (requiresUpdate) {
+            return true;
+          }
+        }
+        dependency = dependency.next;
+      }
+    }
+  }
+  return false;
+}
+
 export function updateFromContextDependencies(
   fiber: Fiber,
   renderExpirationTime: ExpirationTime,
