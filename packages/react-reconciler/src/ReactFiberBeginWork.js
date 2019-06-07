@@ -2132,14 +2132,17 @@ function canBailout(
   renderExpirationTime: ExpirationTime,
 ): boolean {
   if (enableLazyContextPropagationAndUseContextSelector) {
+    uncheckedContextOnBailout = false;
     if (preventBailout) {
       return false;
+    }
+    if (workInProgress.propagationSigil === currentPropagationSigil()) {
+      return true;
     }
     preventBailout = checkContextDependencies(
       workInProgress,
       renderExpirationTime,
     );
-    uncheckedContextOnBailout = false;
     return !preventBailout;
   }
   return true;
