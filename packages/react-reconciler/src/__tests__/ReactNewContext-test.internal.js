@@ -424,11 +424,11 @@ describe('ReactNewContext', () => {
                     </Consumer>
                   </Provider>
                 </Indirection>
-                {/* <Indirection>
+                <Indirection>
                   <Consumer>
                     {value => <span prop={'Result: ' + value} />}
                   </Consumer>
-                </Indirection> */}
+                </Indirection>
               </Indirection>
             </Provider>
           );
@@ -438,7 +438,7 @@ describe('ReactNewContext', () => {
         expect(Scheduler).toFlushWithoutYielding();
         expect(ReactNoop.getChildren()).toEqual([
           span('Result: 4'),
-          // span('Result: 2'),
+          span('Result: 2'),
         ]);
 
         // Update
@@ -446,7 +446,7 @@ describe('ReactNewContext', () => {
         expect(Scheduler).toFlushWithoutYielding();
         expect(ReactNoop.getChildren()).toEqual([
           span('Result: 6'),
-          // span('Result: 3'),
+          span('Result: 3'),
         ]);
 
         // Another update
@@ -454,7 +454,7 @@ describe('ReactNewContext', () => {
         expect(Scheduler).toFlushWithoutYielding();
         expect(ReactNoop.getChildren()).toEqual([
           span('Result: 8'),
-          // span('Result: 4'),
+          span('Result: 4'),
         ]);
       });
 
