@@ -69,6 +69,35 @@ export function useContext<T>(
   return dispatcher.useContext(Context, unstable_observedBits);
 }
 
+export function useContextSelector<T, S>(
+  Context: ReactContext<T>,
+  selector: T => S,
+) {
+  const dispatcher = resolveDispatcher();
+  if (__DEV__) {
+    // TODO: add a more generic warning for invalid values.
+    if ((Context: any)._context !== undefined) {
+      const realContext = (Context: any)._context;
+      // Don't deduplicate because this legitimately causes bugs
+      // and nobody should be using this in existing code.
+      if (realContext.Consumer === Context) {
+        warning(
+          false,
+          'Calling useContextSelector(Context.Consumer, selector) is not supported, may cause bugs, and will be ' +
+            'removed in a future major release. Did you mean to call useContextSelector(Context, selector) instead?',
+        );
+      } else if (realContext.Provider === Context) {
+        warning(
+          false,
+          'Calling useContext(Context.Provider, selector) is not supported. ' +
+            'Did you mean to call useContext(Contextm, selector) instead?',
+        );
+      }
+    }
+  }
+  return dispatcher.useContextSelector(Context, selector);
+}
+
 export function useState<S>(initialState: (() => S) | S) {
   const dispatcher = resolveDispatcher();
   return dispatcher.useState(initialState);

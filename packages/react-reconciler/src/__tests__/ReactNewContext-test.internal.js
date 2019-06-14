@@ -1355,6 +1355,165 @@ describe('ReactNewContext', () => {
     });
   });
 
+  describe('useContextSelector', () => {
+    it('context propagation defers checks as long as possible', () => {
+      const Context = React.createContext('abcdefg');
+
+      let lastSelector;
+
+      let i = 0;
+
+      let makeSelector = () => {
+        lastSelector = (j => v => {
+          Scheduler.yieldValue('selector' + j);
+          return v;
+        })(i++);
+        return lastSelector;
+      };
+
+      makeSelector();
+
+      let Foo = React.memo(function Foo({selector}) {
+        Scheduler.yieldValue('Foo');
+        let selection = React.useContextSelector(Context, selector);
+        return <span>{selection}</span>;
+      });
+
+      let App = ({value, selector}) => {
+        return (
+          <Context.Provider value={value}>
+            <div>
+              <Foo selector={selector} />
+            </div>
+          </Context.Provider>
+        );
+      };
+
+      // initial render
+      ReactNoop.render(<App value="abcdefg" selector={makeSelector()} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'selector1']);
+
+      // different selector -> Foo should do memo check and take new selector and then update
+      ReactNoop.render(<App value="abcdefgh" selector={makeSelector()} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'selector2']);
+
+      // shallow equal props -> memo should bailout, no selector was called but memoized so no yield
+      ReactNoop.render(<App value="abcdefgh" selector={lastSelector} />);
+      expect(Scheduler).toFlushAndYield([]);
+
+      // differe context value, memo props shallow equal
+      // -> call selector before attempted bailout, end up updating instead of bailout
+      ReactNoop.render(<App value="abcdefghi" selector={lastSelector} />);
+      expect(Scheduler).toFlushAndYield(['selector2', 'Foo']);
+    });
+    it('general test', () => {
+      const Context = React.createContext('abcdefg');
+      const FooContext = React.createContext(0);
+      const BarContext = React.createContext(0);
+
+      function Provider(props) {
+        return (
+          <Context.Provider value={props.string}>
+            {props.children}
+          </Context.Provider>
+        );
+      }
+
+      function Foo(props) {
+        let index = React.useContext(FooContext);
+        let selector = React.useCallback(v => v.substring(0, index), [index]);
+        let selection = React.useContextSelector(Context, selector);
+        Scheduler.yieldValue('Foo');
+        return <span prop={'foo selection: ' + selection} />;
+      }
+
+      function Bar(props) {
+        let index = React.useContext(BarContext);
+        let selector = React.useCallback(v => v.substring(index), [index]);
+        let selection = React.useContextSelector(Context, selector);
+        Scheduler.yieldValue('Bar');
+        return <span prop={'bar selection: ' + selection} />;
+      }
+
+      class Indirection extends React.Component {
+        shouldComponentUpdate() {
+          return false;
+        }
+        render() {
+          return this.props.children;
+        }
+      }
+
+      function App(props) {
+        return (
+          <FooContext.Provider value={props.fooIndex}>
+            <BarContext.Provider value={props.barIndex}>
+              <Provider string={props.string}>
+                <Indirection {...props}>
+                  <Indirection>
+                    <Foo />
+                  </Indirection>
+                  <Indirection>
+                    <Bar />
+                  </Indirection>
+                </Indirection>
+              </Provider>
+            </BarContext.Provider>
+          </FooContext.Provider>
+        );
+      }
+
+      ReactNoop.render(<App string="abcdefg" fooIndex={2} barIndex={2} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: ab'),
+        span('bar selection: cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="abcdefg" fooIndex={3} barIndex={2} />);
+      expect(Scheduler).toFlushAndYield(['Foo']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: abc'),
+        span('bar selection: cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a*cdefg" fooIndex={3} barIndex={2} />);
+      expect(Scheduler).toFlushAndYield(['Foo']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a*c'),
+        span('bar selection: cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a*cdefg" fooIndex={3} barIndex={1} />);
+      expect(Scheduler).toFlushAndYield(['Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a*c'),
+        span('bar selection: *cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a|cdefg" fooIndex={3} barIndex={1} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a|c'),
+        span('bar selection: |cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a|cdefg" fooIndex={3} barIndex={4} />);
+      expect(Scheduler).toFlushAndYield(['Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a|c'),
+        span('bar selection: efg'),
+      ]);
+
+      ReactNoop.render(<App string="a|c-efg" fooIndex={3} barIndex={4} />);
+      expect(Scheduler).toFlushAndYield([]);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a|c'),
+        span('bar selection: efg'),
+      ]);
+    });
+  });
+
   describe('Context.Consumer', () => {
     it('warns if child is not a function', () => {
       spyOnDev(console, 'error');

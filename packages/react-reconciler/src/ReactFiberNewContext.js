@@ -266,7 +266,21 @@ export function checkContextDependencies(
         let context = dependency.context;
         let observedBits = dependency.observedBits;
         if ((observedBits & context._currentChangedBits) !== 0) {
-          return true;
+          let requiresUpdate = true;
+
+          let selector = dependency.selector;
+          if (typeof selector === 'function') {
+            let [, isNew] = selector(
+              isPrimaryRenderer
+                ? context._currentValue
+                : context._currentValue2,
+            );
+            requiresUpdate = isNew;
+          }
+
+          if (requiresUpdate) {
+            return true;
+          }
         }
         dependency = dependency.next;
       }
@@ -633,4 +647,51 @@ export function readContext<T>(
     }
   }
   return isPrimaryRenderer ? context._currentValue : context._currentValue2;
+}
+
+export function selectFromContext<T, S>(
+  context: ReactContext<T>,
+  select: T => [S, boolean],
+): [S, boolean] {
+  if (__DEV__) {
+    // This warning would fire if you read context inside a Hook like useMemo.
+    // Unlike the class check below, it's not enforced in production for perf.
+    warning(
+      !isDisallowedContextReadInDEV,
+      'Context can only be read while React is rendering. ' +
+        'In classes, you can read it in the render method or getDerivedStateFromProps. ' +
+        'In function components, you can read it directly in the function body, but not ' +
+        'inside Hooks like useReducer() or useMemo().',
+    );
+  }
+
+  let contextItem = {
+    context: ((context: any): ReactContext<mixed>),
+    observedBits: MAX_SIGNED_31_BIT_INT,
+    selector: select,
+    next: null,
+  };
+
+  if (lastContextDependency === null) {
+    invariant(
+      currentlyRenderingFiber !== null,
+      'Context can only be read while React is rendering. ' +
+        'In classes, you can read it in the render method or getDerivedStateFromProps. ' +
+        'In function components, you can read it directly in the function body, but not ' +
+        'inside Hooks like useReducer() or useMemo().',
+    );
+
+    // This is the first dependency for this component. Create a new list.
+    lastContextDependency = contextItem;
+    currentlyRenderingFiber.contextDependencies = {
+      first: contextItem,
+      expirationTime: NoWork,
+    };
+  } else {
+    // Append a new context item.
+    lastContextDependency = lastContextDependency.next = contextItem;
+  }
+  return isPrimaryRenderer
+    ? select(context._currentValue)
+    : select(context._currentValue2);
 }
