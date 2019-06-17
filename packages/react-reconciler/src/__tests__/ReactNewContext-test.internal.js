@@ -1049,6 +1049,142 @@ describe('ReactNewContext', () => {
           span(2),
         ]);
       });
+      describe('stress test', () => {
+        it('controlled lots of contexts', () => {
+          let ContextA = React.createContext(0);
+          let ConsumerA = getConsumer(ContextA);
+
+          let ContextB = React.createContext(0);
+          let ConsumerB = getConsumer(ContextB);
+
+          let ContextC = React.createContext(0);
+          let ConsumerC = getConsumer(ContextC);
+
+          class Indirection extends React.Component {
+            shouldComponentUpdate() {
+              return false;
+            }
+            render() {
+              return this.props.children;
+            }
+          }
+
+          const Foo = React.memo(({consumer, depth, name, children}) => {
+            let Consumer = consumer;
+
+            if (typeof depth !== 'number' || depth <= 1) {
+              return (
+                <Consumer>
+                  {value => <Yield name={name} value={value} />}
+                </Consumer>
+              );
+            } else {
+              return (
+                <Indirection>
+                  <Consumer>
+                    {_ => (
+                      <Foo name={name} consumer={consumer} depth={depth - 1}>
+                        {children}
+                      </Foo>
+                    )}
+                  </Consumer>
+                </Indirection>
+              );
+            }
+          });
+
+          const Yield = ({name, value}) => {
+            let output = `${name}: ${value}`;
+            Scheduler.yieldValue(output);
+            return <span>{output}</span>;
+          };
+
+          function App(props) {
+            return (
+              <ContextA.Provider value={props.a}>
+                <ContextB.Provider value={props.b}>
+                  <ContextC.Provider value={props.c}>
+                    <Foo name="A" consumer={ConsumerA} depth={props.depth} />
+                    <Foo name="B" consumer={ConsumerB} depth={props.depth} />
+                    <Foo name="C" consumer={ConsumerC} depth={props.depth} />
+                  </ContextC.Provider>
+                </ContextB.Provider>
+              </ContextA.Provider>
+            );
+          }
+
+          for (let i = 0; i < 25; i++) {
+            // each individually
+            ReactNoop.render(<App a={0} b={0} c={0} depth={10} />);
+            expect(Scheduler).toFlushAndYield(['A: 0', 'B: 0', 'C: 0']);
+            ReactNoop.render(<App a={1} b={0} c={0} depth={20} />);
+            expect(Scheduler).toFlushAndYield(['A: 1']);
+            ReactNoop.render(<App a={1} b={1} c={0} depth={30} />);
+            expect(Scheduler).toFlushAndYield(['B: 1']);
+            ReactNoop.render(<App a={1} b={1} c={1} depth={40} />);
+            expect(Scheduler).toFlushAndYield(['C: 1']);
+            // two at a time
+            ReactNoop.render(<App a={2} b={2} c={1} depth={50} />);
+            expect(Scheduler).toFlushAndYield(['A: 2', 'B: 2']);
+            ReactNoop.render(<App a={2} b={3} c={3} depth={40} />);
+            expect(Scheduler).toFlushAndYield(['B: 3', 'C: 3']);
+            // all at once
+            ReactNoop.render(<App a={4} b={4} c={4} depth={30} />);
+            expect(Scheduler).toFlushAndYield(['A: 4', 'B: 4', 'C: 4']);
+          }
+        });
+        it('non-context stress test', () => {
+          const Foo = React.memo(({depth, name, children}) => {
+            if (typeof depth !== 'number' || depth <= 1) {
+              return <Yield name={name} />;
+            } else {
+              return (
+                <Foo name={name} depth={depth - 1}>
+                  {children}
+                </Foo>
+              );
+            }
+          });
+
+          const Yield = ({name}) => {
+            let output = `${name}`;
+            Scheduler.yieldValue(output);
+            return <span>{output}</span>;
+          };
+
+          function App(props) {
+            return (
+              <div>
+                <Foo name="A" depth={props.depth} />
+                <Foo name="B" depth={props.depth} />
+                <Foo name="C" depth={props.depth} />
+              </div>
+            );
+          }
+
+          for (let i = 0; i < 50; i++) {
+            // each individually
+            ReactNoop.render(<App depth={10} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={20} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={30} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={15} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={100} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={64} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={37} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={48} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+            ReactNoop.render(<App depth={12} />);
+            expect(Scheduler).toFlushAndYield(['A', 'B', 'C']);
+          }
+        });
+      });
     });
   }
 
@@ -1216,6 +1352,165 @@ describe('ReactNewContext', () => {
       appRef.current.setState({value: 1});
       expect(Scheduler).toFlushAndYield(['App']);
       expect(ReactNoop.getChildren()).toEqual([span('Child')]);
+    });
+  });
+
+  describe('useContextSelector', () => {
+    it('context propagation defers checks as long as possible', () => {
+      const Context = React.createContext('abcdefg');
+
+      let lastSelector;
+
+      let i = 0;
+
+      let makeSelector = () => {
+        lastSelector = (j => v => {
+          Scheduler.yieldValue('selector' + j);
+          return v;
+        })(i++);
+        return lastSelector;
+      };
+
+      makeSelector();
+
+      let Foo = React.memo(function Foo({selector}) {
+        Scheduler.yieldValue('Foo');
+        let selection = React.useContextSelector(Context, selector);
+        return <span>{selection}</span>;
+      });
+
+      let App = ({value, selector}) => {
+        return (
+          <Context.Provider value={value}>
+            <div>
+              <Foo selector={selector} />
+            </div>
+          </Context.Provider>
+        );
+      };
+
+      // initial render
+      ReactNoop.render(<App value="abcdefg" selector={makeSelector()} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'selector1']);
+
+      // different selector -> Foo should do memo check and take new selector and then update
+      ReactNoop.render(<App value="abcdefgh" selector={makeSelector()} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'selector2']);
+
+      // shallow equal props -> memo should bailout, no selector was called but memoized so no yield
+      ReactNoop.render(<App value="abcdefgh" selector={lastSelector} />);
+      expect(Scheduler).toFlushAndYield([]);
+
+      // differe context value, memo props shallow equal
+      // -> call selector before attempted bailout, end up updating instead of bailout
+      ReactNoop.render(<App value="abcdefghi" selector={lastSelector} />);
+      expect(Scheduler).toFlushAndYield(['selector2', 'Foo']);
+    });
+    it('general test', () => {
+      const Context = React.createContext('abcdefg');
+      const FooContext = React.createContext(0);
+      const BarContext = React.createContext(0);
+
+      function Provider(props) {
+        return (
+          <Context.Provider value={props.string}>
+            {props.children}
+          </Context.Provider>
+        );
+      }
+
+      function Foo(props) {
+        let index = React.useContext(FooContext);
+        let selector = React.useCallback(v => v.substring(0, index), [index]);
+        let selection = React.useContextSelector(Context, selector);
+        Scheduler.yieldValue('Foo');
+        return <span prop={'foo selection: ' + selection} />;
+      }
+
+      function Bar(props) {
+        let index = React.useContext(BarContext);
+        let selector = React.useCallback(v => v.substring(index), [index]);
+        let selection = React.useContextSelector(Context, selector);
+        Scheduler.yieldValue('Bar');
+        return <span prop={'bar selection: ' + selection} />;
+      }
+
+      class Indirection extends React.Component {
+        shouldComponentUpdate() {
+          return false;
+        }
+        render() {
+          return this.props.children;
+        }
+      }
+
+      function App(props) {
+        return (
+          <FooContext.Provider value={props.fooIndex}>
+            <BarContext.Provider value={props.barIndex}>
+              <Provider string={props.string}>
+                <Indirection {...props}>
+                  <Indirection>
+                    <Foo />
+                  </Indirection>
+                  <Indirection>
+                    <Bar />
+                  </Indirection>
+                </Indirection>
+              </Provider>
+            </BarContext.Provider>
+          </FooContext.Provider>
+        );
+      }
+
+      ReactNoop.render(<App string="abcdefg" fooIndex={2} barIndex={2} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: ab'),
+        span('bar selection: cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="abcdefg" fooIndex={3} barIndex={2} />);
+      expect(Scheduler).toFlushAndYield(['Foo']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: abc'),
+        span('bar selection: cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a*cdefg" fooIndex={3} barIndex={2} />);
+      expect(Scheduler).toFlushAndYield(['Foo']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a*c'),
+        span('bar selection: cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a*cdefg" fooIndex={3} barIndex={1} />);
+      expect(Scheduler).toFlushAndYield(['Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a*c'),
+        span('bar selection: *cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a|cdefg" fooIndex={3} barIndex={1} />);
+      expect(Scheduler).toFlushAndYield(['Foo', 'Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a|c'),
+        span('bar selection: |cdefg'),
+      ]);
+
+      ReactNoop.render(<App string="a|cdefg" fooIndex={3} barIndex={4} />);
+      expect(Scheduler).toFlushAndYield(['Bar']);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a|c'),
+        span('bar selection: efg'),
+      ]);
+
+      ReactNoop.render(<App string="a|c-efg" fooIndex={3} barIndex={4} />);
+      expect(Scheduler).toFlushAndYield([]);
+      expect(ReactNoop.getChildren()).toEqual([
+        span('foo selection: a|c'),
+        span('bar selection: efg'),
+      ]);
     });
   });
 

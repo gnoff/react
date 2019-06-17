@@ -75,3 +75,6 @@ export const revertPassiveEffectsChange = false;
 // but without making them discrete. The flag exists in case it causes
 // starvation problems.
 export const enableUserBlockingEvents = false;
+
+// Alternate Context Propagation algorithm, variation that propagates all contexts together
+export const enableLazyContextPropagation = true;

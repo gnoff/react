@@ -31,6 +31,7 @@ export const enableEventAPI = true;
 export const enableJSXTransformAPI = true;
 export const warnAboutMissingMockScheduler = true;
 export const enableUserBlockingEvents = false;
+export const enableLazyContextPropagation = true;
 
 // Only used in www builds.
 export function addUserTimingListener() {
