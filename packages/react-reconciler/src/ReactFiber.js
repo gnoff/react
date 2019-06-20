@@ -190,6 +190,10 @@ export type Fiber = {|
   // This is used to quickly determine if a subtree has no pending changes.
   childExpirationTime: ExpirationTime,
 
+  // an identifier that allows the context propagation algorithm to determine
+  // if this fiber has been visited during a previous propagation
+  propagationSigil: any,
+
   // This is a pooled version of a Fiber. Every fiber that gets updated will
   // eventually have a pair. There are cases when we can clean up pairs to save
   // memory if we need to.
@@ -274,6 +278,8 @@ function FiberNode(
 
   this.expirationTime = NoWork;
   this.childExpirationTime = NoWork;
+
+  this.propagationSigil = null;
 
   this.alternate = null;
 
@@ -425,6 +431,7 @@ export function createWorkInProgress(
 
   workInProgress.childExpirationTime = current.childExpirationTime;
   workInProgress.expirationTime = current.expirationTime;
+  workInProgress.propagationSigil = current.propagationSigil;
 
   workInProgress.child = current.child;
   workInProgress.memoizedProps = current.memoizedProps;
@@ -803,6 +810,7 @@ export function assignFiberPropertiesInDEV(
   target.lastEffect = source.lastEffect;
   target.expirationTime = source.expirationTime;
   target.childExpirationTime = source.childExpirationTime;
+  target.propagationSigil = source.propagationSigil;
   target.alternate = source.alternate;
   if (enableProfilerTimer) {
     target.actualDuration = source.actualDuration;

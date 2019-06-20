@@ -43,7 +43,10 @@ import {
 } from 'react-reconciler/src/ReactUpdateQueue';
 import {NoWork} from './ReactFiberExpirationTime';
 import {markWorkInProgressReceivedUpdate} from './ReactFiberBeginWork';
-import {enableSuspenseServerRenderer} from 'shared/ReactFeatureFlags';
+import {
+  enableSuspenseServerRenderer,
+  enableLazyContextPropagation,
+} from 'shared/ReactFeatureFlags';
 
 const valueCursor: StackCursor<mixed> = createCursor(null);
 
@@ -82,8 +85,59 @@ export function exitDisallowedContextReadInDEV(): void {
   }
 }
 
-export function pushProvider<T>(providerFiber: Fiber, nextValue: T): void {
+let contextSet: Set<ReactContext<mixed>> = new Set();
+let propagationSigil = null;
+let propagationHasChangedBits = false;
+
+export function currentPropagationSigil(): mixed {
+  return propagationSigil;
+}
+
+function someChangedBits(): boolean {
+  let iter = contextSet.values();
+  let step = iter.next();
+  for (; !step.done; step = iter.next()) {
+    const context = step.value;
+    if (context._currentChangedBits > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function pushProvider<T>(
+  providerFiber: Fiber,
+  nextValue: T,
+  nextChangedBits: number,
+): void {
   const context: ReactContext<T> = providerFiber.type._context;
+
+  if (enableLazyContextPropagation) {
+    // put the context in the set of contexts for use in computing whether
+    // changedBits exist for current suite of contexts
+    contextSet.add(context);
+
+    let currentChangedBits = context._currentChangedBits;
+    // update propagationHasChangedBits. only do full check if nextChangedBits
+    // is zero and currentChangedBits is greater than zero. Otherwise can can
+    // infer without checking each context
+    let nextPropagationHasChangedBits =
+      nextChangedBits > 0 ||
+      (currentChangedBits > 0 && someChangedBits()) ||
+      propagationHasChangedBits;
+
+    // set next changed bits on the context
+    push(valueCursor, currentChangedBits, providerFiber);
+    context._currentChangedBits = nextChangedBits;
+
+    // set next propagationHasChangedBits
+    push(valueCursor, propagationHasChangedBits, providerFiber);
+    propagationHasChangedBits = nextPropagationHasChangedBits;
+
+    // create a new propagationSigil and save the previous one
+    push(valueCursor, propagationSigil, providerFiber);
+    propagationSigil = {};
+  }
 
   if (isPrimaryRenderer) {
     push(valueCursor, context._currentValue, providerFiber);
@@ -118,7 +172,6 @@ export function pushProvider<T>(providerFiber: Fiber, nextValue: T): void {
 
 export function popProvider(providerFiber: Fiber): void {
   const currentValue = valueCursor.current;
-
   pop(valueCursor, providerFiber);
 
   const context: ReactContext<any> = providerFiber.type._context;
@@ -126,6 +179,20 @@ export function popProvider(providerFiber: Fiber): void {
     context._currentValue = currentValue;
   } else {
     context._currentValue2 = currentValue;
+  }
+
+  if (enableLazyContextPropagation) {
+    // restore previous propagationSigil
+    propagationSigil = valueCursor.current;
+    pop(valueCursor, providerFiber);
+
+    // restore previous propagationHasChangedBits
+    propagationHasChangedBits = valueCursor.current;
+    pop(valueCursor, providerFiber);
+
+    // pop changedBits value
+    context._currentChangedBits = valueCursor.current;
+    pop(valueCursor, providerFiber);
   }
 }
 
@@ -183,6 +250,184 @@ function scheduleWorkOnParentPath(
       break;
     }
     node = node.return;
+  }
+}
+
+export function checkContextDependencies(
+  fiber: Fiber,
+  renderExpirationTime: ExpirationTime,
+): boolean {
+  if (enableLazyContextPropagation && propagationHasChangedBits) {
+    const list = fiber.contextDependencies;
+    if (list != null) {
+      let dependency = list.first;
+      while (dependency !== null) {
+        // Check if dependency bits have changed for context
+        let context = dependency.context;
+        let observedBits = dependency.observedBits;
+        if ((observedBits & context._currentChangedBits) !== 0) {
+          return true;
+        }
+        dependency = dependency.next;
+      }
+    }
+  }
+  return false;
+}
+
+export function updateFromContextDependencies(
+  fiber: Fiber,
+  renderExpirationTime: ExpirationTime,
+): boolean {
+  if (enableLazyContextPropagation) {
+    let alternate = fiber.alternate;
+
+    // mark fiber propagationSigil
+    fiber.propagationSigil = propagationSigil;
+    if (alternate !== null) {
+      alternate.propagationSigil = propagationSigil;
+    }
+
+    let requiresUpdate = checkContextDependencies(fiber);
+
+    if (requiresUpdate) {
+      if (fiber.tag === ClassComponent) {
+        // Schedule a force update on the work-in-progress.
+        const update = createUpdate(renderExpirationTime, null);
+        update.tag = ForceUpdate;
+        // TODO: Because we don't have a work-in-progress, this will add the
+        // update to the current fiber, too, which means it will persist even if
+        // this render is thrown away. Since it's a race condition, not sure it's
+        // worth fixing.
+        enqueueUpdate(fiber, update);
+      }
+
+      if (fiber.expirationTime < renderExpirationTime) {
+        fiber.expirationTime = renderExpirationTime;
+      }
+      if (
+        alternate !== null &&
+        alternate.expirationTime < renderExpirationTime
+      ) {
+        alternate.expirationTime = renderExpirationTime;
+      }
+
+      scheduleWorkOnParentPath(fiber.return, renderExpirationTime);
+
+      // Mark the expiration time on the list, too.
+      const list = fiber.contextDependencies;
+      if (list.expirationTime < renderExpirationTime) {
+        list.expirationTime = renderExpirationTime;
+      }
+
+      // Since we already found a match, we can stop traversing the
+      // dependency list.
+      return true;
+    }
+  }
+  return false;
+}
+
+export function propagateContexts(
+  workInProgress: Fiber,
+  renderExpirationTime: ExpirationTime,
+): void {
+  // no need to propagate if no context values have not changed
+  if (propagationHasChangedBits === false) {
+    return;
+  }
+  let fiber = workInProgress.child;
+  if (fiber !== null) {
+    // Set the return pointer of the child to the work-in-progress fiber.
+    fiber.return = workInProgress;
+  }
+  while (fiber !== null) {
+    let nextFiber;
+
+    let alternate = fiber.alternate;
+
+    // Visit this fiber
+    let didUpdateFromContext = updateFromContextDependencies(
+      fiber,
+      renderExpirationTime,
+    );
+
+    if (didUpdateFromContext) {
+      // fiber required work based on it's context dependencies. do not go deeper
+      nextFiber = null;
+    } else if (
+      fiber.expirationTime >= renderExpirationTime ||
+      fiber.childExpirationTime >= renderExpirationTime
+    ) {
+      // this fiber or a descendent are already scheduled for work.
+      // on to siblings
+      nextFiber = null;
+    } else if (fiber.tag === ContextProvider) {
+      // Don't scan deeper since this is a ContextProvider
+      // schedule work on Provider
+      if (fiber.expirationTime < renderExpirationTime) {
+        fiber.expirationTime = renderExpirationTime;
+      }
+      if (
+        alternate !== null &&
+        alternate.expirationTime < renderExpirationTime
+      ) {
+        alternate.expirationTime = renderExpirationTime;
+      }
+      scheduleWorkOnParentPath(fiber.return, renderExpirationTime);
+      // don't go deeper, visit siblings if any
+      nextFiber = null;
+    } else if (
+      enableSuspenseServerRenderer &&
+      fiber.tag === DehydratedSuspenseComponent
+    ) {
+      // If a dehydrated suspense component is in this subtree, we don't know
+      // if it will have any context consumers in it. The best we can do is
+      // mark it as having updates on its children.
+      if (fiber.expirationTime < renderExpirationTime) {
+        fiber.expirationTime = renderExpirationTime;
+      }
+      if (
+        alternate !== null &&
+        alternate.expirationTime < renderExpirationTime
+      ) {
+        alternate.expirationTime = renderExpirationTime;
+      }
+      // This is intentionally passing this fiber as the parent
+      // because we want to schedule this fiber as having work
+      // on its children. We'll use the childExpirationTime on
+      // this fiber to indicate that a context has changed.
+      scheduleWorkOnParentPath(fiber, renderExpirationTime);
+      nextFiber = fiber.sibling;
+    } else {
+      // Traverse down.
+      nextFiber = fiber.child;
+    }
+
+    if (nextFiber !== null) {
+      // Set the return pointer of the child to the work-in-progress fiber.
+      nextFiber.return = fiber;
+    } else {
+      // No child. Traverse to next sibling.
+      nextFiber = fiber;
+      while (nextFiber !== null) {
+        if (nextFiber === workInProgress) {
+          // We're back to the root of this subtree. Exit.
+          nextFiber = null;
+          break;
+        }
+        let sibling = nextFiber.sibling;
+        if (sibling !== null) {
+          // Set the return pointer of the sibling to the work-in-progress fiber.
+          sibling.return = nextFiber.return;
+          nextFiber = sibling;
+          break;
+        }
+        // No more siblings. Traverse up.
+        nextFiber = nextFiber.return;
+      }
+    }
+    fiber = nextFiber;
   }
 }
 
