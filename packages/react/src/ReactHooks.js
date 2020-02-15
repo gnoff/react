@@ -132,6 +132,11 @@ export function useImperativeHandle<T>(
   return dispatcher.useImperativeHandle(ref, create, inputs);
 }
 
+export function useIsolation<T>(isolatedCallback: () => T): void {
+  const dispatcher = resolveDispatcher();
+  return dispatcher.useIsolation(isolatedCallback);
+}
+
 export function useDebugValue(value: any, formatterFn: ?(value: any) => any) {
   if (__DEV__) {
     const dispatcher = resolveDispatcher();

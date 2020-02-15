@@ -175,6 +175,10 @@ let renderExpirationTime: ExpirationTime = NoWork;
 // the work-in-progress hook.
 let currentlyRenderingFiber: Fiber = (null: any);
 
+// the host for hooks. usually the currently rendering fiber but sometimes an
+// isolation
+let currentHooksHost: Fiber | Hook = currentlyRenderingFiber;
+
 // Hooks are stored as a linked list on the fiber's memoizedState field. The
 // current hook list is the list that belongs to the current fiber. The
 // work-in-progress hook list is a new list that will be added to the
@@ -361,6 +365,20 @@ function areHookInputsEqual(
   return true;
 }
 
+function computeWithHooks(hooksHost) {
+  currentlyComputingHooksHost = hooksHost;
+
+  let previousDispatcher = ReactCurrentDispatcher.current;
+  ReactCurrentDispatcher.current = IsolationDispatcherOnUpdate;
+
+  let result = hooksHost.memoizedState.isolation();
+
+  if (result !== hooksHost.memoizedState.value) {
+  }
+
+  ReactCurrentDispatcher.current = previousDispatcher;
+}
+
 export function renderWithHooks(
   current: Fiber | null,
   workInProgress: Fiber,
@@ -370,7 +388,7 @@ export function renderWithHooks(
   nextRenderExpirationTime: ExpirationTime,
 ): any {
   renderExpirationTime = nextRenderExpirationTime;
-  currentlyRenderingFiber = workInProgress;
+  currentlyRenderingFiber = currentHooksHost = workInProgress;
 
   if (__DEV__) {
     hookTypesDev =
@@ -470,7 +488,7 @@ export function renderWithHooks(
     currentHook !== null && currentHook.next !== null;
 
   renderExpirationTime = NoWork;
-  currentlyRenderingFiber = (null: any);
+  currentlyRenderingFiber = currentHooksHost = (null: any);
 
   currentHook = null;
   workInProgressHook = null;
@@ -517,7 +535,7 @@ export function resetHooks(): void {
   // component is a module-style component.
 
   renderExpirationTime = NoWork;
-  currentlyRenderingFiber = (null: any);
+  currentlyRenderingFiber = currentHooksHost = (null: any);
 
   currentHook = null;
   workInProgressHook = null;
@@ -547,7 +565,7 @@ function mountWorkInProgressHook(): Hook {
 
   if (workInProgressHook === null) {
     // This is the first hook in the list
-    currentlyRenderingFiber.memoizedState = workInProgressHook = hook;
+    currentHooksHost.memoizedState = workInProgressHook = hook;
   } else {
     // Append to the end of the list
     workInProgressHook = workInProgressHook.next = hook;
@@ -556,6 +574,28 @@ function mountWorkInProgressHook(): Hook {
 }
 
 function updateWorkInProgressHook(): Hook {
+  if (currentlyRenderingFiber === null) {
+    if (currentHook === null) {
+      nextCurrentHook = currentHooksHost.memoizedState;
+    } else {
+      nextCurrentHook = currentHook.next;
+    }
+
+    const disposableHook: Hook = {
+      memoizedState: currentHook.memoizedState,
+
+      baseState: currentHook.baseState,
+      baseQueue: currentHook.baseQueue,
+      queue: currentHook.queue,
+
+      next: null,
+    };
+
+    currentHook = currentHook.next;
+
+    return disposableHook;
+  }
+
   // This function is used both for updates and for re-renders triggered by a
   // render phase update. It assumes there is either a current hook we can
   // clone, or a work-in-progress hook from a previous render pass that we can
@@ -563,7 +603,7 @@ function updateWorkInProgressHook(): Hook {
   // the dispatcher used for mounts.
   let nextCurrentHook: null | Hook;
   if (currentHook === null) {
-    let current = currentlyRenderingFiber.alternate;
+    let current = currentHooksHost.alternate || null;
     if (current !== null) {
       nextCurrentHook = current.memoizedState;
     } else {
@@ -575,7 +615,7 @@ function updateWorkInProgressHook(): Hook {
 
   let nextWorkInProgressHook: null | Hook;
   if (workInProgressHook === null) {
-    nextWorkInProgressHook = currentlyRenderingFiber.memoizedState;
+    nextWorkInProgressHook = currentHooksHost.memoizedState;
   } else {
     nextWorkInProgressHook = workInProgressHook.next;
   }
@@ -607,13 +647,74 @@ function updateWorkInProgressHook(): Hook {
 
     if (workInProgressHook === null) {
       // This is the first hook in the list.
-      currentlyRenderingFiber.memoizedState = workInProgressHook = newHook;
+      currentHooksHost.memoizedState = workInProgressHook = newHook;
     } else {
       // Append to the end of the list.
       workInProgressHook = workInProgressHook.next = newHook;
     }
   }
   return workInProgressHook;
+}
+
+function mountIsolation<I>(isolatedCallback: I) {
+  const hook = mountWorkInProgressHook();
+  hook.memoizedState = {
+    isolatedCallback,
+    value: null,
+    host: {
+      memoizedState: null,
+      scheduleWork: (fiber, expiration) => {
+        if (currentlyRenderingFiber === null) {
+          return scheduleWork(fiber, expiration);
+        }
+
+        let previousHooksHost = currentHooksHost;
+        currentHooksHost = hook.memoizedState.host;
+        let state = hook.memoizedState;
+
+        let previousDispatcher = ReactCurrentDispatcher.current;
+        ReactCurrentDispatcher.current = IsolationDispatcherOnUpdate;
+
+        let newValue = state.isolatedCallback();
+        if (state.value !== newValue) {
+          state.value = newValue;
+          scheduleWork(fiber, expiration);
+        }
+
+        ReactCurrentDispatcher.current = previousDispatcher;
+        currentHooksHost = previousHooksHost;
+
+        resetHooks();
+      },
+    },
+  };
+
+  let previousHooksHost = currentHooksHost;
+  currentHooksHost = hook.memoizedState.host;
+  workInProgressHook = null;
+
+  let value = (hook.memoizedState.value = isolatedCallback());
+
+  currentHooksHost = previousHooksHost;
+  workInProgressHook = hook;
+
+  return value;
+}
+
+function updateIsolation<I>(isolatedCallback: I) {
+  const hook = updateWorkInProgressHook();
+  let previousHooksHost = currentHooksHost;
+  currentHooksHost = hook.memoizedState.host;
+  workInProgressHook = null;
+
+  let state = hook.memoizedState;
+  let value = (state.value = isolatedCallback());
+  state.isolatedCallback = isolatedCallback;
+
+  currentHooksHost = previousHooksHost;
+  workInProgressHook = hook;
+
+  return value;
 }
 
 function createFunctionComponentUpdateQueue(): FunctionComponentUpdateQueue {
@@ -648,6 +749,7 @@ function mountReducer<S, I, A>(
   const dispatch: Dispatch<A> = (queue.dispatch = (dispatchAction.bind(
     null,
     currentlyRenderingFiber,
+    currentHooksHost.scheduleWork || scheduleWork,
     queue,
   ): any));
   return [hook.memoizedState, dispatch];
@@ -846,6 +948,7 @@ function mountState<S>(
   > = (queue.dispatch = (dispatchAction.bind(
     null,
     currentlyRenderingFiber,
+    currentHooksHost.scheduleWork || scheduleWork,
     queue,
   ): any));
   return [hook.memoizedState, dispatch];
@@ -1223,6 +1326,7 @@ function updateTransition(
 
 function dispatchAction<S, A>(
   fiber: Fiber,
+  schedule: (Fiber, Expriation) => void,
   queue: UpdateQueue<S, A>,
   action: A,
 ) {
@@ -1355,7 +1459,7 @@ function dispatchAction<S, A>(
         warnIfNotCurrentlyActingUpdatesInDev(fiber);
       }
     }
-    scheduleWork(fiber, expirationTime);
+    schedule(fiber, expirationTime);
   }
 }
 
@@ -1366,11 +1470,50 @@ export const ContextOnlyDispatcher: Dispatcher = {
   useContext: throwInvalidHookError,
   useEffect: throwInvalidHookError,
   useImperativeHandle: throwInvalidHookError,
+  useIsolation: throwInvalidHookError,
   useLayoutEffect: throwInvalidHookError,
   useMemo: throwInvalidHookError,
   useReducer: throwInvalidHookError,
   useRef: throwInvalidHookError,
   useState: throwInvalidHookError,
+  useDebugValue: throwInvalidHookError,
+  useResponder: throwInvalidHookError,
+  useDeferredValue: throwInvalidHookError,
+  useTransition: throwInvalidHookError,
+};
+
+export const IsolationDispatcherOnMount: Dispatcher = {
+  readContext,
+
+  useCallback: mountCallback,
+  useContext: readContext,
+  useEffect: throwInvalidHookError,
+  useImperativeHandle: throwInvalidHookError,
+  useIsolation: mountIsolation,
+  useLayoutEffect: throwInvalidHookError,
+  useMemo: mountMemo,
+  useReducer: mountReducer,
+  useRef: mountRef,
+  useState: mountState,
+  useDebugValue: throwInvalidHookError,
+  useResponder: throwInvalidHookError,
+  useDeferredValue: throwInvalidHookError,
+  useTransition: throwInvalidHookError,
+};
+
+export const IsolationDispatcherOnUpdate: Dispatcher = {
+  readContext,
+
+  useCallback: updateCallback,
+  useContext: readContext,
+  useEffect: throwInvalidHookError,
+  useImperativeHandle: throwInvalidHookError,
+  useIsolation: updateIsolation,
+  useLayoutEffect: throwInvalidHookError,
+  useMemo: updateMemo,
+  useReducer: updateReducer,
+  useRef: updateRef,
+  useState: updateState,
   useDebugValue: throwInvalidHookError,
   useResponder: throwInvalidHookError,
   useDeferredValue: throwInvalidHookError,
@@ -1384,6 +1527,7 @@ const HooksDispatcherOnMount: Dispatcher = {
   useContext: readContext,
   useEffect: mountEffect,
   useImperativeHandle: mountImperativeHandle,
+  useIsolation: mountIsolation,
   useLayoutEffect: mountLayoutEffect,
   useMemo: mountMemo,
   useReducer: mountReducer,
@@ -1402,6 +1546,7 @@ const HooksDispatcherOnUpdate: Dispatcher = {
   useContext: readContext,
   useEffect: updateEffect,
   useImperativeHandle: updateImperativeHandle,
+  useIsolation: updateIsolation,
   useLayoutEffect: updateLayoutEffect,
   useMemo: updateMemo,
   useReducer: updateReducer,
@@ -1478,6 +1623,11 @@ if (__DEV__) {
       mountHookTypesDev();
       checkDepsAreArrayDev(deps);
       return mountImperativeHandle(ref, create, deps);
+    },
+    useIsolation<T>(isolatedCallback: () => T): void {
+      currentHookNameInDev = 'useIsolation';
+      mountHookTypesDev();
+      return mountIsolation(isolatedCallback);
     },
     useLayoutEffect(
       create: () => (() => void) | void,
@@ -1598,6 +1748,11 @@ if (__DEV__) {
       updateHookTypesDev();
       return mountImperativeHandle(ref, create, deps);
     },
+    useIsolation<T>(isolatedCallback: () => T): void {
+      currentHookNameInDev = 'useIsolation';
+      updateHookTypesDev();
+      return mountIsolation(isolatedCallback);
+    },
     useLayoutEffect(
       create: () => (() => void) | void,
       deps: Array<mixed> | void | null,
@@ -1714,6 +1869,11 @@ if (__DEV__) {
       currentHookNameInDev = 'useImperativeHandle';
       updateHookTypesDev();
       return updateImperativeHandle(ref, create, deps);
+    },
+    useIsolation<T>(isolatedCallback: () => T): void {
+      currentHookNameInDev = 'useIsolation';
+      updateHookTypesDev();
+      return updateIsolation(isolatedCallback);
     },
     useLayoutEffect(
       create: () => (() => void) | void,
@@ -1836,6 +1996,12 @@ if (__DEV__) {
       warnInvalidHookAccess();
       mountHookTypesDev();
       return mountImperativeHandle(ref, create, deps);
+    },
+    useIsolation<T>(isolatedCallback: () => T): void {
+      currentHookNameInDev = 'useIsolation';
+      warnInvalidHookAccess();
+      mountHookTypesDev();
+      return mountIsolation(isolatedCallback);
     },
     useLayoutEffect(
       create: () => (() => void) | void,
@@ -1967,6 +2133,12 @@ if (__DEV__) {
       warnInvalidHookAccess();
       updateHookTypesDev();
       return updateImperativeHandle(ref, create, deps);
+    },
+    useIsolation<T>(isolatedCallback: () => T): void {
+      currentHookNameInDev = 'useIsolation';
+      warnInvalidHookAccess();
+      updateHookTypesDev();
+      return updateIsolation(isolatedCallback);
     },
     useLayoutEffect(
       create: () => (() => void) | void,
