@@ -12,6 +12,7 @@ import type {
   ReactEventResponder,
   ReactEventResponderListener,
 } from 'shared/ReactTypes';
+import {enableContextSelectors} from 'shared/ReactFeatureFlags';
 import invariant from 'shared/invariant';
 import {REACT_RESPONDER_TYPE} from 'shared/ReactSymbols';
 
@@ -40,7 +41,7 @@ export function useContext<T>(
 ) {
   const dispatcher = resolveDispatcher();
   if (__DEV__) {
-    if (unstable_observedBits !== undefined) {
+    if (!enableContextSelectors && unstable_observedBits !== undefined) {
       console.error(
         'useContext() second argument is reserved for future ' +
           'use in React. Passing it is not supported. ' +
@@ -51,6 +52,21 @@ export function useContext<T>(
               'Calling Hooks inside a loop is not supported. ' +
               'Learn more at https://fb.me/rules-of-hooks'
           : '',
+      );
+    }
+    if (
+      enableContextSelectors &&
+      typeof unstable_observedBits === 'number' &&
+      Array.isArray(arguments[2])
+    ) {
+      console.error(
+        'useContext() second argument is reserved for future ' +
+          'use in React. Passing it is not supported. ' +
+          'You passed: %s.%s',
+        unstable_observedBits,
+        '\n\nDid you call array.map(useContext)? ' +
+          'Calling Hooks inside a loop is not supported. ' +
+          'Learn more at https://fb.me/rules-of-hooks',
       );
     }
 

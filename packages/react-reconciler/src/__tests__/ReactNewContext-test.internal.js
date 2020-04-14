@@ -54,14 +54,18 @@ describe('ReactNewContext', () => {
       function Consumer(props) {
         const observedBits = props.unstable_observedBits;
         let contextValue;
-        expect(() => {
+        if (ReactFeatureFlags.enableContextSelectors) {
           contextValue = useContext(Context, observedBits);
-        }).toErrorDev(
-          observedBits !== undefined
-            ? 'useContext() second argument is reserved for future use in React. ' +
-                `Passing it is not supported. You passed: ${observedBits}.`
-            : [],
-        );
+        } else {
+          expect(() => {
+            contextValue = useContext(Context, observedBits);
+          }).toErrorDev(
+            observedBits !== undefined
+              ? 'useContext() second argument is reserved for future use in React. ' +
+                  `Passing it is not supported. You passed: ${observedBits}.`
+              : [],
+          );
+        }
         const render = props.children;
         return render(contextValue);
       },
@@ -70,14 +74,18 @@ describe('ReactNewContext', () => {
     React.forwardRef(function Consumer(props, ref) {
       const observedBits = props.unstable_observedBits;
       let contextValue;
-      expect(() => {
+      if (ReactFeatureFlags.enableContextSelectors) {
         contextValue = useContext(Context, observedBits);
-      }).toErrorDev(
-        observedBits !== undefined
-          ? 'useContext() second argument is reserved for future use in React. ' +
-              `Passing it is not supported. You passed: ${observedBits}.`
-          : [],
-      );
+      } else {
+        expect(() => {
+          contextValue = useContext(Context, observedBits);
+        }).toErrorDev(
+          observedBits !== undefined
+            ? 'useContext() second argument is reserved for future use in React. ' +
+                `Passing it is not supported. You passed: ${observedBits}.`
+            : [],
+        );
+      }
       const render = props.children;
       return render(contextValue);
     }),
@@ -86,14 +94,18 @@ describe('ReactNewContext', () => {
     React.memo(function Consumer(props) {
       const observedBits = props.unstable_observedBits;
       let contextValue;
-      expect(() => {
+      if (ReactFeatureFlags.enableContextSelectors) {
         contextValue = useContext(Context, observedBits);
-      }).toErrorDev(
-        observedBits !== undefined
-          ? 'useContext() second argument is reserved for future use in React. ' +
-              `Passing it is not supported. You passed: ${observedBits}.`
-          : [],
-      );
+      } else {
+        expect(() => {
+          contextValue = useContext(Context, observedBits);
+        }).toErrorDev(
+          observedBits !== undefined
+            ? 'useContext() second argument is reserved for future use in React. ' +
+                `Passing it is not supported. You passed: ${observedBits}.`
+            : [],
+        );
+      }
       const render = props.children;
       return render(contextValue);
     }),
@@ -1326,6 +1338,7 @@ describe('ReactNewContext', () => {
   });
 
   describe('readContext', () => {
+    // @TODO revisit this test with enableReifyNextWork and enableContextSelectors
     it('can read the same context multiple times in the same function', () => {
       const Context = React.createContext({foo: 0, bar: 0, baz: 0}, (a, b) => {
         let result = 0;

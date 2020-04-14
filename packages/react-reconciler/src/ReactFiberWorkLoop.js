@@ -28,6 +28,7 @@ import {
   flushSuspenseFallbacksInTests,
   disableSchedulerTimeoutBasedOnReactExpirationTime,
   enableTrainModelFix,
+  enableReifyNextWork,
 } from 'shared/ReactFeatureFlags';
 import ReactSharedInternals from 'shared/ReactSharedInternals';
 import invariant from 'shared/invariant';
@@ -78,6 +79,7 @@ import {
   ProfileMode,
   BlockingMode,
   ConcurrentMode,
+  ReifiedWorkMode,
 } from './ReactTypeOfMode';
 import {
   HostRoot,
@@ -455,10 +457,16 @@ function markUpdateTimeFromFiberToRoot(fiber, expirationTime) {
   // Update the source fiber's expiration time
   if (fiber.expirationTime < expirationTime) {
     fiber.expirationTime = expirationTime;
+    if (enableReifyNextWork) {
+      fiber.mode &= ~ReifiedWorkMode;
+    }
   }
   let alternate = fiber.alternate;
   if (alternate !== null && alternate.expirationTime < expirationTime) {
     alternate.expirationTime = expirationTime;
+    if (enableReifyNextWork) {
+      alternate.mode &= ~ReifiedWorkMode;
+    }
   }
   // Walk the parent path to the root and update the child expiration time.
   let node = fiber.return;
@@ -470,17 +478,26 @@ function markUpdateTimeFromFiberToRoot(fiber, expirationTime) {
       alternate = node.alternate;
       if (node.childExpirationTime < expirationTime) {
         node.childExpirationTime = expirationTime;
+        if (enableReifyNextWork) {
+          node.mode &= ~ReifiedWorkMode;
+        }
         if (
           alternate !== null &&
           alternate.childExpirationTime < expirationTime
         ) {
           alternate.childExpirationTime = expirationTime;
+          if (enableReifyNextWork) {
+            alternate.mode &= ~ReifiedWorkMode;
+          }
         }
       } else if (
         alternate !== null &&
         alternate.childExpirationTime < expirationTime
       ) {
         alternate.childExpirationTime = expirationTime;
+        if (enableReifyNextWork) {
+          alternate.mode &= ~ReifiedWorkMode;
+        }
       }
       if (node.return === null && node.tag === HostRoot) {
         root = node.stateNode;

@@ -66,6 +66,7 @@ import {
   warnAboutDefaultPropsOnFunctionComponents,
   enableScopeAPI,
   enableChunksAPI,
+  enableReifyNextWork,
 } from 'shared/ReactFeatureFlags';
 import invariant from 'shared/invariant';
 import shallowEqual from 'shared/shallowEqual';
@@ -107,6 +108,7 @@ import {
   ProfileMode,
   StrictMode,
   BlockingMode,
+  ReifiedWorkMode,
 } from './ReactTypeOfMode';
 import {
   shouldSetTextContent,
@@ -131,13 +133,18 @@ import {
 import {findFirstSuspended} from './ReactFiberSuspenseComponent';
 import {
   pushProvider,
+  popProvider,
   propagateContextChange,
   readContext,
   prepareToReadContext,
   calculateChangedBits,
   scheduleWorkOnParentPath,
 } from './ReactFiberNewContext';
-import {renderWithHooks, bailoutHooks} from './ReactFiberHooks';
+import {
+  renderWithHooks,
+  bailoutHooks,
+  canBailoutSpeculativeWorkWithHooks,
+} from './ReactFiberHooks';
 import {stopProfilerTimerIfRunning} from './ReactProfilerTimer';
 import {
   getMaskedContext,
@@ -671,7 +678,7 @@ function updateFunctionComponent(
     );
   }
 
-  if (current !== null && !didReceiveUpdate) {
+  if (!enableReifyNextWork && current !== null && !didReceiveUpdate) {
     bailoutHooks(current, workInProgress, renderExpirationTime);
     return bailoutOnAlreadyFinishedWork(
       current,
@@ -1457,7 +1464,6 @@ function mountIndeterminateComponent(
           getComponentName(Component) || 'Unknown',
         );
       }
-
       if (
         debugRenderPhaseSideEffectsForStrictMode &&
         workInProgress.mode & StrictMode
@@ -2785,6 +2791,121 @@ export function markWorkInProgressReceivedUpdate() {
   didReceiveUpdate = true;
 }
 
+function reifyNextWork(workInProgress: Fiber, renderExpirationTime) {
+  let fiber = workInProgress.child;
+  if (fiber !== null) {
+    // Set the return pointer of the child to the work-in-progress fiber.
+    fiber.return = workInProgress;
+  }
+
+  while (fiber !== null) {
+    let nextFiber;
+
+    if (fiber.mode & ReifiedWorkMode) {
+      nextFiber = null;
+    } else {
+      fiber.mode |= ReifiedWorkMode;
+
+      if (fiber.expirationTime >= renderExpirationTime) {
+        let didBailout;
+        switch (fiber.tag) {
+          case ForwardRef:
+          case SimpleMemoComponent:
+          case FunctionComponent: {
+            try {
+              didBailout = canBailoutSpeculativeWorkWithHooks(
+                fiber,
+                renderExpirationTime,
+              );
+            } catch (e) {
+              // suppress error and do not bailout. it should error again
+              // when the component renders when the context selector is run
+              // or when the reducer state is updated
+              didBailout = false;
+            }
+
+            break;
+          }
+          case ClassComponent: {
+            // class component is not yet supported for bailing out of context and state updates
+            // but it support should be possible
+            // @TODO implement a ClassComponent bailout here
+            didBailout = false;
+            break;
+          }
+          default: {
+            // in unsupported cases we cannot bail out of work and we
+            // consider the speculative work reified
+            didBailout = false;
+          }
+        }
+        if (didBailout) {
+          fiber.expirationTime = NoWork;
+          nextFiber = fiber.child;
+        } else {
+          nextFiber = null;
+        }
+      } else if (fiber.childExpirationTime >= renderExpirationTime) {
+        nextFiber = fiber.child;
+      } else {
+        nextFiber = null;
+      }
+    }
+
+    if (fiber.tag === ContextProvider) {
+      const newValue = fiber.memoizedProps.value;
+      pushProvider(fiber, newValue);
+    }
+
+    if (nextFiber !== null) {
+      nextFiber.return = fiber;
+    } else {
+      // No child. Traverse to next sibling.
+      nextFiber = fiber;
+      while (nextFiber !== null) {
+        if (nextFiber === workInProgress) {
+          // We're back to the root of this subtree. Exit.
+          nextFiber = null;
+          break;
+        }
+        if (nextFiber.tag === ContextProvider) {
+          popProvider(nextFiber);
+        }
+        let sibling = nextFiber.sibling;
+        if (sibling !== null) {
+          // Set the return pointer of the sibling to the work-in-progress fiber.
+          sibling.return = nextFiber.return;
+          nextFiber = sibling;
+          break;
+        }
+        // No more siblings. Traverse up.
+        nextFiber = nextFiber.return;
+        resetChildExpirationTime(nextFiber);
+      }
+    }
+    fiber = nextFiber;
+  }
+}
+
+function resetChildExpirationTime(fiber: Fiber) {
+  let newChildExpirationTime = NoWork;
+
+  let child = fiber.child;
+  while (child !== null) {
+    const childUpdateExpirationTime = child.expirationTime;
+    const childChildExpirationTime = child.childExpirationTime;
+    if (childUpdateExpirationTime > newChildExpirationTime) {
+      newChildExpirationTime = childUpdateExpirationTime;
+    }
+    if (childChildExpirationTime > newChildExpirationTime) {
+      newChildExpirationTime = childChildExpirationTime;
+    }
+    child = child.sibling;
+  }
+
+  fiber.childExpirationTime = newChildExpirationTime;
+}
+
 function bailoutOnAlreadyFinishedWork(
   current: Fiber | null,
   workInProgress: Fiber,
@@ -2805,6 +2926,16 @@ function bailoutOnAlreadyFinishedWork(
   const updateExpirationTime = workInProgress.expirationTime;
   if (updateExpirationTime !== NoWork) {
     markUnprocessedUpdateTime(updateExpirationTime);
+  }
+
+  if (enableReifyNextWork) {
+    if (workInProgress.childExpirationTime >= renderExpirationTime) {
+      if (workInProgress.mode & ReifiedWorkMode) {
+        // noop, we don't need to do any checking if we've already done it
+      } else {
+        reifyNextWork(workInProgress, renderExpirationTime);
+      }
+    }
   }
 
   // Check if the children have any pending work.

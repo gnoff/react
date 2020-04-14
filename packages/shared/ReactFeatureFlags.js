@@ -130,3 +130,12 @@ export const warnUnstableRenderSubtreeIntoContainer = false;
 
 // Disables ReactDOM.unstable_createPortal
 export const disableUnstableCreatePortal = false;
+
+// Turns on speculative work mode features and context selector api support
+export const enableContextSelectors = true;
+
+// Turns on context reader propagation
+export const enableContextReaderPropagation = true;
+
+// Turns on a work reification implementation
+export const enableReifyNextWork = true;
