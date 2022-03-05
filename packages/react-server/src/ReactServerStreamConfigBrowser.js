@@ -21,24 +21,71 @@ export function flushBuffered(destination: Destination) {
   // transform streams. https://github.com/whatwg/streams/issues/960
 }
 
-export function beginWriting(destination: Destination) {}
+let currentView = null;
+let writtenBytes = 0;
+
+function prepareNewView() {
+  let buffer = new ArrayBuffer(512);
+  currentView = new Uint8Array(buffer);
+  writtenBytes = 0;
+}
+
+function resetView() {
+  currentView = null;
+  writtenBytes = 0;
+}
+
+function flushViewIfFull(chunk) {
+  if (chunk.length + writtenBytes > currentView.length) {
+    destination.enqueue(new Uint8Array(currentView.buffer, 0, writtenBytes));
+    prepareNewView();
+  }
+}
+
+function copyToView(chunk) {
+  if (chunk.length > currentView.length) {
+    throw new Error(
+      `copyToView was called with a chunk (length: ${chunk.length}) that exceeds the buffer's total size (${currentView.length}). This is a limitation of React. please file an issue.`,
+    );
+  }
+  if (writtenBytes + chunk.length > currentView.length) {
+    throw new Error(
+      `copyToView was called with a chunk (length: ${
+        chunk.length
+      }) that exceeds the buffer's remaining length (${currentView.length -
+        writtenBytes})`,
+    );
+  }
+  currentView.set(chunk, writtenBytes);
+  writtenBytes += chunk.length;
+}
+
+export function beginWriting(destination: Destination) {
+  prepareNewView();
+}
 
 export function writeChunk(
   destination: Destination,
   chunk: PrecomputedChunk | Chunk,
 ): void {
-  destination.enqueue(chunk);
+  flushViewIfFull(chunk);
+  copyToView(chunk);
 }
 
 export function writeChunkAndReturn(
   destination: Destination,
   chunk: PrecomputedChunk | Chunk,
 ): boolean {
-  destination.enqueue(chunk);
-  return destination.desiredSize > 0;
+  flushViewIfFull(chunk);
+  copyToView(chunk);
+  // no backpressure in browser streams. always return true.
+  return true;
 }
 
-export function completeWriting(destination: Destination) {}
+export function completeWriting(destination: Destination) {
+  destination.enqueue(currentView);
+  resetView();
+}
 
 export function close(destination: Destination) {
   destination.close();
