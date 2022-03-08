@@ -7,7 +7,7 @@
  * @flow
  */
 
-export type Destination = ReadableStreamController;
+export type Destination = ReadableByteStreamController;
 
 export type PrecomputedChunk = Uint8Array;
 export type Chunk = Uint8Array;
@@ -23,11 +23,36 @@ export function flushBuffered(destination: Destination) {
 
 const VIEW_SIZE = 512;
 let currentView = null;
+let isByobView = false;
 let writtenBytes = 0;
 
 export function beginWriting(destination: Destination) {
-  currentView = new Uint8Array(VIEW_SIZE);
+  if (destination.byobRequest) {
+    currentView = destination.byobRequest.view;
+    isByobView = true;
+  } else {
+    currentView = new Uint8Array(VIEW_SIZE);
+    isByobView = false;
+  }
   writtenBytes = 0;
+}
+
+function flushView(destination) {
+  if (isByobView) {
+    console.log('responding with byobView');
+    destination.byobRequest.respond(writtenBytes);
+  } else {
+    if (writtenBytes !== currentView.byteLength) {
+      console.log('sending partial view');
+      destination.enqueue(new Uint8Array(currentView.buffer, 0, writtenBytes));
+    } else {
+      console.log('sending full view');
+      destination.enqueue(currentView);
+    }
+  }
+  writtenBytes = 0;
+  currentView = new Uint8Array(VIEW_SIZE);
+  isByobView = false;
 }
 
 export function writeChunk(
@@ -43,15 +68,7 @@ export function writeChunk(
     // one that is cached by the streaming renderer. We will enqueu
     // it directly and expect it is not re-used
     if (writtenBytes > 0) {
-      destination.enqueue(
-        new Uint8Array(
-          ((currentView: any): Uint8Array).buffer,
-          0,
-          writtenBytes,
-        ),
-      );
-      currentView = new Uint8Array(VIEW_SIZE);
-      writtenBytes = 0;
+      flushView(destination);
     }
     destination.enqueue(chunk);
     return;
@@ -64,7 +81,7 @@ export function writeChunk(
     // and start a new view with the remaining chunk
     if (allowableBytes === 0) {
       // the current view is already full, send it
-      destination.enqueue(currentView);
+      flushView(destination);
     } else {
       // fill up the current view and apply the remaining chunk bytes
       // to a new view.
@@ -72,12 +89,16 @@ export function writeChunk(
         bytesToWrite.subarray(0, allowableBytes),
         writtenBytes,
       );
-      // writtenBytes += allowableBytes; // this can be skipped because we are going to immediately reset the view
-      destination.enqueue(currentView);
+      writtenBytes += allowableBytes; // this can be skipped because we are going to immediately reset the view
+      console.log('***** start');
+      flushView(destination);
+      // destination.enqueue(currentView);
+      console.log('***** stop');
       bytesToWrite = bytesToWrite.subarray(allowableBytes);
     }
     currentView = new Uint8Array(VIEW_SIZE);
     writtenBytes = 0;
+    isByobView = false;
   }
   ((currentView: any): Uint8Array).set(bytesToWrite, writtenBytes);
   writtenBytes += bytesToWrite.length;
@@ -98,10 +119,19 @@ export function completeWriting(destination: Destination) {
     currentView = null;
     writtenBytes = 0;
   }
+  console.log('completeWRiting', destination.byobRequest);
 }
 
 export function close(destination: Destination) {
+  console.log('about to close destination');
   destination.close();
+  console.log('destination closed');
+  if (destination.byobRequest) {
+    console.log(destination.byobRequest);
+    // it is possible for there to be a pending byobRequest when close is called
+    // and if we do not respond to it the reader hangs
+    destination.byobRequest.respond(0);
+  }
 }
 
 const textEncoder = new TextEncoder();
