@@ -41,6 +41,7 @@ import {
 import {
   shouldSetTextContent,
   supportsHydration,
+  instanceNeedsHydration,
   canHydrateInstance,
   canHydrateTextInstance,
   canHydrateSuspenseInstance,
@@ -303,6 +304,10 @@ function insertNonHydratedInstance(returnFiber: Fiber, fiber: Fiber) {
   warnNonhydratedInstance(returnFiber, fiber);
 }
 
+function insertInstanceThatDoesNotRequireHydration(fiber: Fiber) {
+  fiber.flags = (fiber.flags & ~Hydrating) | Placement;
+}
+
 function tryHydrate(fiber, nextInstance) {
   switch (fiber.tag) {
     case HostComponent: {
@@ -381,6 +386,12 @@ function throwOnHydrationMismatch(fiber: Fiber) {
 
 function tryToClaimNextHydratableInstance(fiber: Fiber): void {
   if (!isHydrating) {
+    return;
+  }
+  if (!instanceNeedsHydration(fiber.type)) {
+    insertInstanceThatDoesNotRequireHydration(fiber);
+    isHydrating = false;
+    hydrationParentFiber = fiber;
     return;
   }
   let nextInstance = nextHydratableInstance;

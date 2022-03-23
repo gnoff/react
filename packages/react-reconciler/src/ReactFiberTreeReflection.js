@@ -304,7 +304,8 @@ function findCurrentHostFiberWithNoPortalsImpl(node: Fiber) {
 
   let child = node.child;
   while (child !== null) {
-    if (child.tag !== HostPortal) {
+    // @TODO refactor to not leak dom internals to react files
+    if (child.tag !== HostPortal && child.type !== 'head') {
       const match = findCurrentHostFiberWithNoPortalsImpl(child);
       if (match !== null) {
         return match;

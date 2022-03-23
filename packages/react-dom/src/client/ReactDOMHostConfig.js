@@ -303,6 +303,7 @@ export function finalizeInitialChildren(
     case 'textarea':
       return !!props.autoFocus;
     case 'img':
+    case 'head':
       return true;
     default:
       return false;
@@ -446,6 +447,40 @@ export function commitMount(
       }
       return;
     }
+    case 'head': {
+      // @TODO ideally we would not have already inserted the head into the document unless
+      // it was in the correct position in the tree (first child of <html>). factoring the
+      // code this way was going to require more changes in the reconciler so for now
+      // it is implemented in renderer specific methods that are called at convenient times
+
+      // determine if we can hoist this head
+      const htmlRoot = document.documentElement;
+      const parentElement = domElement.parentElement;
+      if (parentElement !== null && parentElement === htmlRoot) {
+        // if the parent element is the html element we don't need to relocate it
+        return;
+      }
+      if (htmlRoot) {
+        const htmlHeads = htmlRoot.getElementsByTagName('head');
+        // gather transferrable children from reach html head
+        // we check all found heads because even though only 1 is supported
+        // per spec, browsers will still render stylesheets from each
+        // @TODO implement the copy of transferrable children
+        for (let domChild of htmlRoot.children) {
+          if (domChild.tagName.toLowerCase() === 'head') {
+            htmlRoot.removeChild(domChild);
+          }
+        }
+        htmlRoot.prepend(domElement);
+      } else {
+        if (__DEV__) {
+          console.error(
+            'A <head> element was mounted into a container that has no <html> element. This could be because the container is not attached to a document yet.',
+          );
+        }
+      }
+      return;
+    }
   }
 }
 
@@ -569,7 +604,11 @@ export function removeChild(
   parentInstance: Instance,
   child: Instance | TextInstance | SuspenseInstance,
 ): void {
-  parentInstance.removeChild(child);
+  if ((child: Node).nodeName.toLowerCase() !== 'head') {
+    // we exclude <head> because it is kept in the document until something
+    // else replaces it
+    parentInstance.removeChild(child);
+  }
 }
 
 export function removeChildFromContainer(
@@ -578,7 +617,9 @@ export function removeChildFromContainer(
 ): void {
   if (container.nodeType === COMMENT_NODE) {
     (container.parentNode: any).removeChild(child);
-  } else {
+  } else if ((child: Node).nodeName.toLowerCase() !== 'head') {
+    // we exclude <head> because it is kept in the document until something
+    // else replaces it
     container.removeChild(child);
   }
 }
@@ -688,6 +729,13 @@ export function clearContainer(container: Container): void {
 
 export const supportsHydration = true;
 
+export function instanceNeedsHydration(type: string) {
+  if (type.toLowerCase() === 'head') {
+    return false;
+  }
+  return true;
+}
+
 export function canHydrateInstance(
   instance: HydratableInstance,
   type: string,
@@ -746,7 +794,9 @@ function getNextHydratable(node) {
   for (; node != null; node = node.nextSibling) {
     const nodeType = node.nodeType;
     if (nodeType === ELEMENT_NODE || nodeType === TEXT_NODE) {
-      break;
+      if (node.nodeName !== 'HEAD') {
+        break;
+      }
     }
     if (enableSuspenseServerRenderer) {
       if (nodeType === COMMENT_NODE) {

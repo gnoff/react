@@ -314,7 +314,9 @@ if (__DEV__) {
       case 'colgroup':
       case 'frameset':
       case 'frame':
-      case 'head':
+      // case 'head' is removed because head has special treatment that causes it
+      // to be hoisted to the document root. @TODO ideally we would warn if you had an
+      // improperly nested head and you were not in a context that had an html root.
       case 'html':
       case 'tbody':
       case 'td':
