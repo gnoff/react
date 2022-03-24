@@ -56,6 +56,7 @@ import hyphenateStyleName from '../shared/hyphenateStyleName';
 import hasOwnProperty from 'shared/hasOwnProperty';
 import sanitizeURL from '../shared/sanitizeURL';
 import isArray from 'shared/isArray';
+import {createImportSpecifier} from 'typescript';
 
 // Used to distinguish these contexts from ones used in other renderers.
 // E.g. this can be used to distinguish legacy renderers from this modern one.
@@ -142,13 +143,14 @@ export function createResponseState(
 // modes. We only include the variants as they matter for the sake of our purposes.
 // We don't actually provide the namespace therefore we use constants instead of the string.
 const ROOT_HTML_MODE = 0; // Used for the root most element tag.
-export const HTML_MODE = 1;
-const SVG_MODE = 2;
-const MATHML_MODE = 3;
-const HTML_TABLE_MODE = 4;
-const HTML_TABLE_BODY_MODE = 5;
-const HTML_TABLE_ROW_MODE = 6;
-const HTML_COLGROUP_MODE = 7;
+const HTML_DOCUMENT_MODE = 1; // Used for writing head in head position (child or html tag)
+export const HTML_MODE = 2;
+const SVG_MODE = 3;
+const MATHML_MODE = 4;
+const HTML_TABLE_MODE = 5;
+const HTML_TABLE_BODY_MODE = 6;
+const HTML_TABLE_ROW_MODE = 7;
+const HTML_COLGROUP_MODE = 8;
 // We have a greater than HTML_TABLE_MODE check elsewhere. If you add more cases here, make sure it
 // still makes sense
 
@@ -185,6 +187,7 @@ export function getChildFormatContext(
   type: string,
   props: Object,
 ): FormatContext {
+  console.log('getChildFormatContext', parentContext, type);
   switch (type) {
     case 'select':
       return createFormatContext(
@@ -216,7 +219,11 @@ export function getChildFormatContext(
     return createFormatContext(HTML_MODE, null);
   }
   if (parentContext.insertionMode === ROOT_HTML_MODE) {
-    // We've emitted the root and is now in plain HTML mode.
+    // We've emitted the root and is now in plain the documentElement mode.
+    return createFormatContext(HTML_DOCUMENT_MODE, null);
+  }
+  if (parentContext.insertionMode === HTML_DOCUMENT_MODE) {
+    //We've emitted the top level documentElement and are now in plain HTML mode.
     return createFormatContext(HTML_MODE, null);
   }
   return parentContext;
@@ -1390,6 +1397,21 @@ export function pushStartInstance(
       }
       return pushStartGenericElement(target, props, type, responseState);
     }
+    case 'head': {
+      console.log('pushing start instance for head');
+      if (formatContext.insertionMode === HTML_DOCUMENT_MODE) {
+        console.log(
+          'we are in head position and can write elements here normally',
+        );
+        return pushStartGenericElement(target, props, type, responseState);
+      } else {
+        console.log(
+          'we are not in head position and need to render into a template',
+        );
+        target.push(stringToChunk('<template id="head">'));
+        return pushStartGenericElement(target, props, type, responseState);
+      }
+    }
     default: {
       if (type.indexOf('-') === -1 && typeof props.is !== 'string') {
         // Generic element
@@ -1409,6 +1431,7 @@ export function pushEndInstance(
   target: Array<Chunk | PrecomputedChunk>,
   type: string,
   props: Object,
+  formatContext: FormatContext,
 ): void {
   switch (type) {
     // Omitted close tags
@@ -1430,6 +1453,31 @@ export function pushEndInstance(
     case 'track':
     case 'wbr': {
       // No close tag needed.
+      break;
+    }
+    case 'head': {
+      console.log('pushEndInstance', formatContext);
+      target.push(endTag1, stringToChunk(type), endTag2);
+      if (formatContext.insertionMode === HTML_MODE) {
+        target.push(stringToChunk('</template>'));
+        target.push(
+          stringToChunk(`<script>
+          console.log('----- hoisting head', document.documentElement.innerHTML)
+          let root = document.documentElement;
+          let newHeadTemplate = document.getElementById("head");
+          if (newHeadTemplate) {
+            newHeadTemplate.remove();
+            let h = document.querySelectorAll('html>head');
+            for (let head of Array.from(h)) {
+              root.removeChild(head);
+            }
+            let head = document.createElement('head');
+            head.append(newHeadTemplate.content)
+            root.prepend(head);
+          }
+        </script>`),
+        );
+      }
       break;
     }
     default: {
@@ -1499,6 +1547,7 @@ export function writeStartCompletedSuspenseBoundary(
   destination: Destination,
   responseState: ResponseState,
 ): boolean {
+  console.log('writeStartCompletedSuspenseBoundary');
   return writeChunkAndReturn(destination, startCompletedSuspenseBoundary);
 }
 export function writeStartPendingSuspenseBoundary(
@@ -1506,6 +1555,7 @@ export function writeStartPendingSuspenseBoundary(
   responseState: ResponseState,
   id: SuspenseBoundaryID,
 ): boolean {
+  console.log('writeStartPendingSuspenseBoundary');
   writeChunk(destination, startPendingSuspenseBoundary1);
 
   if (id === null) {
@@ -1521,6 +1571,7 @@ export function writeStartClientRenderedSuspenseBoundary(
   destination: Destination,
   responseState: ResponseState,
 ): boolean {
+  console.log('writeStartClientRenderedSuspenseBoundary');
   return writeChunkAndReturn(destination, startClientRenderedSuspenseBoundary);
 }
 export function writeEndCompletedSuspenseBoundary(
@@ -1584,8 +1635,10 @@ export function writeStartSegment(
   formatContext: FormatContext,
   id: number,
 ): boolean {
+  console.log('writeStartSegment', id);
   switch (formatContext.insertionMode) {
     case ROOT_HTML_MODE:
+    case HTML_DOCUMENT_MODE:
     case HTML_MODE: {
       writeChunk(destination, startSegmentHTML);
       writeChunk(destination, responseState.segmentPrefix);
@@ -1643,6 +1696,7 @@ export function writeEndSegment(
 ): boolean {
   switch (formatContext.insertionMode) {
     case ROOT_HTML_MODE:
+    case HTML_DOCUMENT_MODE:
     case HTML_MODE: {
       return writeChunkAndReturn(destination, endSegmentHTML);
     }
@@ -1776,11 +1830,11 @@ export function writeEndSegment(
 // }
 
 const completeSegmentFunction =
-  'function $RS(a,b){a=document.getElementById(a);b=document.getElementById(b);for(a.parentNode.removeChild(a);a.firstChild;)b.parentNode.insertBefore(a.firstChild,b);b.parentNode.removeChild(b)}';
+  'function $RS(a,b){console.log("----- executing RS", a, b, document.documentElement.innerHTML);a=document.getElementById(a);b=document.getElementById(b);for(a.parentNode.removeChild(a);a.firstChild;)b.parentNode.insertBefore(a.firstChild,b);b.parentNode.removeChild(b)}';
 const completeBoundaryFunction =
-  'function $RC(a,b){a=document.getElementById(a);b=document.getElementById(b);b.parentNode.removeChild(b);if(a){a=a.previousSibling;var f=a.parentNode,c=a.nextSibling,e=0;do{if(c&&8===c.nodeType){var d=c.data;if("/$"===d)if(0===e)break;else e--;else"$"!==d&&"$?"!==d&&"$!"!==d||e++}d=c.nextSibling;f.removeChild(c);c=d}while(c);for(;b.firstChild;)f.insertBefore(b.firstChild,c);a.data="$";a._reactRetry&&a._reactRetry()}}';
+  'function $RC(a,b){console.log("----- executing RC", a, b, document.documentElement.innerHTML);a=document.getElementById(a);b=document.getElementById(b);b.parentNode.removeChild(b);if(a){a=a.previousSibling;var f=a.parentNode,c=a.nextSibling,e=0;do{if(c&&8===c.nodeType){var d=c.data;if("/$"===d)if(0===e)break;else e--;else"$"!==d&&"$?"!==d&&"$!"!==d||e++}d=c.nextSibling;f.removeChild(c);c=d}while(c);for(;b.firstChild;)f.insertBefore(b.firstChild,c);a.data="$";a._reactRetry&&a._reactRetry()}}';
 const clientRenderFunction =
-  'function $RX(a){if(a=document.getElementById(a))a=a.previousSibling,a.data="$!",a._reactRetry&&a._reactRetry()}';
+  'function $RX(a){if(console.log("----- executing RX", a, document.documentElement.innerHTML);a=document.getElementById(a))a=a.previousSibling,a.data="$!",a._reactRetry&&a._reactRetry()}';
 
 const completeSegmentScript1Full = stringToPrecomputedChunk(
   completeSegmentFunction + ';$RS("',

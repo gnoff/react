@@ -555,6 +555,7 @@ function renderHostElement(
 ): void {
   pushBuiltInComponentStackInDEV(task, type);
   const segment = task.blockedSegment;
+  console.log('renderHostElement', type, segment.formatContext);
   const children = pushStartInstance(
     segment.chunks,
     type,
@@ -562,15 +563,17 @@ function renderHostElement(
     request.responseState,
     segment.formatContext,
   );
+  console.log('children', children);
   const prevContext = segment.formatContext;
   segment.formatContext = getChildFormatContext(prevContext, type, props);
+  console.log('the segment.formatContext is', segment.formatContext);
   // We use the non-destructive form because if something suspends, we still
   // need to pop back up and finish this subtree of HTML.
   renderNode(request, task, children);
   // We expect that errors will fatal the whole task and that we don't need
   // the correct context. Therefore this is not in a finally.
   segment.formatContext = prevContext;
-  pushEndInstance(segment.chunks, type, props);
+  pushEndInstance(segment.chunks, type, props, segment.formatContext);
   popComponentStackInDEV(task);
 }
 
