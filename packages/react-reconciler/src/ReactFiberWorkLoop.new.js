@@ -1118,6 +1118,7 @@ function finishConcurrentRender(root, exitStatus, lanes) {
       break;
     }
     case RootSuspendedWithDelay: {
+      console.log('root suspended with delay');
       markRootSuspended(root, lanes);
 
       if (includesOnlyTransitions(lanes)) {
@@ -1139,6 +1140,8 @@ function finishConcurrentRender(root, exitStatus, lanes) {
         const eventTimeMs = mostRecentEventTime;
         const timeElapsedMs = now() - eventTimeMs;
         const msUntilTimeout = jnd(timeElapsedMs) - timeElapsedMs;
+
+        console.log('msUntilTimeout', msUntilTimeout);
 
         // Don't bother with a very short suspense time.
         if (msUntilTimeout > 10) {

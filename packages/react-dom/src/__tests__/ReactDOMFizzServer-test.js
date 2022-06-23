@@ -4146,7 +4146,7 @@ describe('ReactDOMFizzServer', () => {
     );
   });
 
-  it('Hydration warnings for mismatched text with multiple text nodes caused by suspending should be suppressed', async () => {
+  fit('Hydration warnings for mismatched text with multiple text nodes caused by suspending should be suppressed', async () => {
     let resolve;
     const Lazy = React.lazy(() => {
       return new Promise(r => {
@@ -4183,7 +4183,12 @@ describe('ReactDOMFizzServer', () => {
       </div>,
     );
 
+    console.log('before timer advance', performance.now());
+    jest.advanceTimersByTime(120);
+
+    console.log('before resrolve');
     resolve({default: () => <p>lazy</p>});
+    console.log('resolved and about to flushAndYield');
     expect(Scheduler).toFlushAndYield([]);
     expect(errors).toEqual([]);
     expect(getVisibleChildren(container)).toEqual(
