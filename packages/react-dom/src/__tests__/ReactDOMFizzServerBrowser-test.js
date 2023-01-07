@@ -182,7 +182,7 @@ describe('ReactDOMFizzServerBrowser', () => {
     );
     const result = await readResult(stream);
     expect(result).toMatchInlineSnapshot(
-      `"<!DOCTYPE html><html><body>hello world</body></html>"`,
+      `"<!DOCTYPE html><html><head></head><body>hello world</body></html>"`,
     );
   });
 

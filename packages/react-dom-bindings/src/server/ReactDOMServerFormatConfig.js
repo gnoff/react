@@ -123,6 +123,9 @@ const DataStreamingFormat: StreamingFormat = 1;
 export type ResponseState = {
   bootstrapChunks: Array<Chunk | PrecomputedChunk>,
   fallbackBootstrapChunks: void | Array<Chunk | PrecomputedChunk>,
+  requiresEmbedding: boolean,
+  hasHead: boolean,
+  hasHtml: boolean,
   placeholderPrefix: PrecomputedChunk,
   segmentPrefix: PrecomputedChunk,
   boundaryPrefix: string,
@@ -199,6 +202,7 @@ export function createResponseState(
   > | void,
   externalRuntimeConfig: string | BootstrapScriptDescriptor | void,
   containerID: string | void,
+  documentEmbedding: boolean | void,
 ): ResponseState {
   const idPrefix = identifierPrefix === undefined ? '' : identifierPrefix;
   const inlineScriptWithNonce =
@@ -335,6 +339,9 @@ export function createResponseState(
     fallbackBootstrapChunks: fallbackBootstrapChunks.length
       ? fallbackBootstrapChunks
       : undefined,
+    requiresEmbedding: documentEmbedding === true,
+    hasHead: false,
+    hasHtml: false,
     placeholderPrefix: stringToPrecomputedChunk(idPrefix + 'P:'),
     segmentPrefix: stringToPrecomputedChunk(idPrefix + 'S:'),
     boundaryPrefix: idPrefix + 'B:',
@@ -1660,25 +1667,92 @@ function pushStartHead(
   target: Array<Chunk | PrecomputedChunk>,
   preamble: Array<Chunk | PrecomputedChunk>,
   props: Object,
-  tag: string,
   responseState: ResponseState,
 ): ReactNodeList {
-  return pushStartGenericElement(
-    enableFloat ? preamble : target,
-    props,
-    tag,
-    responseState,
-  );
+  if (enableFloat) {
+    let children = null;
+    let innerHTML = null;
+    let includedAttributeProps = false;
+
+    if (!responseState.hasHead) {
+      responseState.hasHead = true;
+      preamble.push(startChunkForTag('head'));
+      for (const propKey in props) {
+        if (hasOwnProperty.call(props, propKey)) {
+          const propValue = props[propKey];
+          if (propValue == null) {
+            continue;
+          }
+          switch (propKey) {
+            case 'children':
+              children = propValue;
+              break;
+            case 'dangerouslySetInnerHTML':
+              innerHTML = propValue;
+              break;
+            default:
+              if (__DEV__) {
+                includedAttributeProps = true;
+              }
+              pushAttribute(preamble, responseState, propKey, propValue);
+              break;
+          }
+        }
+      }
+      preamble.push(endOfStartTag);
+    } else {
+      // We elide the actual <head> tag because it was previously rendered but we still need
+      // to render children/innerHTML
+      for (const propKey in props) {
+        if (hasOwnProperty.call(props, propKey)) {
+          const propValue = props[propKey];
+          if (propValue == null) {
+            continue;
+          }
+          switch (propKey) {
+            case 'children':
+              children = propValue;
+              break;
+            case 'dangerouslySetInnerHTML':
+              innerHTML = propValue;
+              break;
+            default:
+              if (__DEV__) {
+                includedAttributeProps = true;
+              }
+              break;
+          }
+        }
+      }
+    }
+
+    if (__DEV__) {
+      if ((responseState: any).isDocumentEmbedded && includedAttributeProps) {
+        // We use this embedded flag a heuristic for whether we are rendering with renderIntoDocument
+        console.error(
+          'A <head> tag was rendered with props when using "renderIntoDocument". In this rendering mode' +
+            ' React may emit the head tag early in some circumstances and therefore props on the <head> tag are not' +
+            ' supported and may be missing in the rendered output for any particular render. In many cases props that' +
+            ' are set on a <head> tag can be set on the <html> tag instead.',
+        );
+      }
+    }
+
+    pushInnerHTML(target, innerHTML, children);
+    return children;
+  } else {
+    return pushStartGenericElement(target, props, 'head', responseState);
+  }
 }
 
 function pushStartHtml(
   target: Array<Chunk | PrecomputedChunk>,
   preamble: Array<Chunk | PrecomputedChunk>,
   props: Object,
-  tag: string,
   responseState: ResponseState,
   formatContext: FormatContext,
 ): ReactNodeList {
+  responseState.hasHtml = true;
   target = enableFloat ? preamble : target;
   if (formatContext.insertionMode === ROOT_HTML_MODE) {
     // If we're rendering the html tag and we're at the root (i.e. not in foreignObject)
@@ -1686,7 +1760,7 @@ function pushStartHtml(
     // rendering the whole document.
     target.push(DOCTYPE);
   }
-  return pushStartGenericElement(target, props, tag, responseState);
+  return pushStartGenericElement(target, props, 'html', responseState);
 }
 
 function pushScript(
@@ -1762,6 +1836,25 @@ function pushScriptImpl(
   }
   target.push(endTag1, stringToChunk('script'), endTag2);
   return null;
+}
+
+function pushHtmlEmbedding(
+  preamble: Array<Chunk | PrecomputedChunk>,
+  postamble: Array<Chunk | PrecomputedChunk>,
+  responseState: ResponseState,
+): void {
+  responseState.hasHtml = true;
+  preamble.push(DOCTYPE);
+  preamble.push(startChunkForTag('html'), endOfStartTag);
+  postamble.push(endTag1, stringToChunk('html'), endTag2);
+}
+
+function pushBodyEmbedding(
+  target: Array<Chunk | PrecomputedChunk>,
+  postamble: Array<Chunk | PrecomputedChunk>,
+): void {
+  target.push(startChunkForTag('body'), endOfStartTag);
+  postamble.push(endTag1, stringToChunk('body'), endTag2);
 }
 
 function pushStartGenericElement(
@@ -1981,6 +2074,7 @@ const DOCTYPE: PrecomputedChunk = stringToPrecomputedChunk('<!DOCTYPE html>');
 export function pushStartInstance(
   target: Array<Chunk | PrecomputedChunk>,
   preamble: Array<Chunk | PrecomputedChunk>,
+  postamble: Array<Chunk | PrecomputedChunk>,
   type: string,
   props: Object,
   responseState: ResponseState,
@@ -2020,6 +2114,31 @@ export function pushStartInstance(
             'or lowercase for HTML elements.',
           type,
         );
+      }
+    }
+  }
+
+  if (enableFloat) {
+    if (responseState.requiresEmbedding) {
+      responseState.requiresEmbedding = false;
+      if (__DEV__) {
+        // Dev only marker for later
+        (responseState: any).isDocumentEmbedded = true;
+      }
+      switch (type) {
+        case 'html': {
+          // noop
+          break;
+        }
+        case 'head':
+        case 'body': {
+          pushHtmlEmbedding(preamble, postamble, responseState);
+          break;
+        }
+        default: {
+          pushBodyEmbedding(target, postamble);
+          pushHtmlEmbedding(preamble, postamble, responseState);
+        }
       }
     }
   }
@@ -2113,13 +2232,12 @@ export function pushStartInstance(
     }
     // Preamble start tags
     case 'head':
-      return pushStartHead(target, preamble, props, type, responseState);
+      return pushStartHead(target, preamble, props, responseState);
     case 'html': {
       return pushStartHtml(
         target,
         preamble,
         props,
-        type,
         responseState,
         formatContext,
       );
@@ -2193,6 +2311,35 @@ export function pushEndInstance(
       break;
   }
   target.push(endTag1, stringToChunk(type), endTag2);
+}
+
+export function writePreambleOpen(
+  destination: Destination,
+  preamble: Array<Chunk | PrecomputedChunk>,
+  responseState: ResponseState,
+): void {
+  for (let i = 0; i < preamble.length; i++) {
+    writeChunk(destination, preamble[i]);
+  }
+  preamble.length = 0;
+  if (enableFloat) {
+    if (responseState.hasHtml && !responseState.hasHead) {
+      responseState.hasHead = true;
+      writeChunk(destination, startChunkForTag('head'));
+      writeChunk(destination, endOfStartTag);
+      preamble.push(endTag1, stringToChunk('head'), endTag2);
+    }
+  }
+}
+
+export function writePreambleClose(
+  destination: Destination,
+  preamble: Array<Chunk | PrecomputedChunk>,
+): void {
+  for (let i = 0; i < preamble.length; i++) {
+    writeChunk(destination, preamble[i]);
+  }
+  preamble.length = 0;
 }
 
 export function writeCompletedRoot(

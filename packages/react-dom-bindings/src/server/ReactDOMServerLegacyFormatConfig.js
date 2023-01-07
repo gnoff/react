@@ -37,6 +37,9 @@ export type ResponseState = {
   // Keep this in sync with ReactDOMServerFormatConfig
   bootstrapChunks: Array<Chunk | PrecomputedChunk>,
   fallbackBootstrapChunks: void | Array<Chunk | PrecomputedChunk>,
+  requiresEmbedding: boolean,
+  hasHead: boolean,
+  hasHtml: boolean,
   placeholderPrefix: PrecomputedChunk,
   segmentPrefix: PrecomputedChunk,
   boundaryPrefix: string,
@@ -75,6 +78,9 @@ export function createResponseState(
     // Keep this in sync with ReactDOMServerFormatConfig
     bootstrapChunks: responseState.bootstrapChunks,
     fallbackBootstrapChunks: responseState.fallbackBootstrapChunks,
+    requiresEmbedding: false,
+    hasHead: false,
+    hasHtml: false,
     placeholderPrefix: responseState.placeholderPrefix,
     segmentPrefix: responseState.segmentPrefix,
     boundaryPrefix: responseState.boundaryPrefix,
@@ -137,6 +143,8 @@ export {
   prepareToRender,
   cleanupAfterRender,
   getRootBoundaryID,
+  writePreambleOpen,
+  writePreambleClose,
 } from './ReactDOMServerFormatConfig';
 
 import {stringToChunk} from 'react-server/src/ReactServerStreamConfig';

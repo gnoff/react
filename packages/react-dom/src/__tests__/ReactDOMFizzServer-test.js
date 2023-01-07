@@ -398,6 +398,14 @@ describe('ReactDOMFizzServer', () => {
       mergeOptions(options, renderOptions),
     );
   }
+  function renderIntoDocumentAsPipeableStream(jsx, fallback, options) {
+    // Merge options with renderOptions, which may contain featureFlag specific behavior
+    return ReactDOMFizzServer.renderIntoDocumentAsPipeableStream(
+      jsx,
+      fallback,
+      mergeOptions(options, renderOptions),
+    );
+  }
 
   it('should asynchronously load a lazy component', async () => {
     const originalConsoleError = console.error;
@@ -6118,6 +6126,111 @@ describe('ReactDOMFizzServer', () => {
             <link rel="preload" href="foo" as="style" />
             <link rel="preload" href="bar" as="style" />
           </body>
+        </html>,
+      );
+    });
+  });
+
+  describe('renderIntoDocument', () => {
+    it('can render arbitrary HTML into a Document', async () => {
+      let content = '';
+      writable.on('data', chunk => (content += chunk));
+      await act(() => {
+        const {pipe} = renderIntoDocumentAsPipeableStream(
+          <div id="div">foo</div>,
+        );
+        pipe(writable);
+      });
+
+      expect(content.slice(0, 34)).toEqual(
+        '<!DOCTYPE html><html><head></head>',
+      );
+
+      expect(getMeaningfulChildren(document)).toEqual(
+        <html>
+          <head />
+          <body>
+            <div id="div">foo</div>
+          </body>
+        </html>,
+      );
+    });
+
+    it('can render <body> into a Document', async () => {
+      let content = '';
+      writable.on('data', chunk => (content += chunk));
+      await act(() => {
+        const {pipe} = renderIntoDocumentAsPipeableStream(
+          <body id="body">foo</body>,
+        );
+        pipe(writable);
+      });
+
+      expect(content.slice(0, 34)).toEqual(
+        '<!DOCTYPE html><html><head></head>',
+      );
+
+      expect(getMeaningfulChildren(document)).toEqual(
+        <html>
+          <head />
+          <body id="body">foo</body>
+        </html>,
+      );
+    });
+
+    it('can render <html> into a Document', async () => {
+      let content = '';
+      writable.on('data', chunk => (content += chunk));
+      await expect(async () => {
+        await act(() => {
+          const {pipe} = renderIntoDocumentAsPipeableStream(
+            <html id="html">
+              <head id="head">
+                <title>a title</title>
+              </head>
+              <body id="body">foo</body>
+            </html>,
+          );
+          pipe(writable);
+        });
+      }).toErrorDev(
+        'A <head> tag was rendered with props when using "renderIntoDocument". In this rendering mode React may emit the head tag early in some circumstances and therefore props on the <head> tag are not supported and may be missing in the rendered output for any particular render. In many cases props that are set on a <head> tag can be set on the <html> tag instead.',
+      );
+
+      expect(content.slice(0, 47)).toEqual(
+        '<!DOCTYPE html><html id="html"><head id="head">',
+      );
+
+      expect(getMeaningfulChildren(document)).toEqual(
+        <html id="html">
+          <head id="head">
+            <title>a title</title>
+          </head>
+          <body id="body">foo</body>
+        </html>,
+      );
+    });
+
+    it('inserts an empty head when rendering <html> if no <head /> is provided', async () => {
+      let content = '';
+      writable.on('data', chunk => (content += chunk));
+      await act(() => {
+        const {pipe} = renderIntoDocumentAsPipeableStream(
+          <html id="html">
+            <body id="body">foo</body>
+          </html>,
+        );
+        pipe(writable);
+      });
+
+      expect(content.slice(0, 49)).toEqual(
+        '<!DOCTYPE html><html id="html"><head></head><body',
+      );
+
+      expect(getMeaningfulChildren(document)).toEqual(
+        <html id="html">
+          <head />
+          <body id="body">foo</body>
         </html>,
       );
     });

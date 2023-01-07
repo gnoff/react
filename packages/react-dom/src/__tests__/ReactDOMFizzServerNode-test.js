@@ -74,7 +74,7 @@ describe('ReactDOMFizzServerNode', () => {
     pipe(writable);
     jest.runAllTimers();
     expect(output.result).toMatchInlineSnapshot(
-      `"<!DOCTYPE html><html><body>hello world</body></html>"`,
+      `"<!DOCTYPE html><html><head></head><body>hello world</body></html>"`,
     );
   });
 

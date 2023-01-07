@@ -71,6 +71,8 @@ export const writeClientRenderBoundaryInstruction =
 export const prepareToRender = $$$hostConfig.prepareToRender;
 export const cleanupAfterRender = $$$hostConfig.cleanupAfterRender;
 export const getRootBoundaryID = $$$hostConfig.getRootBoundaryID;
+export const writePreambleOpen = $$$hostConfig.writePreambleOpen;
+export const writePreambleClose = $$$hostConfig.writePreambleClose;
 
 // -------------------------
 //     Resources

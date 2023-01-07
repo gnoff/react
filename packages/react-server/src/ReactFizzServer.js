@@ -75,6 +75,8 @@ import {
   setCurrentlyRenderingBoundaryResourcesTarget,
   createResources,
   createBoundaryResources,
+  writePreambleOpen,
+  writePreambleClose,
 } from './ReactServerFormatConfig';
 import {
   constructClassInstance,
@@ -267,6 +269,7 @@ function noop(): void {}
 
 export function createRequest(
   children: ReactNodeList,
+  fallback: void | ReactNodeList,
   responseState: ResponseState,
   rootFormatContext: FormatContext,
   progressiveChunkSize: void | number,
@@ -708,6 +711,7 @@ function renderHostElement(
   const children = pushStartInstance(
     segment.chunks,
     request.preamble,
+    request.postamble,
     type,
     props,
     request.responseState,
@@ -2301,11 +2305,7 @@ function flushCompletedQueues(
       if (request.pendingRootTasks === 0) {
         if (enableFloat) {
           const preamble = request.preamble;
-          for (i = 0; i < preamble.length; i++) {
-            // we expect the preamble to be tiny and will ignore backpressure
-            writeChunk(destination, preamble[i]);
-          }
-
+          writePreambleOpen(destination, preamble, request.responseState);
           const willEmitInstructions = request.allPendingTasks > 0;
           flushInitialResources(
             destination,
@@ -2313,6 +2313,7 @@ function flushCompletedQueues(
             request.responseState,
             willEmitInstructions,
           );
+          writePreambleClose(destination, preamble);
         }
 
         flushSegment(request, destination, completedRootSegment);

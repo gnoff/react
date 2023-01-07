@@ -109,6 +109,7 @@ export const useModernStrictMode = false;
 export const enableFizzExternalRuntime = true;
 
 export const enableFizzIntoContainer = __EXPERIMENTAL__;
+export const enableFizzIntoDocument = __EXPERIMENTAL__;
 
 // Flow magic to verify the exports of this file match the original version.
 ((((null: any): ExportsType): FeatureFlagsType): ExportsType);

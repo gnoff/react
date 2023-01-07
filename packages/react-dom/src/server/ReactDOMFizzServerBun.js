@@ -12,7 +12,10 @@ import type {BootstrapScriptDescriptor} from 'react-dom-bindings/src/server/Reac
 
 import ReactVersion from 'shared/ReactVersion';
 
-import {enableFizzIntoContainer} from 'shared/ReactFeatureFlags';
+import {
+  enableFizzIntoContainer,
+  enableFizzIntoDocument,
+} from 'shared/ReactFeatureFlags';
 
 import {
   createRequest,
@@ -84,6 +87,7 @@ function renderToReadableStream(
     }
     const request = createRequest(
       children,
+      undefined, // fallback
       createResponseState(
         options ? options.identifierPrefix : undefined,
         options ? options.nonce : undefined,
@@ -94,6 +98,8 @@ function renderToReadableStream(
         undefined, // fallbackBootstrapScripts
         undefined, // fallbackBootstrapModules
         options ? options.unstable_externalRuntimeSrc : undefined,
+        undefined, // containerID
+        false, // documentEmbedding
       ),
       createRootFormatContext(options ? options.namespaceURI : undefined),
       options ? options.progressiveChunkSize : undefined,
@@ -150,6 +156,7 @@ function renderIntoContainer(
 
     const request = createRequest(
       children,
+      undefined, // fallback
       createResponseState(
         options ? options.identifierPrefix : undefined,
         options ? options.nonce : undefined,
@@ -161,6 +168,7 @@ function renderIntoContainer(
         options ? options.fallbackBootstrapModules : undefined,
         options ? options.unstable_externalRuntimeSrc : undefined,
         containerID,
+        false, // documentEmbedding
       ),
       createRootFormatContext(options ? options.namespaceURI : undefined),
       options ? options.progressiveChunkSize : undefined,
@@ -209,6 +217,98 @@ if (enableFizzIntoContainer) {
   renderIntoContainerExport = renderIntoContainer;
 }
 
+type IntoDocumentOptions = {
+  identifierPrefix?: string,
+  namespaceURI?: string,
+  nonce?: string,
+  bootstrapScriptContent?: string,
+  bootstrapScripts?: Array<string | BootstrapScriptDescriptor>,
+  bootstrapModules?: Array<string | BootstrapScriptDescriptor>,
+  fallbackBootstrapScriptContent?: string,
+  fallbackBootstrapScripts?: Array<string | BootstrapScriptDescriptor>,
+  fallbackBootstrapModules?: Array<string | BootstrapScriptDescriptor>,
+  progressiveChunkSize?: number,
+  signal?: AbortSignal,
+  onError?: (error: mixed) => ?string,
+  unstable_externalRuntimeSrc?: string | BootstrapScriptDescriptor,
+};
+
+function renderIntoDocument(
+  children: ReactNodeList,
+  fallback?: ReactNodeList,
+  options?: IntoDocumentOptions,
+): Promise<ReactDOMServerReadableStream> {
+  return new Promise((resolve, reject) => {
+    let onFatalError;
+    let onAllReady;
+    const allReady = new Promise((res, rej) => {
+      onAllReady = res;
+      onFatalError = rej;
+    });
+
+    const request = createRequest(
+      children,
+      fallback ? fallback : null,
+      createResponseState(
+        options ? options.identifierPrefix : undefined,
+        options ? options.nonce : undefined,
+        options ? options.bootstrapScriptContent : undefined,
+        options ? options.bootstrapScripts : undefined,
+        options ? options.bootstrapModules : undefined,
+        options ? options.fallbackBootstrapScriptContent : undefined,
+        options ? options.fallbackBootstrapScripts : undefined,
+        options ? options.fallbackBootstrapModules : undefined,
+        options ? options.unstable_externalRuntimeSrc : undefined,
+        undefined, // containerID
+        true, // documentEmbedding
+      ),
+      createRootFormatContext(options ? options.namespaceURI : undefined),
+      options ? options.progressiveChunkSize : undefined,
+      options ? options.onError : undefined,
+      onAllReady,
+      undefined, // onShellReady
+      undefined, // onShellError
+      onFatalError,
+    );
+    if (options && options.signal) {
+      const signal = options.signal;
+      if (signal.aborted) {
+        abort(request, (signal: any).reason);
+      } else {
+        const listener = () => {
+          abort(request, (signal: any).reason);
+          signal.removeEventListener('abort', listener);
+        };
+        signal.addEventListener('abort', listener);
+      }
+    }
+    startWork(request);
+
+    const stream: ReactDOMServerReadableStream = (new ReadableStream(
+      {
+        type: 'direct',
+        pull: (controller): ?Promise<void> => {
+          // $FlowIgnore
+          startFlowing(request, controller);
+        },
+        cancel: (reason): ?Promise<void> => {
+          abort(request);
+        },
+      },
+      // $FlowFixMe size() methods are not allowed on byte streams.
+      {highWaterMark: 2048},
+    ): any);
+    // TODO: Move to sub-classing ReadableStream.
+    stream.allReady = allReady;
+    return stream;
+  });
+}
+
+let renderIntoDocumentExport: void | typeof renderIntoDocument;
+if (enableFizzIntoDocument) {
+  renderIntoDocumentExport = renderIntoDocument;
+}
+
 function renderToNodeStream() {
   throw new Error(
     'ReactDOMServer.renderToNodeStream(): The Node Stream API is not available ' +
@@ -226,6 +326,7 @@ function renderToStaticNodeStream() {
 export {
   renderToReadableStream,
   renderIntoContainerExport as renderIntoContainer,
+  renderIntoDocumentExport as renderIntoDocument,
   renderToNodeStream,
   renderToStaticNodeStream,
   ReactVersion as version,

@@ -141,6 +141,7 @@ export function pushTextInstance(
 export function pushStartInstance(
   target: Array<Chunk | PrecomputedChunk>,
   preamble: Array<Chunk | PrecomputedChunk>,
+  postamble: Array<Chunk | PrecomputedChunk>,
   type: string,
   props: Object,
   responseState: ResponseState,
@@ -314,6 +315,17 @@ export function writeClientRenderBoundaryInstruction(
   writeChunk(destination, SUSPENSE_UPDATE_TO_CLIENT_RENDER);
   return writeChunkAndReturn(destination, formatID(boundaryID));
 }
+
+export function writePreambleOpen(
+  destination: Destination,
+  preamble: Array<Chunk | PrecomputedChunk>,
+  responseState: ResponseState,
+) {}
+
+export function writePreambleClose(
+  destination: Destination,
+  preamble: Array<Chunk | PrecomputedChunk>,
+) {}
 
 export function writeInitialResources(
   destination: Destination,
