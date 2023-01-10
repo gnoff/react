@@ -648,4 +648,20 @@ describe('ReactDOMFizzServerNode', () => {
       ).toBe(true);
     });
   });
+
+  describe('renderIntoDocumentAsPipeableStream', () => {
+    // @gate enableFloat && enableFizzIntoDocument
+    it('can render into a container', async () => {
+      const {writable, output} = getTestWritable();
+      const {pipe} = ReactDOMFizzServer.renderIntoDocumentAsPipeableStream(
+        <div>foo</div>,
+      );
+      pipe(writable);
+      jest.runAllTimers();
+
+      expect(output.result).toEqual(
+        '<!DOCTYPE html><html><head></head><body><div>foo</div></body></html>',
+      );
+    });
+  });
 });

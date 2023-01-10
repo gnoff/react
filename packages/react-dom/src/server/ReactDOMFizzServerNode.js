@@ -283,7 +283,7 @@ function renderIntoDocumentAsPipeableStream(
 let renderIntoDocumentAsPipeableStreamExport:
   | void
   | typeof renderIntoDocumentAsPipeableStream;
-if (enableFizzIntoContainer) {
+if (enableFizzIntoDocument) {
   renderIntoDocumentAsPipeableStreamExport = renderIntoDocumentAsPipeableStream;
 }
 

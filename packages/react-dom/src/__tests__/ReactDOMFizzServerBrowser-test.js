@@ -645,4 +645,26 @@ describe('ReactDOMFizzServerBrowser', () => {
       );
     });
   });
+
+  describe('renderIntoDocument', () => {
+    // @gate enableFloat && enableFizzIntoDocument
+    it('can render into a container', async () => {
+      let content = '';
+      await act(async () => {
+        const stream = ReactDOMFizzServer.renderIntoDocument(<div>foo</div>);
+        const reader = stream.getReader();
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) {
+            return;
+          }
+          content += Buffer.from(value).toString('utf8');
+        }
+      });
+
+      expect(content).toEqual(
+        '<!DOCTYPE html><html><head></head><body><div>foo</div></body></html>',
+      );
+    });
+  });
 });

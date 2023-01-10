@@ -2442,27 +2442,29 @@ export function writeEarlyPreamble(
       // If we emitted a preamble early it will have flushed <html> and <head>.
       // We check that we haven't flushed anything yet which is equivalent
       // to checking whether we have not flushed an <html> or <head>
-      if (responseState.flushed === NONE && responseState.rendered !== NONE) {
-        let i = 0;
-        const {htmlChunks, headChunks} = responseState;
-        if (htmlChunks.length) {
-          for (i = 0; i < htmlChunks.length; i++) {
-            writeChunk(destination, htmlChunks[i]);
+      if (responseState.rendered !== NONE) {
+        if (responseState.flushed === NONE) {
+          let i = 0;
+          const {htmlChunks, headChunks} = responseState;
+          if (htmlChunks.length) {
+            for (i = 0; i < htmlChunks.length; i++) {
+              writeChunk(destination, htmlChunks[i]);
+            }
+          } else {
+            writeChunk(destination, DOCTYPE);
+            writeChunk(destination, startChunkForTag('html'));
+            writeChunk(destination, endOfStartTag);
           }
-        } else {
-          writeChunk(destination, DOCTYPE);
-          writeChunk(destination, startChunkForTag('html'));
-          writeChunk(destination, endOfStartTag);
-        }
-        if (headChunks.length) {
-          for (i = 0; i < headChunks.length; i++) {
-            writeChunk(destination, headChunks[i]);
+          if (headChunks.length) {
+            for (i = 0; i < headChunks.length; i++) {
+              writeChunk(destination, headChunks[i]);
+            }
+          } else {
+            writeChunk(destination, startChunkForTag('head'));
+            writeChunk(destination, endOfStartTag);
           }
-        } else {
-          writeChunk(destination, startChunkForTag('head'));
-          writeChunk(destination, endOfStartTag);
+          responseState.flushed |= HTML | HEAD;
         }
-        responseState.flushed |= HTML | HEAD;
 
         return writeEarlyResources(
           destination,
@@ -2587,14 +2589,16 @@ export function prepareForFallback(responseState: ResponseState): void {
   if (__DEV__) {
     (responseState: any).inFallbackDEV = true;
   }
-  // This function would ideally check somethign to see whether embedding
-  // was required however at the moment the only time we use a Request Fallback
-  // is when we use renderIntoDocument which is the only variant where which
-  // utilizes fallback children. We assume we're in that mode if this function
-  // is called and update the requirement accordingly
+  // Reset rendered states
   responseState.htmlChunks = [];
   responseState.headChunks = [];
   responseState.rendered = NONE;
+
+  // Move fallback bootstrap to bootstrap if configured
+  const fallbackBootstrapChunks = responseState.fallbackBootstrapChunks;
+  if (fallbackBootstrapChunks && fallbackBootstrapChunks.length) {
+    responseState.bootstrapChunks = fallbackBootstrapChunks;
+  }
 }
 
 export function writeCompletedRoot(

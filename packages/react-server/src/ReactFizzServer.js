@@ -344,7 +344,10 @@ export function createRequest(
   );
   pingedTasks.push(rootTask);
 
-  if (fallback) {
+  // null is a valid fallback so we distinguish between undefined and null here
+  // If you use renderIntoDocument without a fallback argument the Request still
+  // has a null fallback and will exhibit fallback behavior
+  if (fallback !== undefined) {
     const fallbackRootSegment = createPendingSegment(
       request,
       0,
@@ -1841,7 +1844,10 @@ function finishedTask(
       abortTaskSoft.call(request, fallbackTask);
     }
 
-    if (segment.parentFlushed) {
+    // When the fallbackTask is aborted it still gets finished. We need to ensure we only
+    // set the completedRootSegment if the segment is not aborted to avoid having more than
+    // one set at a time.
+    if (segment.parentFlushed && segment.status !== ABORTED) {
       if (request.completedRootSegment !== null) {
         throw new Error(
           'There can only be one root segment. This is a bug in React.',
