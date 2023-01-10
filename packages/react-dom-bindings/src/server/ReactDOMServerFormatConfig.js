@@ -119,13 +119,23 @@ export type StreamingFormat = 0 | 1;
 const ScriptStreamingFormat: StreamingFormat = 0;
 const DataStreamingFormat: StreamingFormat = 1;
 
+export type DocumentStructureTag = number;
+export const NONE: /*              */ DocumentStructureTag = 0b0000;
+const HTML: /*              */ DocumentStructureTag = 0b0001;
+const HEAD: /*              */ DocumentStructureTag = 0b0010;
+const BODY: /*              */ DocumentStructureTag = 0b0100;
+const HTML_HEAD_OR_BODY: /* */ DocumentStructureTag = 0b0111;
+const FLOW: /*              */ DocumentStructureTag = 0b1000;
+
 // Per response, global state that is not contextual to the rendering subtree.
 export type ResponseState = {
   bootstrapChunks: Array<Chunk | PrecomputedChunk>,
   fallbackBootstrapChunks: void | Array<Chunk | PrecomputedChunk>,
+  htmlChunks: Array<Chunk | PrecomputedChunk>,
+  headChunks: Array<Chunk | PrecomputedChunk>,
   requiresEmbedding: boolean,
-  hasHead: boolean,
-  hasHtml: boolean,
+  rendered: DocumentStructureTag,
+  flushed: DocumentStructureTag,
   placeholderPrefix: PrecomputedChunk,
   segmentPrefix: PrecomputedChunk,
   boundaryPrefix: string,
@@ -339,9 +349,11 @@ export function createResponseState(
     fallbackBootstrapChunks: fallbackBootstrapChunks.length
       ? fallbackBootstrapChunks
       : undefined,
+    htmlChunks: [],
+    headChunks: [],
     requiresEmbedding: documentEmbedding === true,
-    hasHead: false,
-    hasHtml: false,
+    rendered: NONE,
+    flushed: NONE,
     placeholderPrefix: stringToPrecomputedChunk(idPrefix + 'P:'),
     segmentPrefix: stringToPrecomputedChunk(idPrefix + 'S:'),
     boundaryPrefix: idPrefix + 'B:',
@@ -365,17 +377,20 @@ export function createResponseState(
 // modes. We only include the variants as they matter for the sake of our purposes.
 // We don't actually provide the namespace therefore we use constants instead of the string.
 const ROOT_HTML_MODE = 0; // Used for the root most element tag.
-export const HTML_MODE = 1;
-const SVG_MODE = 2;
-const MATHML_MODE = 3;
-const HTML_TABLE_MODE = 4;
-const HTML_TABLE_BODY_MODE = 5;
-const HTML_TABLE_ROW_MODE = 6;
-const HTML_COLGROUP_MODE = 7;
+const HTML_HTML_MODE = 1; // mode for top level <html> element.
+// We have a less than HTML_HTML_MODE check elsewhere. If you add more cases make cases here, make sure it
+// still makes sense
+export const HTML_MODE = 2;
+const SVG_MODE = 3;
+const MATHML_MODE = 4;
+const HTML_TABLE_MODE = 5;
+const HTML_TABLE_BODY_MODE = 6;
+const HTML_TABLE_ROW_MODE = 7;
+const HTML_COLGROUP_MODE = 8;
 // We have a greater than HTML_TABLE_MODE check elsewhere. If you add more cases here, make sure it
 // still makes sense
 
-type InsertionMode = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type InsertionMode = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 // Lets us keep track of contextual state and pick it back up after suspending.
 export type FormatContext = {
@@ -477,12 +492,14 @@ export function getChildFormatContext(
     );
   }
   if (parentContext.insertionMode === ROOT_HTML_MODE) {
+    // in ROOT_HTML_MODE it's not possible for a noscript tag to be
+    // in scope so we use a false literal rather than forwarding
+    // the parentContext value
+    if (type === 'html') {
+      return createFormatContext(HTML_HTML_MODE, null, false);
+    }
     // We've emitted the root and is now in plain HTML mode.
-    return createFormatContext(
-      HTML_MODE,
-      null,
-      parentContext.noscriptTagInScope,
-    );
+    return createFormatContext(HTML_MODE, null, false);
   }
   return parentContext;
 }
@@ -1663,20 +1680,159 @@ function pushStartTitle(
   return children;
 }
 
-function pushStartHead(
+function pushStartHtml(
   target: Array<Chunk | PrecomputedChunk>,
-  preamble: Array<Chunk | PrecomputedChunk>,
   props: Object,
   responseState: ResponseState,
+  formatContext: FormatContext,
 ): ReactNodeList {
   if (enableFloat) {
+    if (formatContext.insertionMode === ROOT_HTML_MODE) {
+      responseState.rendered |= HTML;
+      if (
+        responseState.requiresEmbedding &&
+        hasOwnProperty.call(props, 'dangerouslySetInnerHTML')
+      ) {
+        // We only enforce this restriction with new APIs like `renderIntoDocument` which
+        // we currently feature detect with `requiresEmbedding`.
+        // @TODO In a major version lets enforce this restriction globally
+        throw new Error(
+          'An <html> tag was rendered with a `dangerouslySetInnerHTML` prop while using `renderIntoDocument`. React does not support this; use a `children` prop instead',
+        );
+      }
+
+      let children = null;
+      let innerHTML = null;
+      let renderedAttributeProps: Map<string, any>;
+      if (__DEV__) {
+        renderedAttributeProps = new Map();
+      }
+
+      const htmlChunks = responseState.htmlChunks;
+
+      if (htmlChunks.length === 0) {
+        htmlChunks.push(DOCTYPE);
+        htmlChunks.push(startChunkForTag('html'));
+        for (const propKey in props) {
+          if (hasOwnProperty.call(props, propKey)) {
+            const propValue = props[propKey];
+            if (propValue == null) {
+              continue;
+            }
+            switch (propKey) {
+              case 'children':
+                children = propValue;
+                break;
+              case 'dangerouslySetInnerHTML':
+                innerHTML = propValue;
+                break;
+              default:
+                if (__DEV__ && renderedAttributeProps) {
+                  renderedAttributeProps.set(propKey, propValue);
+                }
+                pushAttribute(htmlChunks, responseState, propKey, propValue);
+                break;
+            }
+          }
+        }
+        htmlChunks.push(endOfStartTag);
+      } else {
+        // If we have already flushed the preamble then we elide the <head>
+        // tag itself but still return children and handle innerHTML
+        for (const propKey in props) {
+          if (hasOwnProperty.call(props, propKey)) {
+            const propValue = props[propKey];
+            if (propValue == null) {
+              continue;
+            }
+            switch (propKey) {
+              case 'children':
+                children = propValue;
+                break;
+              case 'dangerouslySetInnerHTML':
+                innerHTML = propValue;
+                break;
+              default:
+                if (__DEV__ && renderedAttributeProps) {
+                  renderedAttributeProps.set(propKey, propValue);
+                }
+                break;
+            }
+          }
+        }
+      }
+      if (__DEV__) {
+        const priorHtmlAttributes = (responseState: any).htmlAttributeMap;
+        const inFallback = (responseState: any).inFallbackDEV === true;
+        if (inFallback && priorHtmlAttributes && renderedAttributeProps) {
+          let differentProps = '';
+          priorHtmlAttributes.forEach(([propKey, propValue]) => {
+            if (renderedAttributeProps.get(propKey) !== propValue) {
+              if (differentProps.length === 0) {
+                differentProps += '\n  ' + propKey;
+              } else {
+                differentProps += ', ' + propKey;
+              }
+            }
+          });
+          if (differentProps) {
+            console.error(
+              'React encountered differing props when rendering the root <html> element of' +
+                ' the fallback children when using `renderIntoDocument`. When using `renderIntoDocument`' +
+                ' React will often emit the <html> tag early, before the we know whether the' +
+                ' Shell has finished. If the Shell errors and the fallback children are rendered' +
+                ' the props used on the <html> tag of the fallback tree will be ignored.' +
+                ' The props that differed in this instance are provided below.%s',
+              differentProps,
+            );
+          }
+        }
+      }
+      pushInnerHTML(target, innerHTML, children);
+      return children;
+    } else {
+      // This is an <html> element deeper in the tree and should be rendered in place
+      return pushStartGenericElement(target, props, 'html', responseState);
+    }
+  } else {
+    if (formatContext.insertionMode === ROOT_HTML_MODE) {
+      // If we're rendering the html tag and we're at the root (i.e. not in foreignObject)
+      // then we also emit the DOCTYPE as part of the root content as a convenience for
+      // rendering the whole document.
+      target.push(DOCTYPE);
+    }
+    return pushStartGenericElement(target, props, 'html', responseState);
+  }
+}
+
+function pushStartHead(
+  target: Array<Chunk | PrecomputedChunk>,
+  props: Object,
+  responseState: ResponseState,
+  formatContext: FormatContext,
+): ReactNodeList {
+  if (enableFloat && formatContext.insertionMode <= HTML_HTML_MODE) {
+    responseState.rendered |= HEAD;
     let children = null;
     let innerHTML = null;
-    let includedAttributeProps = false;
+    let attributePropsIncluded = false;
 
-    if (!responseState.hasHead) {
-      responseState.hasHead = true;
-      preamble.push(startChunkForTag('head'));
+    if (
+      responseState.requiresEmbedding &&
+      hasOwnProperty.call(props, 'dangerouslySetInnerHTML')
+    ) {
+      // We only enforce this restriction with new APIs like `renderIntoDocument` which
+      // we currently feature detect with `requiresEmbedding`.
+      // @TODO In a major version lets enforce this restriction globally
+      throw new Error(
+        'A <head> tag was rendered with a `dangerouslySetInnerHTML` prop while using `renderIntoDocument`. React does not support this; use a `children` prop instead',
+      );
+    }
+
+    const headChunks = responseState.headChunks;
+
+    if (headChunks.length === 0) {
+      headChunks.push(startChunkForTag('head'));
       for (const propKey in props) {
         if (hasOwnProperty.call(props, propKey)) {
           const propValue = props[propKey];
@@ -1692,17 +1848,17 @@ function pushStartHead(
               break;
             default:
               if (__DEV__) {
-                includedAttributeProps = true;
+                attributePropsIncluded = true;
               }
-              pushAttribute(preamble, responseState, propKey, propValue);
+              pushAttribute(headChunks, responseState, propKey, propValue);
               break;
           }
         }
       }
-      preamble.push(endOfStartTag);
+      headChunks.push(endOfStartTag);
     } else {
-      // We elide the actual <head> tag because it was previously rendered but we still need
-      // to render children/innerHTML
+      // If we have already flushed the preamble then we elide the <head>
+      // tag itself but still return children and handle innerHTML
       for (const propKey in props) {
         if (hasOwnProperty.call(props, propKey)) {
           const propValue = props[propKey];
@@ -1718,7 +1874,7 @@ function pushStartHead(
               break;
             default:
               if (__DEV__) {
-                includedAttributeProps = true;
+                attributePropsIncluded = true;
               }
               break;
           }
@@ -1727,10 +1883,10 @@ function pushStartHead(
     }
 
     if (__DEV__) {
-      if ((responseState: any).isDocumentEmbedded && includedAttributeProps) {
-        // We use this embedded flag a heuristic for whether we are rendering with renderIntoDocument
+      if (responseState.requiresEmbedding && attributePropsIncluded) {
+        // We use this requiresEmbedding flag a heuristic for whether we are rendering with renderIntoDocument
         console.error(
-          'A <head> tag was rendered with props when using "renderIntoDocument". In this rendering mode' +
+          'A <head> tag was rendered with props when using `renderIntoDocument`. In this rendering mode' +
             ' React may emit the head tag early in some circumstances and therefore props on the <head> tag are not' +
             ' supported and may be missing in the rendered output for any particular render. In many cases props that' +
             ' are set on a <head> tag can be set on the <html> tag instead.',
@@ -1745,22 +1901,16 @@ function pushStartHead(
   }
 }
 
-function pushStartHtml(
+function pushStartBody(
   target: Array<Chunk | PrecomputedChunk>,
-  preamble: Array<Chunk | PrecomputedChunk>,
   props: Object,
   responseState: ResponseState,
   formatContext: FormatContext,
 ): ReactNodeList {
-  responseState.hasHtml = true;
-  target = enableFloat ? preamble : target;
-  if (formatContext.insertionMode === ROOT_HTML_MODE) {
-    // If we're rendering the html tag and we're at the root (i.e. not in foreignObject)
-    // then we also emit the DOCTYPE as part of the root content as a convenience for
-    // rendering the whole document.
-    target.push(DOCTYPE);
+  if (enableFloat && formatContext.insertionMode <= HTML_HTML_MODE) {
+    responseState.rendered |= BODY;
   }
-  return pushStartGenericElement(target, props, 'html', responseState);
+  return pushStartGenericElement(target, props, 'body', responseState);
 }
 
 function pushScript(
@@ -1836,25 +1986,6 @@ function pushScriptImpl(
   }
   target.push(endTag1, stringToChunk('script'), endTag2);
   return null;
-}
-
-function pushHtmlEmbedding(
-  preamble: Array<Chunk | PrecomputedChunk>,
-  postamble: Array<Chunk | PrecomputedChunk>,
-  responseState: ResponseState,
-): void {
-  responseState.hasHtml = true;
-  preamble.push(DOCTYPE);
-  preamble.push(startChunkForTag('html'), endOfStartTag);
-  postamble.push(endTag1, stringToChunk('html'), endTag2);
-}
-
-function pushBodyEmbedding(
-  target: Array<Chunk | PrecomputedChunk>,
-  postamble: Array<Chunk | PrecomputedChunk>,
-): void {
-  target.push(startChunkForTag('body'), endOfStartTag);
-  postamble.push(endTag1, stringToChunk('body'), endTag2);
 }
 
 function pushStartGenericElement(
@@ -2073,8 +2204,6 @@ const DOCTYPE: PrecomputedChunk = stringToPrecomputedChunk('<!DOCTYPE html>');
 
 export function pushStartInstance(
   target: Array<Chunk | PrecomputedChunk>,
-  preamble: Array<Chunk | PrecomputedChunk>,
-  postamble: Array<Chunk | PrecomputedChunk>,
   type: string,
   props: Object,
   responseState: ResponseState,
@@ -2118,29 +2247,8 @@ export function pushStartInstance(
     }
   }
 
-  if (enableFloat) {
-    if (responseState.requiresEmbedding) {
-      responseState.requiresEmbedding = false;
-      if (__DEV__) {
-        // Dev only marker for later
-        (responseState: any).isDocumentEmbedded = true;
-      }
-      switch (type) {
-        case 'html': {
-          // noop
-          break;
-        }
-        case 'head':
-        case 'body': {
-          pushHtmlEmbedding(preamble, postamble, responseState);
-          break;
-        }
-        default: {
-          pushBodyEmbedding(target, postamble);
-          pushHtmlEmbedding(preamble, postamble, responseState);
-        }
-      }
-    }
+  if (formatContext.insertionMode === ROOT_HTML_MODE) {
+    responseState.rendered |= FLOW;
   }
 
   switch (type) {
@@ -2230,18 +2338,13 @@ export function pushStartInstance(
     case 'missing-glyph': {
       return pushStartGenericElement(target, props, type, responseState);
     }
-    // Preamble start tags
+    // Tags needing special handling for preambe/postamble or embedding
+    case 'html':
+      return pushStartHtml(target, props, responseState, formatContext);
     case 'head':
-      return pushStartHead(target, preamble, props, responseState);
-    case 'html': {
-      return pushStartHtml(
-        target,
-        preamble,
-        props,
-        responseState,
-        formatContext,
-      );
-    }
+      return pushStartHead(target, props, responseState, formatContext);
+    case 'body':
+      return pushStartBody(target, props, responseState, formatContext);
     default: {
       if (type.indexOf('-') === -1 && typeof props.is !== 'string') {
         // Generic element
@@ -2259,9 +2362,9 @@ const endTag2 = stringToPrecomputedChunk('>');
 
 export function pushEndInstance(
   target: Array<Chunk | PrecomputedChunk>,
-  postamble: Array<Chunk | PrecomputedChunk>,
   type: string,
   props: Object,
+  formatContext: FormatContext,
 ): void {
   switch (type) {
     // When float is on we expect title and script tags to always be pushed in
@@ -2295,51 +2398,203 @@ export function pushEndInstance(
       // No close tag needed.
       return;
     }
-    // Postamble end tags
+    // Postamble end tags*
     case 'body': {
       if (enableFloat) {
-        postamble.unshift(endTag1, stringToChunk(type), endTag2);
-        return;
+        if (formatContext.insertionMode <= HTML_HTML_MODE) {
+          // If we are at the top level we omit the trailing tag
+          // because it will be managed in the postamble
+          return;
+        }
       }
       break;
     }
     case 'html':
       if (enableFloat) {
-        postamble.push(endTag1, stringToChunk(type), endTag2);
-        return;
+        if (formatContext.insertionMode === ROOT_HTML_MODE) {
+          // If we are at the top level we omit the trailing tag
+          // because it will be managed in the postamble
+          return;
+        }
       }
       break;
   }
   target.push(endTag1, stringToChunk(type), endTag2);
 }
 
-export function writePreambleOpen(
+// In some render modes (such as `renderIntoDocument`) WriteEarlyPreamble
+// is called to allow flushing of the preamble and Resources as early as possible.
+// It is possible for this to be called more than once and needs to be
+// resilient to that. For instance by not writing the preamble open tags
+// more than once
+export function writeEarlyPreamble(
   destination: Destination,
-  preamble: Array<Chunk | PrecomputedChunk>,
+  resources: Resources,
+  responseState: ResponseState,
+  willEmitInstructions: boolean,
+): boolean {
+  if (enableFloat) {
+    // We use `requiresEmbedding` as a hueristic for `renderIntoDocument`
+    // which is the only render method which should emit an early preamble
+    // In the future other render methods might and this hueristic may need
+    // to change
+    if (responseState.requiresEmbedding) {
+      // If we emitted a preamble early it will have flushed <html> and <head>.
+      // We check that we haven't flushed anything yet which is equivalent
+      // to checking whether we have not flushed an <html> or <head>
+      if (responseState.flushed === NONE && responseState.rendered !== NONE) {
+        let i = 0;
+        const {htmlChunks, headChunks} = responseState;
+        if (htmlChunks.length) {
+          for (i = 0; i < htmlChunks.length; i++) {
+            writeChunk(destination, htmlChunks[i]);
+          }
+        } else {
+          writeChunk(destination, DOCTYPE);
+          writeChunk(destination, startChunkForTag('html'));
+          writeChunk(destination, endOfStartTag);
+        }
+        if (headChunks.length) {
+          for (i = 0; i < headChunks.length; i++) {
+            writeChunk(destination, headChunks[i]);
+          }
+        } else {
+          writeChunk(destination, startChunkForTag('head'));
+          writeChunk(destination, endOfStartTag);
+        }
+        responseState.flushed |= HTML | HEAD;
+
+        return writeEarlyResources(
+          destination,
+          resources,
+          responseState,
+          willEmitInstructions,
+        );
+      }
+    }
+  }
+  return true;
+}
+
+// Regardless of render mode, writePreamble must only be called at most once.
+// It will emit the preamble open tags if they have not already been written
+// and will close the preamble if necessary. After this function completes
+// the shell will flush. In modes that do not have a shell such as `renderIntoContainer`
+// this function is not called. In modes that render a shell fallback such as
+// `renderIntoDocument` this function is still only called once, either for the
+// primary shell (no fallback possible at this point) or for the fallback shell
+// (was not called for the primary children).
+export function writePreamble(
+  destination: Destination,
+  resources: Resources,
+  responseState: ResponseState,
+  willEmitInstructions: boolean,
+): boolean {
+  if (enableFloat) {
+    if (responseState.flushed === NONE) {
+      const {htmlChunks, headChunks} = responseState;
+      let i = 0;
+      if (htmlChunks.length) {
+        responseState.flushed |= HTML;
+        for (i = 0; i < htmlChunks.length; i++) {
+          writeChunk(destination, htmlChunks[i]);
+        }
+      } else if (responseState.requiresEmbedding) {
+        responseState.flushed |= HTML;
+        writeChunk(destination, DOCTYPE);
+        writeChunk(destination, startChunkForTag('html'));
+        writeChunk(destination, endOfStartTag);
+      }
+
+      if (headChunks.length) {
+        responseState.flushed |= HEAD;
+        for (i = 0; i < headChunks.length; i++) {
+          writeChunk(destination, headChunks[i]);
+        }
+      } else if (responseState.flushed & HTML) {
+        // We insert a missing head if an <html> was emitted.
+        // This encompasses cases where we require embedding
+        // so we leave that check out
+        responseState.flushed |= HEAD;
+        // This render has not produced a <head> yet. we emit
+        // a open tag so we can start to flush resources.
+        writeChunk(destination, startChunkForTag('head'));
+        writeChunk(destination, endOfStartTag);
+      }
+    }
+
+    // Write all remaining resources that should flush with the Shell
+    let r = writeInitialResources(
+      destination,
+      resources,
+      responseState,
+      willEmitInstructions,
+    );
+
+    // If we did not render a <head> but we did flush one we need to emit
+    // the closing tag now after writing resources. We know we won't get
+    // a head in the shell so we can assume all shell content belongs after
+    // the closed head tag
+    if (
+      (responseState.rendered & HEAD) === NONE &&
+      responseState.flushed & HEAD
+    ) {
+      writeChunk(destination, endTag1);
+      writeChunk(destination, stringToChunk('head'));
+      r = writeChunkAndReturn(destination, endTag2);
+    }
+
+    // If the shell needs to be embedded and the rendered embedding is body
+    // we need to emit an open <body> tag and prepare the postamble to close
+    // the body tag
+    if (
+      responseState.requiresEmbedding &&
+      (responseState.rendered & HTML_HEAD_OR_BODY) === NONE
+    ) {
+      responseState.flushed |= BODY;
+      writeChunk(destination, startChunkForTag('body'));
+      r = writeChunkAndReturn(destination, endOfStartTag);
+    } else {
+      // If we rendered a <body> we mark it as flushed here so we can emit
+      // the closing tag in the postamble
+      responseState.flushed |= responseState.rendered & BODY;
+    }
+
+    return r;
+  }
+  return true;
+}
+
+export function writePostamble(
+  destination: Destination,
   responseState: ResponseState,
 ): void {
-  for (let i = 0; i < preamble.length; i++) {
-    writeChunk(destination, preamble[i]);
-  }
-  preamble.length = 0;
   if (enableFloat) {
-    if (responseState.hasHtml && !responseState.hasHead) {
-      responseState.hasHead = true;
-      writeChunk(destination, startChunkForTag('head'));
-      writeChunk(destination, endOfStartTag);
-      preamble.push(endTag1, stringToChunk('head'), endTag2);
+    if ((responseState.flushed & BODY) !== NONE) {
+      writeChunk(destination, endTag1);
+      writeChunk(destination, stringToChunk('body'));
+      writeChunk(destination, endTag2);
+    }
+    if ((responseState.flushed & HTML) !== NONE) {
+      writeChunk(destination, endTag1);
+      writeChunk(destination, stringToChunk('html'));
+      writeChunk(destination, endTag2);
     }
   }
 }
 
-export function writePreambleClose(
-  destination: Destination,
-  preamble: Array<Chunk | PrecomputedChunk>,
-): void {
-  for (let i = 0; i < preamble.length; i++) {
-    writeChunk(destination, preamble[i]);
+export function prepareForFallback(responseState: ResponseState): void {
+  if (__DEV__) {
+    (responseState: any).inFallbackDEV = true;
   }
-  preamble.length = 0;
+  // This function would ideally check somethign to see whether embedding
+  // was required however at the moment the only time we use a Request Fallback
+  // is when we use renderIntoDocument which is the only variant where which
+  // utilizes fallback children. We assume we're in that mode if this function
+  // is called and update the requirement accordingly
+  responseState.htmlChunks = [];
+  responseState.headChunks = [];
+  responseState.rendered = NONE;
 }
 
 export function writeCompletedRoot(
@@ -2554,6 +2809,7 @@ export function writeStartSegment(
 ): boolean {
   switch (formatContext.insertionMode) {
     case ROOT_HTML_MODE:
+    case HTML_HTML_MODE:
     case HTML_MODE: {
       writeChunk(destination, startSegmentHTML);
       writeChunk(destination, responseState.segmentPrefix);
@@ -2611,6 +2867,7 @@ export function writeEndSegment(
 ): boolean {
   switch (formatContext.insertionMode) {
     case ROOT_HTML_MODE:
+    case HTML_HTML_MODE:
     case HTML_MODE: {
       return writeChunkAndReturn(destination, endSegmentHTML);
     }
@@ -3151,7 +3408,144 @@ const precedencePlaceholderStart = stringToPrecomputedChunk(
 );
 const precedencePlaceholderEnd = stringToPrecomputedChunk('"></style>');
 
-export function writeInitialResources(
+export function writeEarlyResources(
+  destination: Destination,
+  resources: Resources,
+  responseState: ResponseState,
+  willEmitInstructions: boolean,
+): boolean {
+  // Write initially discovered resources after the shell completes
+  if (
+    enableFizzExternalRuntime &&
+    responseState.externalRuntimeConfig &&
+    willEmitInstructions
+  ) {
+    // If the root segment is incomplete due to suspended tasks
+    // (e.g. willFlushAllSegments = false) and we are using data
+    // streaming format, ensure the external runtime is sent.
+    // (User code could choose to send this even earlier by calling
+    //  preinit(...), if they know they will suspend).
+    const {src, integrity} = responseState.externalRuntimeConfig;
+    preinitImpl(resources, src, {as: 'script', integrity});
+  }
+  function flushLinkResource(resource: LinkTagResource) {
+    if (!resource.flushed) {
+      pushLinkImpl(target, resource.props, responseState);
+      resource.flushed = true;
+    }
+  }
+
+  const target = [];
+
+  const {
+    charset,
+    bases,
+    preconnects,
+    fontPreloads,
+    firstPrecedence,
+    precedences,
+    usedStylePreloads,
+    scripts,
+    usedScriptPreloads,
+    explicitStylePreloads,
+    explicitScriptPreloads,
+    headResources,
+  } = resources;
+
+  if (charset) {
+    pushSelfClosing(target, charset.props, 'meta', responseState);
+    charset.flushed = true;
+    resources.charset = null;
+  }
+
+  bases.forEach(r => {
+    pushSelfClosing(target, r.props, 'base', responseState);
+    r.flushed = true;
+  });
+  bases.clear();
+
+  preconnects.forEach(r => {
+    // font preload Resources should not already be flushed so we elide this check
+    pushLinkImpl(target, r.props, responseState);
+    r.flushed = true;
+  });
+  preconnects.clear();
+
+  fontPreloads.forEach(r => {
+    // font preload Resources should not already be flushed so we elide this check
+    pushLinkImpl(target, r.props, responseState);
+    r.flushed = true;
+  });
+  fontPreloads.clear();
+
+  // Flush stylesheets first by earliest precedence
+  if (firstPrecedence) {
+    const precedenceSet = precedences.get(firstPrecedence);
+    if (precedenceSet && precedenceSet.size) {
+      precedenceSet.forEach(r => {
+        if (!r.flushed) {
+          pushLinkImpl(target, r.props, responseState);
+          r.flushed = true;
+          r.inShell = true;
+          r.hint.flushed = true;
+        }
+      });
+      resources.firstPrecedenceFlushed = true;
+      precedenceSet.clear();
+    }
+  }
+
+  usedStylePreloads.forEach(flushLinkResource);
+  usedStylePreloads.clear();
+
+  scripts.forEach(r => {
+    // should never be flushed already
+    pushScriptImpl(target, r.props, responseState);
+    r.flushed = true;
+    r.hint.flushed = true;
+  });
+  scripts.clear();
+
+  usedScriptPreloads.forEach(flushLinkResource);
+  usedScriptPreloads.clear();
+
+  explicitStylePreloads.forEach(flushLinkResource);
+  explicitStylePreloads.clear();
+
+  explicitScriptPreloads.forEach(flushLinkResource);
+  explicitScriptPreloads.clear();
+
+  headResources.forEach(r => {
+    switch (r.type) {
+      case 'title': {
+        pushTitleImpl(target, r.props, responseState);
+        break;
+      }
+      case 'meta': {
+        pushSelfClosing(target, r.props, 'meta', responseState);
+        break;
+      }
+      case 'link': {
+        pushLinkImpl(target, r.props, responseState);
+        break;
+      }
+    }
+    r.flushed = true;
+  });
+  headResources.clear();
+
+  let i;
+  let r = true;
+  for (i = 0; i < target.length - 1; i++) {
+    writeChunk(destination, target[i]);
+  }
+  if (i < target.length) {
+    r = writeChunkAndReturn(destination, target[i]);
+  }
+  return r;
+}
+
+function writeInitialResources(
   destination: Destination,
   resources: Resources,
   responseState: ResponseState,
@@ -3185,6 +3579,8 @@ export function writeInitialResources(
     bases,
     preconnects,
     fontPreloads,
+    firstPrecedence,
+    firstPrecedenceFlushed,
     precedences,
     usedStylePreloads,
     scripts,
@@ -3222,13 +3618,24 @@ export function writeInitialResources(
 
   // Flush stylesheets first by earliest precedence
   precedences.forEach((p, precedence) => {
+    if (
+      precedence === firstPrecedence &&
+      firstPrecedenceFlushed &&
+      p.size === 0
+    ) {
+      // We don't have anything to flush for the first precedence now but
+      // we already emitted items for this precedence and do not need a
+      // placeholder
+      return;
+    }
     if (p.size) {
       p.forEach(r => {
-        // resources should not already be flushed so we elide this check
-        pushLinkImpl(target, r.props, responseState);
-        r.flushed = true;
-        r.inShell = true;
-        r.hint.flushed = true;
+        if (!r.flushed) {
+          pushLinkImpl(target, r.props, responseState);
+          r.flushed = true;
+          r.inShell = true;
+          r.hint.flushed = true;
+        }
       });
       p.clear();
     } else {
@@ -3290,7 +3697,7 @@ export function writeInitialResources(
   return r;
 }
 
-export function writeImmediateResources(
+export function writeResources(
   destination: Destination,
   resources: Resources,
   responseState: ResponseState,

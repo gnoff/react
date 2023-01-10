@@ -12,6 +12,7 @@ import type {
   FormatContext,
   StreamingFormat,
   SuspenseBoundaryID,
+  DocumentStructureTag,
 } from './ReactDOMServerFormatConfig';
 
 import {
@@ -23,6 +24,7 @@ import {
   writeEndCompletedSuspenseBoundary as writeEndCompletedSuspenseBoundaryImpl,
   writeEndClientRenderedSuspenseBoundary as writeEndClientRenderedSuspenseBoundaryImpl,
   HTML_MODE,
+  NONE,
 } from './ReactDOMServerFormatConfig';
 
 import type {
@@ -37,14 +39,16 @@ export type ResponseState = {
   // Keep this in sync with ReactDOMServerFormatConfig
   bootstrapChunks: Array<Chunk | PrecomputedChunk>,
   fallbackBootstrapChunks: void | Array<Chunk | PrecomputedChunk>,
+  htmlChunks: Array<Chunk | PrecomputedChunk>,
+  headChunks: Array<Chunk | PrecomputedChunk>,
   requiresEmbedding: boolean,
-  hasHead: boolean,
-  hasHtml: boolean,
+  rendered: DocumentStructureTag,
+  flushed: DocumentStructureTag,
   placeholderPrefix: PrecomputedChunk,
   segmentPrefix: PrecomputedChunk,
   boundaryPrefix: string,
-  idPrefix: string,
   containerBoundaryID: SuspenseBoundaryID,
+  idPrefix: string,
   nextSuspenseID: number,
   streamingFormat: StreamingFormat,
   startInlineScript: PrecomputedChunk,
@@ -78,9 +82,11 @@ export function createResponseState(
     // Keep this in sync with ReactDOMServerFormatConfig
     bootstrapChunks: responseState.bootstrapChunks,
     fallbackBootstrapChunks: responseState.fallbackBootstrapChunks,
+    htmlChunks: [],
+    headChunks: [],
     requiresEmbedding: false,
-    hasHead: false,
-    hasHtml: false,
+    rendered: NONE,
+    flushed: NONE,
     placeholderPrefix: responseState.placeholderPrefix,
     segmentPrefix: responseState.segmentPrefix,
     boundaryPrefix: responseState.boundaryPrefix,
@@ -135,16 +141,17 @@ export {
   writeCompletedRoot,
   createResources,
   createBoundaryResources,
-  writeInitialResources,
-  writeImmediateResources,
+  writeResources,
   hoistResources,
   hoistResourcesToRoot,
   setCurrentlyRenderingBoundaryResourcesTarget,
   prepareToRender,
   cleanupAfterRender,
   getRootBoundaryID,
-  writePreambleOpen,
-  writePreambleClose,
+  writeEarlyPreamble,
+  writePreamble,
+  writePostamble,
+  prepareForFallback,
 } from './ReactDOMServerFormatConfig';
 
 import {stringToChunk} from 'react-server/src/ReactServerStreamConfig';

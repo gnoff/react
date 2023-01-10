@@ -66,8 +66,7 @@ import {
   assignSuspenseBoundaryID,
   getRootBoundaryID,
   getChildFormatContext,
-  writeInitialResources,
-  writeImmediateResources,
+  writeResources,
   hoistResources,
   hoistResourcesToRoot,
   prepareToRender,
@@ -75,8 +74,10 @@ import {
   setCurrentlyRenderingBoundaryResourcesTarget,
   createResources,
   createBoundaryResources,
-  writePreambleOpen,
-  writePreambleClose,
+  writeEarlyPreamble,
+  writePreamble,
+  writePostamble,
+  prepareForFallback,
 } from './ReactServerFormatConfig';
 import {
   constructClassInstance,
@@ -218,14 +219,13 @@ export opaque type Request = {
   pendingRootTasks: number, // when this reaches zero, we've finished at least the root boundary.
   resources: Resources,
   completedRootSegment: null | Segment, // Completed but not yet flushed root segments.
+  fallbackTask: null | Task, // If a Shell fallback is used the task will be stored here
   abortableTasks: Set<Task>,
   pingedTasks: Array<Task>, // High priority tasks that should be worked on first.
   // Queues to flush in order of priority
   clientRenderedBoundaries: Array<SuspenseBoundary>, // Errored or client rendered but not yet flushed.
   completedBoundaries: Array<SuspenseBoundary>, // Completed but not yet fully flushed boundaries to show.
   partialBoundaries: Array<SuspenseBoundary>, // Partially completed boundaries that can flush its segments early.
-  +preamble: Array<Chunk | PrecomputedChunk>, // Chunks that need to be emitted before any segment chunks.
-  +postamble: Array<Chunk | PrecomputedChunk>, // Chunks that need to be emitted after segments, waiting for all pending root tasks to finish
   // onError is called when an error happens anywhere in the tree. It might recover.
   // The return string is used in production  primarily to avoid leaking internals, secondarily to save bytes.
   // Returning null/undefined will cause a defualt error message in production
@@ -282,7 +282,7 @@ export function createRequest(
   const pingedTasks = [];
   const abortSet: Set<Task> = new Set();
   const resources: Resources = createResources();
-  const request = {
+  const request: Request = {
     destination: null,
     responseState,
     progressiveChunkSize:
@@ -296,13 +296,12 @@ export function createRequest(
     pendingRootTasks: 0,
     resources,
     completedRootSegment: null,
+    fallbackTask: null,
     abortableTasks: abortSet,
     pingedTasks: pingedTasks,
     clientRenderedBoundaries: ([]: Array<SuspenseBoundary>),
     completedBoundaries: ([]: Array<SuspenseBoundary>),
     partialBoundaries: ([]: Array<SuspenseBoundary>),
-    preamble: ([]: Array<Chunk | PrecomputedChunk>),
-    postamble: ([]: Array<Chunk | PrecomputedChunk>),
     onError: onError === undefined ? defaultErrorHandler : onError,
     onAllReady: onAllReady === undefined ? noop : onAllReady,
     onShellReady: onShellReady === undefined ? noop : onShellReady,
@@ -344,6 +343,36 @@ export function createRequest(
     emptyTreeContext,
   );
   pingedTasks.push(rootTask);
+
+  if (fallback) {
+    const fallbackRootSegment = createPendingSegment(
+      request,
+      0,
+      null,
+      rootFormatContext,
+      // Root segments are never embedded in Text on either edge
+      false,
+      false,
+    );
+    fallbackRootSegment.parentFlushed = true;
+
+    // The fallback task is created eagerly with the Request but is
+    // not queued unless the primary task errors. We give it a separate
+    // abortSet because we do not want to abort it alongside other tasks
+    // when something in the shell errors.
+    const fallbackAbortSet: Set<Task> = new Set();
+    request.fallbackTask = createTask(
+      request,
+      null,
+      fallback,
+      null,
+      fallbackRootSegment,
+      fallbackAbortSet,
+      emptyContextObject,
+      rootContextSnapshot,
+      emptyTreeContext,
+    );
+  }
   return request;
 }
 
@@ -710,8 +739,6 @@ function renderHostElement(
 
   const children = pushStartInstance(
     segment.chunks,
-    request.preamble,
-    request.postamble,
     type,
     props,
     request.responseState,
@@ -729,7 +756,7 @@ function renderHostElement(
   // We expect that errors will fatal the whole task and that we don't need
   // the correct context. Therefore this is not in a finally.
   segment.formatContext = prevContext;
-  pushEndInstance(segment.chunks, request.postamble, type, props);
+  pushEndInstance(segment.chunks, type, props, prevContext);
   segment.lastPushedText = false;
   popComponentStackInDEV(task);
 }
@@ -1656,7 +1683,26 @@ function erroredTask(
   // Report the error to a global handler.
   const errorDigest = logRecoverableError(request, error);
   if (boundary === null) {
-    fatalError(request, error);
+    // The task is finished so we decrement pendingRootTasks
+    // We also need to unset the completedRootSegment if it
+    // was previously set so we don't try to flush the errored
+    // segment
+    request.pendingRootTasks--;
+    request.completedRootSegment = null;
+
+    const fallbackTask = request.fallbackTask;
+    if (fallbackTask !== null) {
+      request.fallbackTask = null;
+      const abortableTasks = request.abortableTasks;
+      if (abortableTasks.size > 0) {
+        abortableTasks.forEach(abortTaskSoft, request);
+        abortableTasks.clear();
+      }
+      prepareForFallback(request.responseState);
+      request.pingedTasks.push(fallbackTask);
+    } else {
+      fatalError(request, error);
+    }
   } else {
     boundary.pendingTasks--;
     if (!boundary.forceClientRender) {
@@ -1784,6 +1830,17 @@ function finishedTask(
   segment: Segment,
 ) {
   if (boundary === null) {
+    request.pendingRootTasks--;
+
+    const fallbackTask = request.fallbackTask;
+    if (request.pendingRootTasks === 1 && fallbackTask) {
+      // When using the fallbackTask we know it is the last root task
+      // when the pending count hits 1 because we do not enqueue it
+      // unless the root errors
+      request.fallbackTask = null;
+      abortTaskSoft.call(request, fallbackTask);
+    }
+
     if (segment.parentFlushed) {
       if (request.completedRootSegment !== null) {
         throw new Error(
@@ -1793,7 +1850,7 @@ function finishedTask(
 
       request.completedRootSegment = segment;
     }
-    request.pendingRootTasks--;
+
     if (request.pendingRootTasks === 0) {
       // We have completed the shell so the shell can't error anymore.
       request.onShellError = noop;
@@ -2139,32 +2196,13 @@ function flushSegment(
   }
 }
 
-function flushInitialResources(
-  destination: Destination,
-  resources: Resources,
-  responseState: ResponseState,
-  willEmitInstructions: boolean,
-): void {
-  writeInitialResources(
-    destination,
-    resources,
-    responseState,
-    willEmitInstructions,
-  );
-}
-
 function flushImmediateResources(
   destination: Destination,
   resources: Resources,
   responseState: ResponseState,
   willEmitInstructions: boolean,
 ): void {
-  writeImmediateResources(
-    destination,
-    resources,
-    responseState,
-    willEmitInstructions,
-  );
+  writeResources(destination, resources, responseState, willEmitInstructions);
 }
 
 function flushClientRenderedBoundary(
@@ -2304,22 +2342,28 @@ function flushCompletedQueues(
     if (completedRootSegment !== null) {
       if (request.pendingRootTasks === 0) {
         if (enableFloat) {
-          const preamble = request.preamble;
-          writePreambleOpen(destination, preamble, request.responseState);
           const willEmitInstructions = request.allPendingTasks > 0;
-          flushInitialResources(
+          writePreamble(
             destination,
             request.resources,
             request.responseState,
             willEmitInstructions,
           );
-          writePreambleClose(destination, preamble);
         }
 
         flushSegment(request, destination, completedRootSegment);
         request.completedRootSegment = null;
         writeCompletedRoot(destination, request.responseState);
       } else {
+        if (enableFloat) {
+          const willEmitInstructions = request.allPendingTasks > 0;
+          writeEarlyPreamble(
+            destination,
+            request.resources,
+            request.responseState,
+            willEmitInstructions,
+          );
+        }
         // We haven't flushed the root yet so we don't need to check any other branches further down
         return;
       }
@@ -2414,10 +2458,7 @@ function flushCompletedQueues(
       // either they have pending task or they're complete.
     ) {
       if (enableFloat) {
-        const postamble = request.postamble;
-        for (let i = 0; i < postamble.length; i++) {
-          writeChunk(destination, postamble[i]);
-        }
+        writePostamble(destination, request.responseState);
       }
       completeWriting(destination);
       flushBuffered(destination);
@@ -2474,6 +2515,11 @@ export function abort(request: Request, reason: mixed): void {
           : reason;
       abortableTasks.forEach(task => abortTask(task, request, error));
       abortableTasks.clear();
+    }
+    const fallbackTask = request.fallbackTask;
+    if (fallbackTask) {
+      request.fallbackTask = null;
+      abortTaskSoft.call(request, fallbackTask);
     }
     if (request.destination !== null) {
       flushCompletedQueues(request, request.destination);

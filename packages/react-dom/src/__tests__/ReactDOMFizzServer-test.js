@@ -209,52 +209,74 @@ describe('ReactDOMFizzServer', () => {
     // JSDOM doesn't support stream HTML parser so we need to give it a proper fragment.
     // We also want to execute any scripts that are embedded.
     // We assume that we have now received a proper fragment of HTML.
-    const bufferedContent = buffer;
-    buffer = '';
+    while (true) {
+      const bufferedContent = buffer;
 
-    let parent;
-    let temporaryHostElement;
-    if (bufferedContent.startsWith('<!DOCTYPE html>')) {
-      parent = document;
-      document.removeChild(document.documentElement);
+      let parent;
+      let temporaryHostElement;
+      if (bufferedContent.startsWith('<!DOCTYPE html>')) {
+        parent = document;
+        document.removeChild(document.documentElement);
 
-      // Parse the buffered content into a temporary document
-      const jsdom = new JSDOM(bufferedContent);
-      temporaryHostElement = jsdom.window.document;
+        // Parse the buffered content into a temporary document
+        const jsdom = new JSDOM(bufferedContent);
+        temporaryHostElement = jsdom.window.document;
 
-      // Remove the Doctype node
-      temporaryHostElement.removeChild(temporaryHostElement.firstChild);
-    } else if (bufferedContent.startsWith('<html')) {
-      throw new Error(
-        '"act" processed buffered content that starts with an <html> tag but does not contain the Doctype declaration. This is likely a bug in React',
-      );
-    } else if (bufferedContent.startsWith('<head')) {
-      parent = document.documentElement;
-      parent.innerHTML = '';
-      temporaryHostElement = document.createElement('html');
-      temporaryHostElement.innerHTML = bufferedContent;
-    } else if (bufferedContent.startsWith('<body')) {
-      parent = document.documentElement;
-      if (document.body) {
-        parent.removeChild(document.body);
+        // Remove the Doctype node
+        temporaryHostElement.removeChild(temporaryHostElement.firstChild);
+        buffer = '';
+      } else if (bufferedContent.startsWith('<html')) {
+        throw new Error(
+          '"act" processed buffered content that starts with an <html> tag but does not contain the Doctype declaration. This is likely a bug in React',
+        );
+      } else if (bufferedContent.startsWith('<head')) {
+        parent = document.documentElement;
+        parent.innerHTML = '';
+        // Parse the buffered content into a temporary document
+        const jsdom = new JSDOM(bufferedContent);
+        temporaryHostElement = jsdom.window.document.documentElement;
+        buffer = '';
+      } else if (bufferedContent.startsWith('<body')) {
+        parent = document.documentElement;
+        if (document.body) {
+          parent.removeChild(document.body);
+        }
+
+        // Parse the buffered content into a temporary document
+        const jsdom = new JSDOM(bufferedContent);
+        temporaryHostElement = document.createElement('html');
+        temporaryHostElement.appendChild(jsdom.window.document.body);
+        buffer = '';
+      } else {
+        const closingHeadIndex = bufferedContent.indexOf('</head>');
+        if (closingHeadIndex > -1) {
+          const [headContent, bodyContent] = bufferedContent.split('</head>');
+          parent = document.head;
+          temporaryHostElement = document.createElement('head');
+          temporaryHostElement.innerHTML = headContent;
+          buffer = bodyContent;
+        } else {
+          parent = document.body;
+          temporaryHostElement = document.createElement('body');
+          temporaryHostElement.innerHTML = bufferedContent;
+          buffer = '';
+        }
       }
-      temporaryHostElement = document.createElement('html');
-      temporaryHostElement.innerHTML = bufferedContent;
-    } else {
-      parent = document.body;
-      temporaryHostElement = document.createElement('body');
-      temporaryHostElement.innerHTML = bufferedContent;
+
+      await withLoadingReadyState(async () => {
+        while (temporaryHostElement.firstChild) {
+          parent.appendChild(temporaryHostElement.firstChild);
+        }
+        // If there is any async work to do to execute these scripts we await that now. We want
+        // to do this while the document loading state is overriden so the fizz runtime will
+        // install it's own mutation observer
+        await pendingWork(window);
+      }, document);
+
+      if (buffer === '') {
+        break;
+      }
     }
-
-    await withLoadingReadyState(async () => {
-      while (temporaryHostElement.firstChild) {
-        parent.appendChild(temporaryHostElement.firstChild);
-      }
-      // If there is any async work to do to execute these scripts we await that now. We want
-      // to do this while the document loading state is overriden so the fizz runtime will
-      // install it's own mutation observer
-      await pendingWork(window);
-    }, document);
 
     removeScriptObserver(document);
   }
@@ -6194,7 +6216,7 @@ describe('ReactDOMFizzServer', () => {
           pipe(writable);
         });
       }).toErrorDev(
-        'A <head> tag was rendered with props when using "renderIntoDocument". In this rendering mode React may emit the head tag early in some circumstances and therefore props on the <head> tag are not supported and may be missing in the rendered output for any particular render. In many cases props that are set on a <head> tag can be set on the <html> tag instead.',
+        'A <head> tag was rendered with props when using `renderIntoDocument`. In this rendering mode React may emit the head tag early in some circumstances and therefore props on the <head> tag are not supported and may be missing in the rendered output for any particular render. In many cases props that are set on a <head> tag can be set on the <html> tag instead.',
       );
 
       expect(content.slice(0, 47)).toEqual(
@@ -6231,6 +6253,120 @@ describe('ReactDOMFizzServer', () => {
         <html id="html">
           <head />
           <body id="body">foo</body>
+        </html>,
+      );
+    });
+
+    it('can render a fallback if the shell errors', async () => {
+      function Throw() {
+        throw new Error('uh oh');
+      }
+
+      let content = '';
+      writable.on('data', chunk => (content += chunk));
+
+      const errors = [];
+      await act(() => {
+        const {pipe} = renderIntoDocumentAsPipeableStream(
+          <html id="html">
+            <body id="body">
+              <Throw />
+            </body>
+          </html>,
+          <div>Some Skeleton UI while client renders</div>,
+          {
+            onError(err) {
+              errors.push(err.message);
+            },
+          },
+        );
+        pipe(writable);
+      });
+
+      expect(errors).toEqual(['uh oh']);
+
+      expect(content.slice(0, 49)).toEqual(
+        '<!DOCTYPE html><html><head></head><body><div>Some',
+      );
+
+      expect(getMeaningfulChildren(document)).toEqual(
+        <html>
+          <head />
+          <body>
+            <div>Some Skeleton UI while client renders</div>
+          </body>
+        </html>,
+      );
+    });
+
+    it('can render a fallback if the shell errors even if the preamble has already been flushed', async () => {
+      function Throw() {
+        throw new Error('uh oh');
+      }
+
+      function BlockOn({value, children}) {
+        readText(value);
+        return children;
+      }
+
+      let content = '';
+      writable.on('data', chunk => (content += chunk));
+
+      const errors = [];
+      await act(() => {
+        const {pipe} = renderIntoDocumentAsPipeableStream(
+          <html id="html">
+            <BlockOn value="foo">
+              <body id="body">
+                <Throw />
+              </body>
+            </BlockOn>
+            <link rel="stylesheet" href="foo" precedence="foo" />
+            <link rel="stylesheet" href="bar" precedence="bar" />
+          </html>,
+          <div>Some Skeleton UI while client renders</div>,
+          {
+            onError(err) {
+              errors.push(err.message);
+            },
+          },
+        );
+        pipe(writable);
+      });
+
+      expect(errors).toEqual([]);
+
+      expect(content.slice(0, 37)).toEqual(
+        '<!DOCTYPE html><html id="html"><head>',
+      );
+      content = '';
+      expect(getMeaningfulChildren(document)).toEqual(
+        <html id="html">
+          <head>
+            <link rel="stylesheet" href="foo" data-precedence="foo" />
+            <link rel="preload" href="bar" as="style" />
+          </head>
+          <body />
+        </html>,
+      );
+
+      await act(() => {
+        resolveText('foo');
+      });
+
+      expect(errors).toEqual(['uh oh']);
+      expect(content.slice(0, 33)).toEqual('<link rel="stylesheet" href="bar"');
+
+      expect(getMeaningfulChildren(document)).toEqual(
+        <html id="html">
+          <head>
+            <link rel="stylesheet" href="foo" data-precedence="foo" />
+            <link rel="preload" href="bar" as="style" />
+            <link rel="stylesheet" href="bar" data-precedence="bar" />
+          </head>
+          <body>
+            <div>Some Skeleton UI while client renders</div>
+          </body>
         </html>,
       );
     });

@@ -71,14 +71,15 @@ export const writeClientRenderBoundaryInstruction =
 export const prepareToRender = $$$hostConfig.prepareToRender;
 export const cleanupAfterRender = $$$hostConfig.cleanupAfterRender;
 export const getRootBoundaryID = $$$hostConfig.getRootBoundaryID;
-export const writePreambleOpen = $$$hostConfig.writePreambleOpen;
-export const writePreambleClose = $$$hostConfig.writePreambleClose;
+export const prepareForFallback = $$$hostConfig.prepareForFallback;
 
 // -------------------------
 //     Resources
 // -------------------------
-export const writeInitialResources = $$$hostConfig.writeInitialResources;
-export const writeImmediateResources = $$$hostConfig.writeImmediateResources;
+export const writeEarlyPreamble = $$$hostConfig.writeEarlyPreamble;
+export const writePreamble = $$$hostConfig.writePreamble;
+export const writePostamble = $$$hostConfig.writePostamble;
+export const writeResources = $$$hostConfig.writeResources;
 export const hoistResources = $$$hostConfig.hoistResources;
 export const hoistResourcesToRoot = $$$hostConfig.hoistResourcesToRoot;
 export const createResources = $$$hostConfig.createResources;
