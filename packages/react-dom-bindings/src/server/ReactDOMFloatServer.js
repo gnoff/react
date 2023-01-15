@@ -108,6 +108,12 @@ type BaseResource = {
   flushed: boolean,
 };
 
+type HoistableTag = 'link' | 'meta' | 'title';
+type Hoistable = {
+  type: HoistableTag,
+  props: Props,
+};
+
 export type LinkTagResource = PreloadResource | StyleResource | LinkResource;
 export type Resource = PreloadResource | StyleResource | ScriptResource;
 export type HeadResource =
@@ -896,30 +902,7 @@ export function resourcesFromLink(props: Props): boolean {
     return true;
   }
 
-  const sizes = typeof props.sizes === 'string' ? props.sizes : '';
-  const media = typeof props.media === 'string' ? props.media : '';
-  key =
-    'rel:' + rel + '::href:' + href + '::sizes:' + sizes + '::media:' + media;
-  let resource = resources.headsMap.get(key);
-  if (!resource) {
-    resource = {
-      type: 'link',
-      props: Object.assign({}, props),
-      flushed: false,
-    };
-    resources.headsMap.set(key, resource);
-    switch (rel) {
-      case 'preconnect':
-      case 'dns-prefetch': {
-        resources.preconnects.add(resource);
-        break;
-      }
-      default: {
-        resources.headResources.add(resource);
-      }
-    }
-  }
-  return true;
+  return false;
 }
 
 // Construct a resource from link props.

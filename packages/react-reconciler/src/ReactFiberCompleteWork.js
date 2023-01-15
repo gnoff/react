@@ -111,6 +111,7 @@ import {
   finalizeContainerChildren,
   preparePortalMount,
   prepareScopeUpdate,
+  getResourceProps,
 } from './ReactFiberHostConfig';
 import {
   getRootHostContainer,
@@ -980,13 +981,19 @@ function completeWork(
         if (currentRef !== workInProgress.ref) {
           markRef(workInProgress);
         }
-        if (
-          current === null ||
-          current.memoizedState !== workInProgress.memoizedState
-        ) {
+        const nextResource = workInProgress.memoizedState;
+        if (current === null || current.memoizedState !== nextResource) {
           // The workInProgress resource is different than the current one or the current
           // one does not exist
           markUpdate(workInProgress);
+        } else if (workInProgress.stateNode !== null) {
+          // This Resource may need to update. For now we can re-use the HostComponent
+          // update logic.
+          const type = workInProgress.type;
+          updateHostComponent(current, workInProgress, type, newProps);
+          if (current.ref !== workInProgress.ref) {
+            markRef(workInProgress);
+          }
         }
         bubbleProperties(workInProgress);
         return null;

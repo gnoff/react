@@ -17,6 +17,7 @@ import type {
 } from 'react-reconciler/src/ReactTestSelectors';
 import type {ReactScopeInstance} from 'shared/ReactTypes';
 import type {AncestorInfoDev} from './validateDOMNesting';
+import type {Resource} from './ReactDOMFloatClient';
 
 import {
   precacheFiberNode,
@@ -936,7 +937,6 @@ function getNextHydratable(node: ?Node) {
           // developer on how to fix.
           case 'TITLE':
           case 'META':
-          case 'BASE':
           case 'HTML':
           case 'HEAD':
           case 'BODY': {
@@ -978,8 +978,7 @@ function getNextHydratable(node: ?Node) {
         const element: Element = (node: any);
         switch (element.tagName) {
           case 'TITLE':
-          case 'META':
-          case 'BASE': {
+          case 'META': {
             continue;
           }
           case 'LINK': {
@@ -1584,7 +1583,6 @@ export function isHostResourceType(
     namespace = hostContextProd;
   }
   switch (type) {
-    case 'base':
     case 'meta': {
       return true;
     }

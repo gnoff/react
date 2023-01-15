@@ -317,6 +317,7 @@ describe('ReactDOMFloat', () => {
             </noscript>
             <base target="foo" href="bar" />
             <script async={true} src="foo" onLoad={() => {}} />
+            <meta charSet="utf-8" />
           </head>
           <body>foo</body>
         </html>,
@@ -326,17 +327,22 @@ describe('ReactDOMFloat', () => {
     expect(getMeaningfulChildren(document)).toEqual(
       <html>
         <head>
-          <base target="foo" href="bar" />
+          {/* charset first */}
+          <meta charset="utf-8" />
+          {/* Resources next */}
           <link rel="preload" href="foo" as="script" />
+          {/* Hoistables next */}
           <meta property="foo" content="bar" />
           <title>foo</title>
+          {/* Rendered head content last */}
           <noscript>&lt;link rel="icon" href="icon"/&gt;</noscript>
+          <base target="foo" href="bar" />
         </head>
         <body>foo</body>
       </html>,
     );
 
-    ReactDOMClient.hydrateRoot(
+    const root = ReactDOMClient.hydrateRoot(
       document,
       <html>
         <head>
@@ -348,6 +354,7 @@ describe('ReactDOMFloat', () => {
           </noscript>
           <base target="foo" href="bar" />
           <script async={true} src="foo" onLoad={() => {}} />
+          <meta charSet="utf-8" />
         </head>
         <body>foo</body>
       </html>,
@@ -356,15 +363,202 @@ describe('ReactDOMFloat', () => {
     expect(getMeaningfulChildren(document)).toEqual(
       <html>
         <head>
-          <base target="foo" href="bar" />
+          {/* charset first */}
+          <meta charset="utf-8" />
+          {/* Resources next */}
           <link rel="preload" href="foo" as="script" />
+          {/* Hoistables next */}
           <meta property="foo" content="bar" />
           <title>foo</title>
+          {/* Rendered head content last */}
           <link rel="foo" href="bar" />
           <noscript>&lt;link rel="icon" href="icon"/&gt;</noscript>
+          <base target="foo" href="bar" />
           <script async="" src="foo" />
         </head>
         <body>foo</body>
+      </html>,
+    );
+
+    root.render(
+      <html>
+        <head>
+          <meta property="foo" content="baz" />
+          <link rel="foo" href="bar" onLoad={() => {}} />
+          <title>foo</title>
+          <noscript>
+            <link rel="icon" href="icon" />
+          </noscript>
+          <base target="foo" href="bar" />
+          <script async={true} src="foo" onLoad={() => {}} />
+          <meta charSet="utf-8" />
+        </head>
+        <body>foo</body>
+      </html>,
+    );
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head>
+          {/* charset first */}
+          <meta charset="utf-8" />
+          {/* Resources next */}
+          <link rel="preload" href="foo" as="script" />
+          {/* Hoistables next */}
+          <meta property="foo" content="baz" />
+          <title>foo</title>
+          {/* Rendered head content last */}
+          <link rel="foo" href="bar" />
+          <noscript>&lt;link rel="icon" href="icon"/&gt;</noscript>
+          <base target="foo" href="bar" />
+          <script async="" src="foo" />
+        </head>
+        <body>foo</body>
+      </html>,
+    );
+
+    root.unmount();
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head>
+          <link rel="preload" href="foo" as="script" />
+        </head>
+        <body />
+      </html>,
+    );
+  });
+
+  // @gate enableFloat
+  it('can render identical hoistables without deduping', async () => {
+    await actIntoEmptyDocument(() => {
+      const {pipe} = renderToPipeableStream(
+        <html>
+          <meta property="foo" content="bar" />
+          <meta property="foo" content="bar" />
+          <body>foo</body>
+        </html>,
+      );
+      pipe(writable);
+    });
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head>
+          <meta property="foo" content="bar" />
+          <meta property="foo" content="bar" />
+        </head>
+        <body>foo</body>
+      </html>,
+    );
+
+    const root = ReactDOMClient.hydrateRoot(
+      document,
+      <html>
+        <meta property="foo" content="bar" />
+        <meta property="foo" content="bar" />
+        <body>foo</body>
+      </html>,
+    );
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head>
+          <meta property="foo" content="bar" />
+          <meta property="foo" content="bar" />
+        </head>
+        <body>foo</body>
+      </html>,
+    );
+
+    root.render(
+      <html>
+        <meta property="foo" content="baz" />
+        <meta property="foo" content="bez" />
+        <body>foo</body>
+        <meta property="foo" content="biz" />
+      </html>,
+    );
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head>
+          <meta property="foo" content="baz" />
+          <meta property="foo" content="bez" />
+          <meta property="foo" content="biz" />
+        </head>
+        <body>foo</body>
+      </html>,
+    );
+
+    root.unmount();
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head />
+        <body />
+      </html>,
+    );
+  });
+
+  // @gate enableFloat
+  it('can hoist titles', async () => {
+    await actIntoEmptyDocument(() => {
+      const {pipe} = renderToPipeableStream(
+        <html>
+          <body>foo</body>
+          <title>a title</title>
+        </html>,
+      );
+      pipe(writable);
+    });
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head>
+          <title>a title</title>
+        </head>
+        <body>foo</body>
+      </html>,
+    );
+
+    const root = ReactDOMClient.hydrateRoot(
+      document,
+      <html>
+        <body>foo</body>
+        <title>a title</title>
+      </html>,
+    );
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head>
+          <title>a title</title>
+        </head>
+        <body>foo</body>
+      </html>,
+    );
+
+    root.render(
+      <html>
+        <body>foo</body>
+        <title>{['a new title']}</title>
+      </html>,
+    );
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head>
+          <title>a new title</title>
+        </head>
+        <body>foo</body>
+      </html>,
+    );
+
+    root.unmount();
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getMeaningfulChildren(document)).toEqual(
+      <html>
+        <head />
+        <body />
       </html>,
     );
   });

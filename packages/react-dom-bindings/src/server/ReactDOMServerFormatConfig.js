@@ -136,6 +136,8 @@ export type ResponseState = {
   requiresEmbedding: boolean,
   rendered: DocumentStructureTag,
   flushed: DocumentStructureTag,
+  charsetChunks: Array<Chunk | PrecomputedChunk>,
+  hoistableChunks: Array<Chunk | PrecomputedChunk>,
   placeholderPrefix: PrecomputedChunk,
   segmentPrefix: PrecomputedChunk,
   boundaryPrefix: string,
@@ -354,6 +356,8 @@ export function createResponseState(
     requiresEmbedding: documentEmbedding === true,
     rendered: NONE,
     flushed: NONE,
+    charsetChunks: [],
+    hoistableChunks: [],
     placeholderPrefix: stringToPrecomputedChunk(idPrefix + 'P:'),
     segmentPrefix: stringToPrecomputedChunk(idPrefix + 'S:'),
     boundaryPrefix: idPrefix + 'B:',
@@ -1322,31 +1326,6 @@ function pushStartTextArea(
   return null;
 }
 
-function pushBase(
-  target: Array<Chunk | PrecomputedChunk>,
-  props: Object,
-  responseState: ResponseState,
-  textEmbedded: boolean,
-  noscriptTagInScope: boolean,
-): ReactNodeList {
-  if (
-    enableFloat &&
-    !noscriptTagInScope &&
-    resourcesFromElement('base', props)
-  ) {
-    if (textEmbedded) {
-      // This link follows text but we aren't writing a tag. while not as efficient as possible we need
-      // to be safe and assume text will follow by inserting a textSeparator
-      target.push(textSeparator);
-    }
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
-    return null;
-  }
-
-  return pushSelfClosing(target, props, 'base', responseState);
-}
-
 function pushMeta(
   target: Array<Chunk | PrecomputedChunk>,
   props: Object,
@@ -1354,22 +1333,34 @@ function pushMeta(
   textEmbedded: boolean,
   noscriptTagInScope: boolean,
 ): ReactNodeList {
-  if (
-    enableFloat &&
-    !noscriptTagInScope &&
-    resourcesFromElement('meta', props)
-  ) {
+  if (enableFloat) {
+    if (noscriptTagInScope) {
+      return pushSelfClosing(target, props, 'meta', responseState);
+    }
     if (textEmbedded) {
-      // This link follows text but we aren't writing a tag. while not as efficient as possible we need
-      // to be safe and assume text will follow by inserting a textSeparator
+      // This meta tag is not going to emit in place and we are adjacent to text.
+      // We defensively emit a textSeparator in case the next chunk is text.
       target.push(textSeparator);
     }
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
+    if (props.charSet != null) {
+      pushSelfClosing(
+        responseState.charsetChunks,
+        props,
+        'meta',
+        responseState,
+      );
+    } else {
+      pushSelfClosing(
+        responseState.hoistableChunks,
+        props,
+        'meta',
+        responseState,
+      );
+    }
     return null;
+  } else {
+    return pushSelfClosing(target, props, 'meta', responseState);
   }
-
-  return pushSelfClosing(target, props, 'meta', responseState);
 }
 
 function pushLink(
@@ -1379,18 +1370,26 @@ function pushLink(
   textEmbedded: boolean,
   noscriptTagInScope: boolean,
 ): ReactNodeList {
-  if (enableFloat && !noscriptTagInScope && resourcesFromLink(props)) {
+  if (enableFloat) {
+    if (noscriptTagInScope) {
+      return pushLinkImpl(target, props, responseState);
+    }
     if (textEmbedded) {
       // This link follows text but we aren't writing a tag. while not as efficient as possible we need
       // to be safe and assume text will follow by inserting a textSeparator
       target.push(textSeparator);
     }
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
-    return null;
+    if (resourcesFromLink(props)) {
+      // We have converted this link exclusively to a resource and no longer
+      // need to emit it
+      return null;
+    } else {
+      pushLinkImpl(responseState.hoistableChunks, props, responseState);
+      return null;
+    }
+  } else {
+    return pushLinkImpl(target, props, responseState);
   }
-
-  return pushLinkImpl(target, props, responseState);
 }
 
 function pushLinkImpl(
@@ -1544,18 +1543,16 @@ function pushTitle(
     }
   }
 
-  if (
-    enableFloat &&
-    // title is valid in SVG so we avoid resour
-    insertionMode !== SVG_MODE &&
-    !noscriptTagInScope &&
-    resourcesFromElement('title', props)
-  ) {
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
-    return null;
+  if (enableFloat) {
+    if (insertionMode === SVG_MODE || noscriptTagInScope) {
+      return pushTitleImpl(target, props, responseState);
+    } else {
+      pushTitleImpl(responseState.hoistableChunks, props, responseState);
+      return null;
+    }
+  } else {
+    return pushTitleImpl(target, props, responseState);
   }
-  return pushTitleImpl(target, props, responseState);
 }
 
 function pushTitleImpl(
@@ -2299,20 +2296,13 @@ export function pushStartInstance(
         textEmbedded,
         formatContext.noscriptTagInScope,
       );
-    case 'base':
-      return pushBase(
-        target,
-        props,
-        responseState,
-        textEmbedded,
-        formatContext.noscriptTagInScope,
-      );
     // Newline eating tags
     case 'listing':
     case 'pre': {
       return pushStartPreformattedElement(target, props, type, responseState);
     }
     // Omitted close tags
+    case 'base':
     case 'area':
     case 'br':
     case 'col':
@@ -2466,12 +2456,31 @@ export function writeEarlyPreamble(
           responseState.flushed |= HTML | HEAD;
         }
 
-        return writeEarlyResources(
+        let i = 0;
+        let r = true;
+
+        const {charsetChunks, hoistableChunks} = responseState;
+        for (; i < charsetChunks.length; i++) {
+          writeChunk(destination, charsetChunks[i]);
+        }
+        charsetChunks.length = 0;
+
+        r = writeEarlyResources(
           destination,
           resources,
           responseState,
           willEmitInstructions,
         );
+
+        for (i = 0; i < hoistableChunks.length - 1; i++) {
+          writeChunk(destination, hoistableChunks[i]);
+        }
+        if (i < hoistableChunks.length) {
+          r = writeChunkAndReturn(destination, hoistableChunks[i]);
+        }
+        hoistableChunks.length = 0;
+
+        return r;
       }
     }
   }
@@ -2525,13 +2534,30 @@ export function writePreamble(
       }
     }
 
+    let i = 0;
+    let r = true;
+
+    const {charsetChunks, hoistableChunks} = responseState;
+    for (; i < charsetChunks.length; i++) {
+      writeChunk(destination, charsetChunks[i]);
+    }
+    charsetChunks.length = 0;
+
     // Write all remaining resources that should flush with the Shell
-    let r = writeInitialResources(
+    r = writeInitialResources(
       destination,
       resources,
       responseState,
       willEmitInstructions,
     );
+
+    for (i = 0; i < hoistableChunks.length - 1; i++) {
+      writeChunk(destination, hoistableChunks[i]);
+    }
+    if (i < hoistableChunks.length) {
+      r = writeChunkAndReturn(destination, hoistableChunks[i]);
+    }
+    hoistableChunks.length = 0;
 
     // If we did not render a <head> but we did flush one we need to emit
     // the closing tag now after writing resources. We know we won't get
@@ -3442,7 +3468,6 @@ export function writeEarlyResources(
   const target = [];
 
   const {
-    charset,
     bases,
     preconnects,
     fontPreloads,
@@ -3455,12 +3480,6 @@ export function writeEarlyResources(
     explicitScriptPreloads,
     headResources,
   } = resources;
-
-  if (charset) {
-    pushSelfClosing(target, charset.props, 'meta', responseState);
-    charset.flushed = true;
-    resources.charset = null;
-  }
 
   bases.forEach(r => {
     pushSelfClosing(target, r.props, 'base', responseState);
@@ -3579,7 +3598,6 @@ function writeInitialResources(
   const target: Array<Chunk | PrecomputedChunk> = [];
 
   const {
-    charset,
     bases,
     preconnects,
     fontPreloads,
@@ -3593,12 +3611,6 @@ function writeInitialResources(
     explicitScriptPreloads,
     headResources,
   } = resources;
-
-  if (charset) {
-    pushSelfClosing(target, charset.props, 'meta', responseState);
-    charset.flushed = true;
-    resources.charset = null;
-  }
 
   bases.forEach(r => {
     pushSelfClosing(target, r.props, 'base', responseState);
@@ -3727,7 +3739,6 @@ export function writeResources(
   const target: Array<Chunk | PrecomputedChunk> = [];
 
   const {
-    charset,
     preconnects,
     fontPreloads,
     usedStylePreloads,
@@ -3737,12 +3748,6 @@ export function writeResources(
     explicitScriptPreloads,
     headResources,
   } = resources;
-
-  if (charset) {
-    pushSelfClosing(target, charset.props, 'meta', responseState);
-    charset.flushed = true;
-    resources.charset = null;
-  }
 
   preconnects.forEach(r => {
     // font preload Resources should not already be flushed so we elide this check

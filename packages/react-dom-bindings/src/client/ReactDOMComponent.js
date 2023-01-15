@@ -47,6 +47,7 @@ import {
   updateWrapper as ReactDOMTextareaUpdateWrapper,
   restoreControlledState as ReactDOMTextareaRestoreControlledState,
 } from './ReactDOMTextarea';
+import {getProps as ReactDOMTitleGetProps} from './ReactDOMTitle';
 import {track} from './inputValueTracking';
 import setInnerHTML from './setInnerHTML';
 import setTextContent from './setTextContent';
@@ -574,6 +575,9 @@ export function setInitialProperties(
       // listeners still fire for the invalid event.
       listenToNonDelegatedEvent('invalid', domElement);
       break;
+    case 'title':
+      props = ReactDOMTitleGetProps(domElement, rawProps);
+      break;
     default:
       props = rawProps;
   }
@@ -640,6 +644,10 @@ export function diffProperties(
       lastProps = ReactDOMTextareaGetHostProps(domElement, lastRawProps);
       nextProps = ReactDOMTextareaGetHostProps(domElement, nextRawProps);
       updatePayload = [];
+      break;
+    case 'title':
+      lastProps = ReactDOMTitleGetProps(domElement, lastRawProps);
+      nextProps = ReactDOMTitleGetProps(domElement, nextRawProps);
       break;
     default:
       lastProps = lastRawProps;

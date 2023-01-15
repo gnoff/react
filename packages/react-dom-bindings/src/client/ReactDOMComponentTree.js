@@ -285,8 +285,6 @@ export function getResourcesFromRoot(root: FloatRoot): RootResources {
     resources = (root: any)[internalRootNodeResourcesKey] = {
       styles: new Map(),
       scripts: new Map(),
-      head: new Map(),
-      lastStructuredMeta: new Map(),
     };
   }
   return resources;
