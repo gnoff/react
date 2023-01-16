@@ -80,6 +80,7 @@ import {
   mediaEventTypes,
   listenToNonDelegatedEvent,
 } from '../events/DOMPluginEventSystem';
+import {isMarkedResource} from './ReactDOMComponentTree';
 
 let didWarnInvalidHydration = false;
 let didWarnScriptTags = false;
@@ -576,7 +577,7 @@ export function setInitialProperties(
       listenToNonDelegatedEvent('invalid', domElement);
       break;
     case 'title':
-      props = ReactDOMTitleGetProps(domElement, rawProps);
+      props = ReactDOMTitleGetProps(isMarkedResource(domElement), rawProps);
       break;
     default:
       props = rawProps;
@@ -646,8 +647,9 @@ export function diffProperties(
       updatePayload = [];
       break;
     case 'title':
-      lastProps = ReactDOMTitleGetProps(domElement, lastRawProps);
-      nextProps = ReactDOMTitleGetProps(domElement, nextRawProps);
+      const isResource = isMarkedResource(domElement);
+      lastProps = ReactDOMTitleGetProps(isResource, lastRawProps);
+      nextProps = ReactDOMTitleGetProps(isResource, nextRawProps);
       break;
     default:
       lastProps = lastRawProps;

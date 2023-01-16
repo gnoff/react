@@ -667,14 +667,14 @@ describe('ReactDOMFloat', () => {
     const root = ReactDOMClient.createRoot(container);
     root.render(
       <>
-        <title>foo</title>
+        <script async={true} src="foo" />
       </>,
     );
     expect(Scheduler).toFlushWithoutYielding();
     expect(getMeaningfulChildren(document)).toEqual(
       <html>
         <head>
-          <title>foo</title>
+          <script async="" src="foo" />
         </head>
         <body>
           <div id="container" />
@@ -682,19 +682,19 @@ describe('ReactDOMFloat', () => {
       </html>,
     );
 
-    // title is keyed off children so this second resource should match the first one
+    // unmount first foo script and mount a second one
     root.render(
       <>
         {null}
-        <title data-new="new">foo</title>
+        <script async={true} src="foo" />
       </>,
     );
     expect(Scheduler).toFlushWithoutYielding();
-    // we don't see the attribute because the resource is the same and was not reconstructed
+    // the resource is released and then re-aquired but not re-inserted because it is already in the DOM
     expect(getMeaningfulChildren(document)).toEqual(
       <html>
         <head>
-          <title>foo</title>
+          <script async="" src="foo" />
         </head>
         <body>
           <div id="container" />
@@ -834,47 +834,6 @@ describe('ReactDOMFloat', () => {
     expect(
       Array.from(document.getElementsByTagName('script')).map(n => n.outerHTML),
     ).toEqual(['<script src="src-of-external-runtime" async=""></script>']);
-  });
-
-  describe('HostResource', () => {
-    // @gate enableFloat
-    it('warns when you update props to an invalid type', async () => {
-      const root = ReactDOMClient.createRoot(container);
-      root.render(
-        <div>
-          <link rel="stylesheet" href="foo" precedence="foo" />
-          <link rel="stylesheet" href="bar" precedence="foo" />
-        </div>,
-      );
-      expect(Scheduler).toFlushWithoutYielding();
-      root.render(
-        <div>
-          <link rel={() => {}} href="bar" />
-          <link rel="foo" href={() => {}} />
-        </div>,
-      );
-      expect(() => {
-        expect(Scheduler).toFlushWithoutYielding();
-      }).toErrorDev([
-        'Warning: A <link> previously rendered as a Resource with href "foo" with rel ""stylesheet"" but was updated with an invalid rel: something with type "function". When a link does not have a valid rel prop it is not represented in the DOM. If this is intentional, instead do not render the <link> anymore.',
-        'Warning: A <link> previously rendered as a Resource with href "bar" but was updated with an invalid href prop: something with type "function". When a link does not have a valid href prop it is not represented in the DOM. If this is intentional, instead do not render the <link> anymore.',
-      ]);
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <link rel="stylesheet" href="foo" data-precedence="foo" />
-            <link rel="stylesheet" href="bar" data-precedence="foo" />
-            <link rel="preload" as="style" href="foo" />
-            <link rel="preload" as="style" href="bar" />
-          </head>
-          <body>
-            <div id="container">
-              <div />
-            </div>
-          </body>
-        </html>,
-      );
-    });
   });
 
   describe('ReactDOM.preload', () => {
@@ -1426,11 +1385,11 @@ describe('ReactDOMFloat', () => {
       expect(getMeaningfulChildren(document)).toEqual(
         <html>
           <head>
-            <link rel="preconnect" href="bar" />
-            <link rel="dns-prefetch" href="bar" />
             <link rel="stylesheet" href="bar" data-precedence="default" />
             <link rel="foo" href="bar" />
             <link rel="preload" href="bar" />
+            <link rel="preconnect" href="bar" />
+            <link rel="dns-prefetch" href="bar" />
             <link rel="icon" href="bar" />
             <link rel="icon" href="bar" sizes="1x1" />
             <link rel="icon" href="bar" media="foo" />
@@ -1467,11 +1426,11 @@ describe('ReactDOMFloat', () => {
       expect(getMeaningfulChildren(document)).toEqual(
         <html>
           <head>
-            <link rel="preconnect" href="bar" />
-            <link rel="dns-prefetch" href="bar" />
             <link rel="stylesheet" href="bar" data-precedence="default" />
             <link rel="foo" href="bar" />
             <link rel="preload" href="bar" />
+            <link rel="preconnect" href="bar" />
+            <link rel="dns-prefetch" href="bar" />
             <link rel="icon" href="bar" />
             <link rel="icon" href="bar" sizes="1x1" />
             <link rel="icon" href="bar" media="foo" />
@@ -1498,64 +1457,6 @@ describe('ReactDOMFloat', () => {
           <head>
             <link rel="stylesheet" href="bar" data-precedence="default" />
             <link rel="preload" href="bar" />
-          </head>
-          <body>
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-    });
-
-    // @gate enableFloat
-    it('can render <base> as a Resource', async () => {
-      await actIntoEmptyDocument(() => {
-        const {pipe} = renderToPipeableStream(
-          <html>
-            <head />
-            <body>
-              <base target="_blank" />
-              <base href="foo" />
-              <base target="_self" href="bar" />
-              <div>hello world</div>
-            </body>
-          </html>,
-        );
-        pipe(writable);
-      });
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <base target="_blank" />
-            <base href="foo" />
-            <base target="_self" href="bar" />
-          </head>
-          <body>
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-
-      ReactDOMClient.hydrateRoot(
-        document,
-        <html>
-          <head />
-          <body>
-            <base target="_blank" />
-            <base href="foo" />
-            <base target="_self" href="bar" />
-            <base target="_top" href="baz" />
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-      expect(Scheduler).toFlushWithoutYielding();
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <base target="_top" href="baz" />
-            <base target="_blank" />
-            <base href="foo" />
-            <base target="_self" href="bar" />
           </head>
           <body>
             <div>hello world</div>
@@ -1840,11 +1741,6 @@ describe('ReactDOMFloat', () => {
               property="og:description"
               content="my site"
             />
-            <meta
-              itemprop="description bar"
-              property="og:description:bar"
-              content="bar"
-            />
             <meta property="og:image" content="foo" />
             <meta property="og:image:width" content="100" />
             <meta http-equiv="refresh" content="dont actually" />
@@ -1854,169 +1750,12 @@ describe('ReactDOMFloat', () => {
             <meta itemprop="someprop" content="somevalue" />
             <meta property="og:image:height" content="100" />
             <meta property="og:description:foo" content="foo" />
-          </head>
-          <body>
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-    });
-
-    // @gate enableFloat
-    it('can render meta tags with og properties with structured data', async () => {
-      await actIntoEmptyDocument(() => {
-        const {pipe} = renderToPipeableStream(
-          <>
-            <html>
-              <head />
-              <body>
-                <div>hello world</div>
-              </body>
-            </html>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-          </>,
-        );
-        pipe(writable);
-      });
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-          </head>
-          <body>
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-
-      const root = ReactDOMClient.hydrateRoot(
-        document,
-        <html>
-          <head />
-          <body>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-      expect(Scheduler).toFlushWithoutYielding();
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-          </head>
-          <body>
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-
-      root.render(
-        <html>
-          <head />
-          <body>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:height" content="100" />
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-      expect(Scheduler).toFlushWithoutYielding();
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:height" content="100" />
-          </head>
-          <body>
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-
-      root.render(
-        <html>
-          <head />
-          <body>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image:foo" content="foo" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:height" content="100" />
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-      expect(Scheduler).toFlushWithoutYielding();
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:foo" content="foo" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:height" content="100" />
-          </head>
-          <body>
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-
-      root.render(
-        <html>
-          <head />
-          <body>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:width:bar" content="bar" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image:foo" content="foo" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:height" content="100" />
-            <div>hello world</div>
-          </body>
-        </html>,
-      );
-      expect(Scheduler).toFlushWithoutYielding();
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <meta property="og:image" content="foo" />
-            <meta property="og:image:foo" content="foo" />
-            <meta property="og:image:height" content="100" />
-            <meta property="og:image:width" content="100" />
-            <meta property="og:image:width:bar" content="bar" />
-            <meta property="og:image" content="bar" />
-            <meta property="og:image:height" content="100" />
+            <meta property="og:description" content="my site" />
+            <meta
+              itemprop="description bar"
+              property="og:description:bar"
+              content="bar"
+            />
           </head>
           <body>
             <div>hello world</div>
@@ -2216,64 +1955,6 @@ describe('ReactDOMFloat', () => {
           </head>
           <body>
             <div>hello world</div>
-          </body>
-        </html>,
-      );
-    });
-
-    // @gate enableFloat
-    it('keys titles on text children and only removes them when no more instances refer to that title', async () => {
-      const root = ReactDOMClient.createRoot(container);
-      root.render(
-        <div>
-          <title>{[2]}</title>hello world<title>2</title>
-        </div>,
-      );
-      expect(Scheduler).toFlushWithoutYielding();
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <title>2</title>
-          </head>
-          <body>
-            <div id="container">
-              <div>hello world</div>
-            </div>
-          </body>
-        </html>,
-      );
-
-      root.render(
-        <div>
-          {null}hello world<title>2</title>
-        </div>,
-      );
-      expect(Scheduler).toFlushWithoutYielding();
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head>
-            <title>2</title>
-          </head>
-          <body>
-            <div id="container">
-              <div>hello world</div>
-            </div>
-          </body>
-        </html>,
-      );
-      root.render(
-        <div>
-          {null}hello world{null}
-        </div>,
-      );
-      expect(Scheduler).toFlushWithoutYielding();
-      expect(getMeaningfulChildren(document)).toEqual(
-        <html>
-          <head />
-          <body>
-            <div id="container">
-              <div>hello world</div>
-            </div>
           </body>
         </html>,
       );
@@ -5758,7 +5439,6 @@ describe('ReactDOMFloat', () => {
                   <title>bar</title>
                   <script src="baz" async={true} />
                   <meta name="foo" content="bar" />
-                  <base href="foo" />
                 </path>
               </svg>
               <title>qux</title>
@@ -5770,7 +5450,6 @@ describe('ReactDOMFloat', () => {
       expect(getMeaningfulChildren(document)).toEqual(
         <html>
           <head>
-            <base href="foo" />
             <link rel="stylesheet" href="bar" data-precedence="default" />
             <script src="baz" async="" />
             <link rel="foo" href="bar" />
@@ -5801,7 +5480,6 @@ describe('ReactDOMFloat', () => {
                 <title>bar</title>
                 <script src="baz" async={true} />
                 <meta name="foo" content="bar" />
-                <base href="foo" />
               </path>
             </svg>
             <title>qux</title>
@@ -5813,7 +5491,6 @@ describe('ReactDOMFloat', () => {
       expect(getMeaningfulChildren(document)).toEqual(
         <html>
           <head>
-            <base href="foo" />
             <link rel="stylesheet" href="bar" data-precedence="default" />
             <script src="baz" async="" />
             <link rel="foo" href="bar" />
@@ -5846,7 +5523,6 @@ describe('ReactDOMFloat', () => {
                 <title>bar</title>
                 <script src="baz" async={true} />
                 <meta name="foo" content="bar" />
-                <base href="foo" />
               </path>
             </svg>
             <title>qux</title>
@@ -5861,7 +5537,6 @@ describe('ReactDOMFloat', () => {
             <link rel="foo" href="bar" />
             <script src="baz" async="" />
             <meta name="foo" content="bar" />
-            <base href="foo" />
             <title>qux</title>
           </head>
           <body>
@@ -5998,7 +5673,6 @@ describe('ReactDOMFloat', () => {
                   <SomeResources />
                 </Indirection>
               </noscript>
-              <SomeResources />
             </head>
           </html>
         );

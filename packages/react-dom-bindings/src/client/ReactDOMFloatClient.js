@@ -13,7 +13,6 @@ import ReactDOMSharedInternals from 'shared/ReactDOMSharedInternals.js';
 const {Dispatcher} = ReactDOMSharedInternals;
 import {DOCUMENT_NODE} from '../shared/HTMLNodeType';
 import {
-  warnOnMissingHrefAndRel,
   validatePreloadResourceDifference,
   validateURLKeyedUpdatedProps,
   validateStyleResourceDifference,
@@ -618,6 +617,22 @@ function scriptPropsFromRawProps(rawProps: ScriptQualifyingProps): ScriptProps {
 //      Resource Reconciliation
 // --------------------------------------
 
+export function getResourceProps(
+  resource: Resource,
+  pendingProps: Object,
+): Object {
+  switch (resource.type) {
+    case 'title':
+    case 'link':
+    case 'meta': {
+      return pendingProps;
+    }
+    default: {
+      return resource.props;
+    }
+  }
+}
+
 export function acquireResource(resource: Resource): Instance {
   switch (resource.type) {
     case 'title':
@@ -920,7 +935,17 @@ function acquireHoistable(resource: HoistableResource): Instance {
     }
   }
   const instance = resource.instance;
-  insertResourceInstanceBefore(instance.ownerDocument, instance, null);
+  if (resource.type === 'title') {
+    const root = instance.ownerDocument;
+    const firstHeadTitle = root.querySelector('head > title');
+    insertResourceInstanceBefore(
+      instance.ownerDocument,
+      instance,
+      firstHeadTitle,
+    );
+  } else {
+    insertResourceInstanceBefore(instance.ownerDocument, instance, null);
+  }
   return instance;
 }
 

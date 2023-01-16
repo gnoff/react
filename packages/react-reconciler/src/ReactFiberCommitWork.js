@@ -2639,16 +2639,23 @@ function commitMutationEffectsOnFiber(
         }
 
         if (flags & Update) {
+          const currentResource = current ? current.memoizedState : null;
           const newResource = finishedWork.memoizedState;
-          if (current !== null) {
-            const currentResource = current.memoizedState;
-            if (currentResource !== newResource) {
-              releaseResource(currentResource);
+          if (newResource !== currentResource) {
+            if (newResource) {
+              finishedWork.stateNode = acquireResource(newResource);
+              if (currentResource) {
+                releaseResource(currentResource);
+              }
+            } else {
+              finishedWork.stateNode = null;
+              if (currentResource) {
+                releaseResource(currentResource);
+              }
             }
           }
-          const stateNode = (finishedWork.stateNode = newResource
-            ? acquireResource(newResource)
-            : null);
+
+          const stateNode = finishedWork.stateNode;
 
           if (stateNode != null) {
             const instance: Instance = stateNode;

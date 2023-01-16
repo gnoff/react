@@ -11,69 +11,6 @@ import hasOwnProperty from 'shared/hasOwnProperty';
 
 type Props = {[string]: mixed};
 
-export function warnOnMissingHrefAndRel(
-  pendingProps: Props,
-  currentProps: ?Props,
-) {
-  if (__DEV__) {
-    if (currentProps != null) {
-      const originalResourceName =
-        typeof currentProps.href === 'string'
-          ? `Resource with href "${currentProps.href}"`
-          : 'Resource';
-      const originalRelStatement = getValueDescriptorExpectingEnumForWarning(
-        currentProps.rel,
-      );
-      const pendingRel = getValueDescriptorExpectingEnumForWarning(
-        pendingProps.rel,
-      );
-      const pendingHref = getValueDescriptorExpectingEnumForWarning(
-        pendingProps.href,
-      );
-      if (typeof pendingProps.rel !== 'string') {
-        console.error(
-          'A <link> previously rendered as a %s with rel "%s" but was updated with an invalid rel: %s. When a link' +
-            ' does not have a valid rel prop it is not represented in the DOM. If this is intentional, instead' +
-            ' do not render the <link> anymore.',
-          originalResourceName,
-          originalRelStatement,
-          pendingRel,
-        );
-      } else if (typeof pendingProps.href !== 'string') {
-        console.error(
-          'A <link> previously rendered as a %s but was updated with an invalid href prop: %s. When a link' +
-            ' does not have a valid href prop it is not represented in the DOM. If this is intentional, instead' +
-            ' do not render the <link> anymore.',
-          originalResourceName,
-          pendingHref,
-        );
-      }
-    } else {
-      const pendingRel = getValueDescriptorExpectingEnumForWarning(
-        pendingProps.rel,
-      );
-      const pendingHref = getValueDescriptorExpectingEnumForWarning(
-        pendingProps.href,
-      );
-      if (typeof pendingProps.rel !== 'string') {
-        console.error(
-          'A <link> is rendering with an invalid rel: %s. When a link' +
-            ' does not have a valid rel prop it is not represented in the DOM. If this is intentional, instead' +
-            ' do not render the <link> anymore.',
-          pendingRel,
-        );
-      } else if (typeof pendingProps.href !== 'string') {
-        console.error(
-          'A <link> is rendering with an invalid href: %s. When a link' +
-            ' does not have a valid href prop it is not represented in the DOM. If this is intentional, instead' +
-            ' do not render the <link> anymore.',
-          pendingHref,
-        );
-      }
-    }
-  }
-}
-
 export function validatePreloadResourceDifference(
   originalProps: any,
   originalImplicit: boolean,

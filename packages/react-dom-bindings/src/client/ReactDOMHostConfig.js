@@ -1706,6 +1706,7 @@ export {
   getResource,
   acquireResource,
   releaseResource,
+  getResourceProps,
 } from './ReactDOMFloatClient';
 
 // -------------------

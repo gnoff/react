@@ -10,7 +10,6 @@
 import isArray from 'shared/isArray';
 
 import {enableFloat} from 'shared/ReactFeatureFlags';
-import {isMarkedResource} from './ReactDOMComponentTree';
 
 function getTitleChildren(children: mixed): void | null | string {
   if (children == null) {
@@ -30,8 +29,8 @@ function getTitleChildren(children: mixed): void | null | string {
 // void, null, or single alphanumeric values. We could in theory make this
 // restriction apply to all titles however to avoid breaking changes this
 // is for now only applied to Hoistable titles
-export function getProps(element: Element, props: Object): Object {
-  if (enableFloat && isMarkedResource(element)) {
+export function getProps(isResource: boolean, props: Object): Object {
+  if (enableFloat && isResource) {
     const titleChildren = getTitleChildren(props.children);
     if (titleChildren !== props.children) {
       // We only bother constructing a new object if the children value differs

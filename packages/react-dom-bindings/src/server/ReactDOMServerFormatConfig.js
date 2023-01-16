@@ -70,10 +70,15 @@ import {
   preinitImpl,
   prepareToRenderResources,
   finishRenderingResources,
-  resourcesFromElement,
-  resourcesFromLink,
   resourcesFromScript,
   ReactDOMServerFloatDispatcher,
+  expectCurrentResources,
+  createStyleResource,
+  createPreloadResource,
+  preloadAsStylePropsFromProps,
+  stylePropsFromRawProps,
+  adoptPreloadPropsForStyleProps,
+  preloadPropsFromRawProps,
 } from './ReactDOMFloatServer';
 export {
   createResources,
@@ -82,6 +87,12 @@ export {
   hoistResources,
   hoistResourcesToRoot,
 } from './ReactDOMFloatServer';
+import {
+  validateLinkPropsForStyleResource,
+  validateStyleResourceDifference,
+  validateLinkPropsForPreloadResource,
+  validatePreloadResourceDifference,
+} from '../shared/ReactDOMResourceValidation';
 
 import {
   clientRenderBoundary as clientRenderFunctionString,
@@ -1379,14 +1390,149 @@ function pushLink(
       // to be safe and assume text will follow by inserting a textSeparator
       target.push(textSeparator);
     }
-    if (resourcesFromLink(props)) {
-      // We have converted this link exclusively to a resource and no longer
-      // need to emit it
-      return null;
-    } else {
-      pushLinkImpl(responseState.hoistableChunks, props, responseState);
+
+    const resources = expectCurrentResources();
+
+    const {rel, href} = props;
+    if (!href || typeof href !== 'string' || !rel || typeof rel !== 'string') {
+      return false;
+    }
+
+    let key = '';
+    switch (rel) {
+      case 'stylesheet': {
+        const {onLoad, onError, precedence, disabled} = props;
+        if (
+          typeof precedence !== 'string' ||
+          onLoad ||
+          onError ||
+          disabled != null
+        ) {
+          // This stylesheet is either not opted into Resource semantics or has conflicting properties which
+          // disqualify it for such. We can still create a preload resource to help it load faster on the
+          // client
+          if (__DEV__) {
+            validateLinkPropsForStyleResource(props);
+          }
+          let preloadResource = resources.preloadsMap.get(href);
+          if (!preloadResource) {
+            preloadResource = createPreloadResource(
+              resources,
+              href,
+              'style',
+              preloadAsStylePropsFromProps(href, props),
+            );
+            if (__DEV__) {
+              (preloadResource: any)._dev_implicit_construction = true;
+            }
+            resources.usedStylePreloads.add(preloadResource);
+          }
+          // This link is neither a Resource nor Hoistable. we write it as normal chunks
+          return pushLinkImpl(target, props, responseState);
+        } else {
+          // We are able to convert this link element to a resource exclusively. We construct the relevant Resource
+          // and return true indicating that this link was fully consumed.
+          let resource = resources.stylesMap.get(href);
+
+          if (resource) {
+            if (__DEV__) {
+              const resourceProps = stylePropsFromRawProps(
+                href,
+                precedence,
+                props,
+              );
+              adoptPreloadPropsForStyleProps(
+                resourceProps,
+                resource.hint.props,
+              );
+              validateStyleResourceDifference(resource.props, resourceProps);
+            }
+          } else {
+            const resourceProps = stylePropsFromRawProps(
+              href,
+              precedence,
+              props,
+            );
+            resource = createStyleResource(
+              // $FlowFixMe[incompatible-call] found when upgrading Flow
+              resources,
+              href,
+              precedence,
+              resourceProps,
+            );
+            resources.usedStylePreloads.add(resource.hint);
+          }
+          if (resources.boundaryResources) {
+            resources.boundaryResources.add(resource);
+          } else {
+            resource.set.add(resource);
+          }
+          // This was turned into a Resource
+          return null;
+        }
+      }
+      case 'preload': {
+        const {as} = props;
+        switch (as) {
+          case 'script':
+          case 'style':
+          case 'font': {
+            if (__DEV__) {
+              validateLinkPropsForPreloadResource(props);
+            }
+            let resource = resources.preloadsMap.get(href);
+            if (resource) {
+              if (__DEV__) {
+                const originallyImplicit =
+                  (resource: any)._dev_implicit_construction === true;
+                const latestProps = preloadPropsFromRawProps(href, as, props);
+                validatePreloadResourceDifference(
+                  resource.props,
+                  originallyImplicit,
+                  latestProps,
+                  false,
+                );
+              }
+            } else {
+              resource = createPreloadResource(
+                resources,
+                href,
+                as,
+                preloadPropsFromRawProps(href, as, props),
+              );
+              switch (as) {
+                case 'script': {
+                  resources.explicitScriptPreloads.add(resource);
+                  break;
+                }
+                case 'style': {
+                  resources.explicitStylePreloads.add(resource);
+                  break;
+                }
+                case 'font': {
+                  resources.fontPreloads.add(resource);
+                  break;
+                }
+              }
+            }
+            // This was turned into a resource
+            return null;
+          }
+        }
+        break;
+      }
+    }
+    if (props.onLoad || props.onError) {
+      // When a link has these props we can't treat it is a Resource but if we rendered it on the
+      // server it would look like a Resource in the rendered html (the onLoad/onError aren't emitted)
+      // Instead we expect the client to insert them rather than hydrate them which also guarantees
+      // that the onLoad and onError won't fire before the event handlers are attached
       return null;
     }
+
+    // This link is Hoistable
+    pushLinkImpl(responseState.hoistableChunks, props, responseState);
+    return null;
   } else {
     return pushLinkImpl(target, props, responseState);
   }

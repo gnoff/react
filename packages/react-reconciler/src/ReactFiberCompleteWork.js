@@ -990,7 +990,29 @@ function completeWork(
           // This Resource may need to update. For now we can re-use the HostComponent
           // update logic.
           const type = workInProgress.type;
-          updateHostComponent(current, workInProgress, type, newProps);
+          const currentHostContext = getHostContext();
+          const currentResourceProps = getResourceProps(
+            current.memoizedState,
+            current.memoizedProps,
+          );
+          const newResourceProps = getResourceProps(
+            workInProgress.memoizedState,
+            newProps,
+          );
+          if (currentResourceProps !== newResourceProps) {
+            // props update may be required
+            const updatePayload = prepareUpdate(
+              workInProgress.stateNode,
+              type,
+              currentResourceProps,
+              newResourceProps,
+              currentHostContext,
+            );
+            workInProgress.updateQueue = (updatePayload: any);
+            if (updatePayload) {
+              markUpdate(workInProgress);
+            }
+          }
           if (current.ref !== workInProgress.ref) {
             markRef(workInProgress);
           }

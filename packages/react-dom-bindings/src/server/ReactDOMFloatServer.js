@@ -7,6 +7,7 @@
  * @flow
  */
 
+import {current} from '../../../react-reconciler/src/ReactCurrentFiber';
 import {
   validatePreloadResourceDifference,
   validateStyleResourceDifference,
@@ -381,7 +382,7 @@ function preloadPropsFromPreloadOptions(
   };
 }
 
-function preloadPropsFromRawProps(
+export function preloadPropsFromRawProps(
   href: string,
   as: ResourceType,
   rawProps: Props,
@@ -399,7 +400,7 @@ function preloadPropsFromRawProps(
   return props;
 }
 
-function preloadAsStylePropsFromProps(
+export function preloadAsStylePropsFromProps(
   href: string,
   props: Props | StyleProps,
 ): PreloadProps {
@@ -429,7 +430,7 @@ function preloadAsScriptPropsFromProps(
   };
 }
 
-function createPreloadResource(
+export function createPreloadResource(
   resources: Resources,
   href: string,
   as: ResourceType,
@@ -455,7 +456,7 @@ function createPreloadResource(
   return resource;
 }
 
-function stylePropsFromRawProps(
+export function stylePropsFromRawProps(
   href: string,
   precedence: string,
   rawProps: Props,
@@ -482,7 +483,7 @@ function stylePropsFromPreinitOptions(
   };
 }
 
-function createStyleResource(
+export function createStyleResource(
   resources: Resources,
   href: string,
   precedence: string,
@@ -552,7 +553,7 @@ function createStyleResource(
   return resource;
 }
 
-function adoptPreloadPropsForStyleProps(
+export function adoptPreloadPropsForStyleProps(
   resourceProps: StyleProps,
   preloadProps: PreloadProps,
 ): void {
@@ -657,252 +658,13 @@ function titlePropsFromRawProps(
   return props;
 }
 
-export function resourcesFromElement(type: string, props: Props): boolean {
+export function expectCurrentResources(): Resources {
   if (!currentResources) {
     throw new Error(
       '"currentResources" was expected to exist. This is a bug in React.',
     );
   }
-  const resources = currentResources;
-  switch (type) {
-    case 'title': {
-      const children = props.children;
-      let child;
-      if (Array.isArray(children)) {
-        child = children.length === 1 ? children[0] : null;
-      } else {
-        child = children;
-      }
-      if (
-        typeof child !== 'function' &&
-        typeof child !== 'symbol' &&
-        child !== null &&
-        child !== undefined
-      ) {
-        // eslint-disable-next-line react-internal/safe-string-coercion
-        const childString = '' + (child: any);
-        const key = 'title::' + childString;
-        let resource = resources.headsMap.get(key);
-        if (!resource) {
-          resource = {
-            type: 'title',
-            props: titlePropsFromRawProps(childString, props),
-            flushed: false,
-          };
-          resources.headsMap.set(key, resource);
-          resources.headResources.add(resource);
-        }
-      }
-      return true;
-    }
-    case 'meta': {
-      let key, propertyPath;
-      if (typeof props.charSet === 'string') {
-        key = 'charSet';
-      } else if (typeof props.content === 'string') {
-        const contentKey = '::' + props.content;
-        if (typeof props.httpEquiv === 'string') {
-          key = 'httpEquiv::' + props.httpEquiv + contentKey;
-        } else if (typeof props.name === 'string') {
-          key = 'name::' + props.name + contentKey;
-        } else if (typeof props.itemProp === 'string') {
-          key = 'itemProp::' + props.itemProp + contentKey;
-        } else if (typeof props.property === 'string') {
-          const {property} = props;
-          key = 'property::' + property + contentKey;
-          propertyPath = property;
-          const parentPath = property
-            .split(':')
-            .slice(0, -1)
-            .join(':');
-          const parentResource = resources.structuredMetaKeys.get(parentPath);
-          if (parentResource) {
-            key = parentResource.key + '::child::' + key;
-          }
-        }
-      }
-      if (key) {
-        if (!resources.headsMap.has(key)) {
-          const resource = {
-            type: 'meta',
-            key,
-            props: Object.assign({}, props),
-            flushed: false,
-          };
-          resources.headsMap.set(key, resource);
-          if (key === 'charSet') {
-            resources.charset = resource;
-          } else {
-            if (propertyPath) {
-              resources.structuredMetaKeys.set(propertyPath, resource);
-            }
-            resources.headResources.add(resource);
-          }
-        }
-      }
-      return true;
-    }
-    case 'base': {
-      const {target, href} = props;
-      // We mirror the key construction on the client since we will likely unify
-      // this code in the future to better guarantee key semantics are identical
-      // in both environments
-      let key = 'base';
-      key += typeof href === 'string' ? `[href="${href}"]` : ':not([href])';
-      key +=
-        typeof target === 'string' ? `[target="${target}"]` : ':not([target])';
-      if (!resources.headsMap.has(key)) {
-        const resource = {
-          type: 'base',
-          props: Object.assign({}, props),
-          flushed: false,
-        };
-        resources.headsMap.set(key, resource);
-        resources.bases.add(resource);
-      }
-      return true;
-    }
-  }
-  return false;
-}
-
-// Construct a resource from link props.
-export function resourcesFromLink(props: Props): boolean {
-  if (!currentResources) {
-    throw new Error(
-      '"currentResources" was expected to exist. This is a bug in React.',
-    );
-  }
-  const resources = currentResources;
-
-  const {rel, href} = props;
-  if (!href || typeof href !== 'string' || !rel || typeof rel !== 'string') {
-    return false;
-  }
-
-  let key = '';
-  switch (rel) {
-    case 'stylesheet': {
-      const {onLoad, onError, precedence, disabled} = props;
-      if (
-        typeof precedence !== 'string' ||
-        onLoad ||
-        onError ||
-        disabled != null
-      ) {
-        // This stylesheet is either not opted into Resource semantics or has conflicting properties which
-        // disqualify it for such. We can still create a preload resource to help it load faster on the
-        // client
-        if (__DEV__) {
-          validateLinkPropsForStyleResource(props);
-        }
-        let preloadResource = resources.preloadsMap.get(href);
-        if (!preloadResource) {
-          preloadResource = createPreloadResource(
-            resources,
-            href,
-            'style',
-            preloadAsStylePropsFromProps(href, props),
-          );
-          if (__DEV__) {
-            (preloadResource: any)._dev_implicit_construction = true;
-          }
-          resources.usedStylePreloads.add(preloadResource);
-        }
-        return false;
-      } else {
-        // We are able to convert this link element to a resource exclusively. We construct the relevant Resource
-        // and return true indicating that this link was fully consumed.
-        let resource = resources.stylesMap.get(href);
-
-        if (resource) {
-          if (__DEV__) {
-            const resourceProps = stylePropsFromRawProps(
-              href,
-              precedence,
-              props,
-            );
-            adoptPreloadPropsForStyleProps(resourceProps, resource.hint.props);
-            validateStyleResourceDifference(resource.props, resourceProps);
-          }
-        } else {
-          const resourceProps = stylePropsFromRawProps(href, precedence, props);
-          resource = createStyleResource(
-            // $FlowFixMe[incompatible-call] found when upgrading Flow
-            currentResources,
-            href,
-            precedence,
-            resourceProps,
-          );
-          resources.usedStylePreloads.add(resource.hint);
-        }
-        if (resources.boundaryResources) {
-          resources.boundaryResources.add(resource);
-        } else {
-          resource.set.add(resource);
-        }
-        return true;
-      }
-    }
-    case 'preload': {
-      const {as} = props;
-      switch (as) {
-        case 'script':
-        case 'style':
-        case 'font': {
-          if (__DEV__) {
-            validateLinkPropsForPreloadResource(props);
-          }
-          let resource = resources.preloadsMap.get(href);
-          if (resource) {
-            if (__DEV__) {
-              const originallyImplicit =
-                (resource: any)._dev_implicit_construction === true;
-              const latestProps = preloadPropsFromRawProps(href, as, props);
-              validatePreloadResourceDifference(
-                resource.props,
-                originallyImplicit,
-                latestProps,
-                false,
-              );
-            }
-          } else {
-            resource = createPreloadResource(
-              resources,
-              href,
-              as,
-              preloadPropsFromRawProps(href, as, props),
-            );
-            switch (as) {
-              case 'script': {
-                resources.explicitScriptPreloads.add(resource);
-                break;
-              }
-              case 'style': {
-                resources.explicitStylePreloads.add(resource);
-                break;
-              }
-              case 'font': {
-                resources.fontPreloads.add(resource);
-                break;
-              }
-            }
-          }
-          return true;
-        }
-      }
-      break;
-    }
-  }
-  if (props.onLoad || props.onError) {
-    // When a link has these props we can't treat it is a Resource but if we rendered it on the
-    // server it would look like a Resource in the rendered html (the onLoad/onError aren't emitted)
-    // Instead we expect the client to insert them rather than hydrate them which also guarantees
-    // that the onLoad and onError won't fire before the event handlers are attached
-    return true;
-  }
-
-  return false;
+  return currentResources;
 }
 
 // Construct a resource from link props.
