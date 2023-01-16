@@ -621,6 +621,19 @@ export function removeChildFromContainer(
 ): void {
   if (container.nodeType === COMMENT_NODE) {
     (container.parentNode: any).removeChild(child);
+  } else if (
+    container.nodeType === DOCUMENT_NODE ||
+    container.nodeName === 'HTML'
+  ) {
+    if (__DEV__) {
+      if (child.parentNode == null) {
+        console.error(
+          'removeChildFromContainer was called with a child that does not have a parentNode. This is a bug in React',
+        );
+      }
+    }
+    const parentNode: Node = (child.parentNode: any);
+    parentNode.removeChild(child);
   } else {
     container.removeChild(child);
   }
@@ -1059,7 +1072,29 @@ export function getFirstHydratableChild(
 export function getFirstHydratableChildWithinContainer(
   parentContainer: Container,
 ): null | HydratableInstance {
-  return getNextHydratable(parentContainer.firstChild);
+  if (enableHostSingletons) {
+    if (
+      parentContainer.nodeType === DOCUMENT_NODE ||
+      parentContainer.nodeName === 'HTML'
+    ) {
+      // when singletons are in place, we can start hydration within the context of the body
+      // if the parentContainer is body, html, or document. If we encounter any of these nodes
+      // they will hydrate using the singleton pathway and if we encounter something else it should
+      // be found in the body regardless
+      const documentContainer: Document =
+        parentContainer.ownerDocument || parentContainer;
+      // we unsafely cast here because we expect to be in the context of a full document.
+      // If you initiate a render synchronously from a script in the head or otherwise remove
+      // the body before this runs then it will error but React does not support either of these
+      // use cases anyway and we can avoid the extra conditional by making this assumption
+      const body: HTMLBodyElement = (documentContainer.body: any);
+      return getNextHydratable(body.firstChild);
+    } else {
+      return getNextHydratable(parentContainer.firstChild);
+    }
+  } else {
+    return getNextHydratable(parentContainer.firstChild);
+  }
 }
 
 export function getFirstHydratableChildWithinSuspenseInstance(

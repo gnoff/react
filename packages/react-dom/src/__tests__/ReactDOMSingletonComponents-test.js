@@ -330,6 +330,7 @@ describe('ReactDOM HostSingleton', () => {
           <link rel="stylesheet" href="3rdparty" />
           <link rel="stylesheet" href="3rdparty2" />
           <title>a client title</title>
+          <meta />
         </head>
         <body data-client-baz="baz">
           <style>
@@ -825,14 +826,7 @@ describe('ReactDOM HostSingleton', () => {
     });
     container = document.body;
 
-    let root;
-    // Given our new capabilities to render "safely" into the body we should consider removing this warning
-    expect(() => {
-      root = ReactDOMClient.createRoot(container);
-    }).toErrorDev(
-      'Warning: createRoot(): Creating roots directly with document.body is discouraged, since its children are often manipulated by third-party scripts and browser extensions. This may lead to subtle reconciliation issues. Try using a container element created for your app.',
-      {withoutStack: true},
-    );
+    const root = ReactDOMClient.createRoot(container);
     root.render(<div>something new</div>);
     expect(Scheduler).toFlushWithoutYielding();
     expect(getVisibleChildren(document)).toEqual(
@@ -1004,6 +998,326 @@ describe('ReactDOM HostSingleton', () => {
       <html>
         <head />
         <body>foo</body>
+      </html>,
+    );
+  });
+
+  // @gate enableHostSingletons
+  it('allows hydrating within the document body when the container is Document', async () => {
+    function App() {
+      return <div>foo</div>;
+    }
+
+    await actIntoEmptyDocument(() => {
+      const {pipe} = ReactDOMFizzServer.renderToPipeableStream(
+        <html>
+          <head />
+          <body>
+            <App />
+          </body>
+        </html>,
+      );
+      pipe(writable);
+    });
+
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head />
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    const root = ReactDOMClient.hydrateRoot(document, <App />);
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head />
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    root.unmount();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head />
+        <body />
+      </html>,
+    );
+  });
+
+  // @gate enableHostSingletons
+  it('allows hydrating within the documentElement when the container is Document', async () => {
+    function App() {
+      return (
+        <>
+          <head>
+            <base href="/foo" />
+          </head>
+          <body>
+            <div>foo</div>
+          </body>
+        </>
+      );
+    }
+
+    await actIntoEmptyDocument(() => {
+      const {pipe} = ReactDOMFizzServer.renderToPipeableStream(
+        <html>
+          <App />
+        </html>,
+      );
+      pipe(writable);
+    });
+
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    const root = ReactDOMClient.hydrateRoot(document, <App />);
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    root.unmount();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head />
+        <body />
+      </html>,
+    );
+  });
+
+  // @gate enableHostSingletons
+  it('allows hydrating within the Document when the container is Document', async () => {
+    function App() {
+      return (
+        <html>
+          <head>
+            <base href="/foo" />
+          </head>
+          <body>
+            <div>foo</div>
+          </body>
+        </html>
+      );
+    }
+
+    await actIntoEmptyDocument(() => {
+      const {pipe} = ReactDOMFizzServer.renderToPipeableStream(<App />);
+      pipe(writable);
+    });
+
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    const root = ReactDOMClient.hydrateRoot(document, <App />);
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    root.unmount();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head />
+        <body />
+      </html>,
+    );
+  });
+
+  // @gate enableHostSingletons
+  it('allows hydrating within the document body when the container is <html>', async () => {
+    function App() {
+      return <div>foo</div>;
+    }
+
+    await actIntoEmptyDocument(() => {
+      const {pipe} = ReactDOMFizzServer.renderToPipeableStream(
+        <>
+          <head>
+            <base href="/foo" />
+          </head>
+          <body>
+            <App />
+          </body>
+        </>,
+      );
+      pipe(writable);
+    });
+
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    const root = ReactDOMClient.hydrateRoot(document.documentElement, <App />);
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    root.unmount();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body />
+      </html>,
+    );
+  });
+
+  // @gate enableHostSingletons
+  it('allows hydrating within the documentElement when the container is <html>', async () => {
+    function App() {
+      return (
+        <>
+          <head>
+            <base href="/foo" />
+          </head>
+          <body>
+            <div>foo</div>
+          </body>
+        </>
+      );
+    }
+
+    await actIntoEmptyDocument(() => {
+      const {pipe} = ReactDOMFizzServer.renderToPipeableStream(<App />);
+      pipe(writable);
+    });
+
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    const root = ReactDOMClient.hydrateRoot(document.documentElement, <App />);
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    root.unmount();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head />
+        <body />
+      </html>,
+    );
+  });
+
+  // @gate enableHostSingletons
+  it('allows hydrating within the body when the container is <body>', async () => {
+    function App() {
+      return <div>foo</div>;
+    }
+
+    await actIntoEmptyDocument(() => {
+      const {pipe} = ReactDOMFizzServer.renderToPipeableStream(
+        <html>
+          <head>
+            <base href="/foo" />
+          </head>
+          <body>
+            <App />
+          </body>
+        </html>,
+      );
+      pipe(writable);
+    });
+
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    const root = ReactDOMClient.hydrateRoot(document.body, <App />);
+    expect(Scheduler).toFlushWithoutYielding();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body>
+          <div>foo</div>
+        </body>
+      </html>,
+    );
+
+    root.unmount();
+    expect(getVisibleChildren(document)).toEqual(
+      <html>
+        <head>
+          <base href="/foo" />
+        </head>
+        <body />
       </html>,
     );
   });
