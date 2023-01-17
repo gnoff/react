@@ -17,6 +17,7 @@ import type {
 } from 'react-reconciler/src/ReactTestSelectors';
 import type {ReactScopeInstance} from 'shared/ReactTypes';
 import type {AncestorInfoDev} from './validateDOMNesting';
+import type {Resource} from './ReactDOMFloatClient';
 
 import {
   precacheFiberNode,
@@ -620,6 +621,12 @@ export function removeChildFromContainer(
 ): void {
   if (container.nodeType === COMMENT_NODE) {
     (container.parentNode: any).removeChild(child);
+  } else if (
+    (container.nodeType === DOCUMENT_NODE || container.nodeName === 'HTML') &&
+    child.parentNode
+  ) {
+    const parentNode: Node = (child.parentNode: any);
+    parentNode.removeChild(child);
   } else {
     container.removeChild(child);
   }
@@ -936,7 +943,6 @@ function getNextHydratable(node: ?Node) {
           // developer on how to fix.
           case 'TITLE':
           case 'META':
-          case 'BASE':
           case 'HTML':
           case 'HEAD':
           case 'BODY': {
@@ -978,8 +984,7 @@ function getNextHydratable(node: ?Node) {
         const element: Element = (node: any);
         switch (element.tagName) {
           case 'TITLE':
-          case 'META':
-          case 'BASE': {
+          case 'META': {
             continue;
           }
           case 'LINK': {
@@ -1060,7 +1065,29 @@ export function getFirstHydratableChild(
 export function getFirstHydratableChildWithinContainer(
   parentContainer: Container,
 ): null | HydratableInstance {
-  return getNextHydratable(parentContainer.firstChild);
+  if (enableHostSingletons) {
+    if (
+      parentContainer.nodeType === DOCUMENT_NODE ||
+      parentContainer.nodeName === 'HTML'
+    ) {
+      // when singletons are in place, we can start hydration within the context of the body
+      // if the parentContainer is body, html, or document. If we encounter any of these nodes
+      // they will hydrate using the singleton pathway and if we encounter something else it should
+      // be found in the body regardless
+      const documentContainer: Document =
+        parentContainer.ownerDocument || parentContainer;
+      // we unsafely cast here because we expect to be in the context of a full document.
+      // If you initiate a render synchronously from a script in the head or otherwise remove
+      // the body before this runs then it will error but React does not support either of these
+      // use cases anyway and we can avoid the extra conditional by making this assumption
+      const body: HTMLBodyElement = (documentContainer.body: any);
+      return getNextHydratable(body.firstChild);
+    } else {
+      return getNextHydratable(parentContainer.firstChild);
+    }
+  } else {
+    return getNextHydratable(parentContainer.firstChild);
+  }
 }
 
 export function getFirstHydratableChildWithinSuspenseInstance(
@@ -1584,7 +1611,6 @@ export function isHostResourceType(
     namespace = hostContextProd;
   }
   switch (type) {
-    case 'base':
     case 'meta': {
       return true;
     }
@@ -1708,6 +1734,7 @@ export {
   getResource,
   acquireResource,
   releaseResource,
+  getResourceProps,
 } from './ReactDOMFloatClient';
 
 // -------------------

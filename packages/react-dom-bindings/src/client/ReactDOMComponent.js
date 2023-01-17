@@ -47,6 +47,7 @@ import {
   updateWrapper as ReactDOMTextareaUpdateWrapper,
   restoreControlledState as ReactDOMTextareaRestoreControlledState,
 } from './ReactDOMTextarea';
+import {getProps as ReactDOMTitleGetProps} from './ReactDOMTitle';
 import {track} from './inputValueTracking';
 import setInnerHTML from './setInnerHTML';
 import setTextContent from './setTextContent';
@@ -79,6 +80,7 @@ import {
   mediaEventTypes,
   listenToNonDelegatedEvent,
 } from '../events/DOMPluginEventSystem';
+import {isMarkedResource} from './ReactDOMComponentTree';
 
 let didWarnInvalidHydration = false;
 let didWarnScriptTags = false;
@@ -574,6 +576,9 @@ export function setInitialProperties(
       // listeners still fire for the invalid event.
       listenToNonDelegatedEvent('invalid', domElement);
       break;
+    case 'title':
+      props = ReactDOMTitleGetProps(isMarkedResource(domElement), rawProps);
+      break;
     default:
       props = rawProps;
   }
@@ -640,6 +645,11 @@ export function diffProperties(
       lastProps = ReactDOMTextareaGetHostProps(domElement, lastRawProps);
       nextProps = ReactDOMTextareaGetHostProps(domElement, nextRawProps);
       updatePayload = [];
+      break;
+    case 'title':
+      const isResource = isMarkedResource(domElement);
+      lastProps = ReactDOMTitleGetProps(isResource, lastRawProps);
+      nextProps = ReactDOMTitleGetProps(isResource, nextRawProps);
       break;
     default:
       lastProps = lastRawProps;

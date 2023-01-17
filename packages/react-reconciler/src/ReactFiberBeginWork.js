@@ -1634,8 +1634,10 @@ function updateHostResource(
   const currentProps = current === null ? null : current.memoizedProps;
   workInProgress.memoizedState = getResource(
     workInProgress.type,
+    workInProgress.memoizedState,
     workInProgress.pendingProps,
     currentProps,
+    getIsHydrating(),
   );
   // Resources never have reconciler managed children. It is possible for
   // the host implementation of getResource to consider children in the

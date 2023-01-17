@@ -70,10 +70,19 @@ import {
   preinitImpl,
   prepareToRenderResources,
   finishRenderingResources,
-  resourcesFromElement,
-  resourcesFromLink,
   resourcesFromScript,
   ReactDOMServerFloatDispatcher,
+  expectCurrentResources,
+  createStyleResource,
+  createPreloadResource,
+  createScriptResource,
+  preloadAsStylePropsFromProps,
+  stylePropsFromRawProps,
+  adoptPreloadPropsForStyleProps,
+  preloadPropsFromRawProps,
+  preloadAsScriptPropsFromProps,
+  scriptPropsFromRawProps,
+  adoptPreloadPropsForScriptProps,
 } from './ReactDOMFloatServer';
 export {
   createResources,
@@ -82,6 +91,13 @@ export {
   hoistResources,
   hoistResourcesToRoot,
 } from './ReactDOMFloatServer';
+import {
+  validateLinkPropsForStyleResource,
+  validateStyleResourceDifference,
+  validateLinkPropsForPreloadResource,
+  validatePreloadResourceDifference,
+  validateScriptResourceDifference,
+} from '../shared/ReactDOMResourceValidation';
 
 import {
   clientRenderBoundary as clientRenderFunctionString,
@@ -120,7 +136,7 @@ const ScriptStreamingFormat: StreamingFormat = 0;
 const DataStreamingFormat: StreamingFormat = 1;
 
 export type DocumentStructureTag = number;
-export const NONE: /*              */ DocumentStructureTag = 0b0000;
+export const NONE: /*       */ DocumentStructureTag = 0b0000;
 const HTML: /*              */ DocumentStructureTag = 0b0001;
 const HEAD: /*              */ DocumentStructureTag = 0b0010;
 const BODY: /*              */ DocumentStructureTag = 0b0100;
@@ -136,6 +152,8 @@ export type ResponseState = {
   requiresEmbedding: boolean,
   rendered: DocumentStructureTag,
   flushed: DocumentStructureTag,
+  charsetChunks: Array<Chunk | PrecomputedChunk>,
+  hoistableChunks: Array<Chunk | PrecomputedChunk>,
   placeholderPrefix: PrecomputedChunk,
   segmentPrefix: PrecomputedChunk,
   boundaryPrefix: string,
@@ -354,6 +372,8 @@ export function createResponseState(
     requiresEmbedding: documentEmbedding === true,
     rendered: NONE,
     flushed: NONE,
+    charsetChunks: [],
+    hoistableChunks: [],
     placeholderPrefix: stringToPrecomputedChunk(idPrefix + 'P:'),
     segmentPrefix: stringToPrecomputedChunk(idPrefix + 'S:'),
     boundaryPrefix: idPrefix + 'B:',
@@ -1322,31 +1342,6 @@ function pushStartTextArea(
   return null;
 }
 
-function pushBase(
-  target: Array<Chunk | PrecomputedChunk>,
-  props: Object,
-  responseState: ResponseState,
-  textEmbedded: boolean,
-  noscriptTagInScope: boolean,
-): ReactNodeList {
-  if (
-    enableFloat &&
-    !noscriptTagInScope &&
-    resourcesFromElement('base', props)
-  ) {
-    if (textEmbedded) {
-      // This link follows text but we aren't writing a tag. while not as efficient as possible we need
-      // to be safe and assume text will follow by inserting a textSeparator
-      target.push(textSeparator);
-    }
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
-    return null;
-  }
-
-  return pushSelfClosing(target, props, 'base', responseState);
-}
-
 function pushMeta(
   target: Array<Chunk | PrecomputedChunk>,
   props: Object,
@@ -1354,22 +1349,34 @@ function pushMeta(
   textEmbedded: boolean,
   noscriptTagInScope: boolean,
 ): ReactNodeList {
-  if (
-    enableFloat &&
-    !noscriptTagInScope &&
-    resourcesFromElement('meta', props)
-  ) {
+  if (enableFloat) {
+    if (noscriptTagInScope) {
+      return pushSelfClosing(target, props, 'meta', responseState);
+    }
     if (textEmbedded) {
-      // This link follows text but we aren't writing a tag. while not as efficient as possible we need
-      // to be safe and assume text will follow by inserting a textSeparator
+      // This meta tag is not going to emit in place and we are adjacent to text.
+      // We defensively emit a textSeparator in case the next chunk is text.
       target.push(textSeparator);
     }
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
+    if (props.charSet != null) {
+      pushSelfClosing(
+        responseState.charsetChunks,
+        props,
+        'meta',
+        responseState,
+      );
+    } else {
+      pushSelfClosing(
+        responseState.hoistableChunks,
+        props,
+        'meta',
+        responseState,
+      );
+    }
     return null;
+  } else {
+    return pushSelfClosing(target, props, 'meta', responseState);
   }
-
-  return pushSelfClosing(target, props, 'meta', responseState);
 }
 
 function pushLink(
@@ -1379,18 +1386,161 @@ function pushLink(
   textEmbedded: boolean,
   noscriptTagInScope: boolean,
 ): ReactNodeList {
-  if (enableFloat && !noscriptTagInScope && resourcesFromLink(props)) {
+  if (enableFloat) {
+    if (noscriptTagInScope) {
+      return pushLinkImpl(target, props, responseState);
+    }
     if (textEmbedded) {
       // This link follows text but we aren't writing a tag. while not as efficient as possible we need
       // to be safe and assume text will follow by inserting a textSeparator
       target.push(textSeparator);
     }
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
-    return null;
-  }
 
-  return pushLinkImpl(target, props, responseState);
+    const resources = expectCurrentResources();
+
+    const {rel, href} = props;
+    if (!href || typeof href !== 'string' || !rel || typeof rel !== 'string') {
+      return false;
+    }
+
+    let key = '';
+    switch (rel) {
+      case 'stylesheet': {
+        const {onLoad, onError, precedence, disabled} = props;
+        if (
+          typeof precedence !== 'string' ||
+          onLoad ||
+          onError ||
+          disabled != null
+        ) {
+          // This stylesheet is either not opted into Resource semantics or has conflicting properties which
+          // disqualify it for such. We can still create a preload resource to help it load faster on the
+          // client
+          if (__DEV__) {
+            validateLinkPropsForStyleResource(props);
+          }
+          let preloadResource = resources.preloadsMap.get(href);
+          if (!preloadResource) {
+            preloadResource = createPreloadResource(
+              resources,
+              href,
+              'style',
+              preloadAsStylePropsFromProps(href, props),
+            );
+            if (__DEV__) {
+              (preloadResource: any)._dev_implicit_construction = true;
+            }
+            resources.usedStylePreloads.add(preloadResource);
+          }
+          // This link is neither a Resource nor Hoistable. we write it as normal chunks
+          return pushLinkImpl(target, props, responseState);
+        } else {
+          // We are able to convert this link element to a resource exclusively. We construct the relevant Resource
+          // and return true indicating that this link was fully consumed.
+          let resource = resources.stylesMap.get(href);
+
+          if (resource) {
+            if (__DEV__) {
+              const resourceProps = stylePropsFromRawProps(
+                href,
+                precedence,
+                props,
+              );
+              adoptPreloadPropsForStyleProps(
+                resourceProps,
+                resource.hint.props,
+              );
+              validateStyleResourceDifference(resource.props, resourceProps);
+            }
+          } else {
+            const resourceProps = stylePropsFromRawProps(
+              href,
+              precedence,
+              props,
+            );
+            resource = createStyleResource(
+              // $FlowFixMe[incompatible-call] found when upgrading Flow
+              resources,
+              href,
+              precedence,
+              resourceProps,
+            );
+            resources.usedStylePreloads.add(resource.hint);
+          }
+          if (resources.boundaryResources) {
+            resources.boundaryResources.add(resource);
+          } else {
+            resource.set.add(resource);
+          }
+          // This was turned into a Resource
+          return null;
+        }
+      }
+      case 'preload': {
+        const {as} = props;
+        switch (as) {
+          case 'script':
+          case 'style':
+          case 'font': {
+            if (__DEV__) {
+              validateLinkPropsForPreloadResource(props);
+            }
+            let resource = resources.preloadsMap.get(href);
+            if (resource) {
+              if (__DEV__) {
+                const originallyImplicit =
+                  (resource: any)._dev_implicit_construction === true;
+                const latestProps = preloadPropsFromRawProps(href, as, props);
+                validatePreloadResourceDifference(
+                  resource.props,
+                  originallyImplicit,
+                  latestProps,
+                  false,
+                );
+              }
+            } else {
+              resource = createPreloadResource(
+                resources,
+                href,
+                as,
+                preloadPropsFromRawProps(href, as, props),
+              );
+              switch (as) {
+                case 'script': {
+                  resources.explicitScriptPreloads.add(resource);
+                  break;
+                }
+                case 'style': {
+                  resources.explicitStylePreloads.add(resource);
+                  break;
+                }
+                case 'font': {
+                  resources.fontPreloads.add(resource);
+                  break;
+                }
+              }
+            }
+            // This was turned into a resource
+            return null;
+          }
+        }
+        break;
+      }
+    }
+    if (props.onLoad || props.onError) {
+      // When a link has these props we can't treat it is a Resource but if we rendered it on the
+      // server it would look like a Resource in the rendered html (the onLoad/onError aren't emitted)
+      // Instead we expect the client to insert them rather than hydrate them which also guarantees
+      // that the onLoad and onError won't fire before the event handlers are attached
+      return null;
+    }
+
+    // This link is Hoistable
+    pushLinkImpl(responseState.hoistableChunks, props, responseState);
+    return null;
+  } else {
+    return pushLinkImpl(target, props, responseState);
+  }
 }
 
 function pushLinkImpl(
@@ -1544,18 +1694,16 @@ function pushTitle(
     }
   }
 
-  if (
-    enableFloat &&
-    // title is valid in SVG so we avoid resour
-    insertionMode !== SVG_MODE &&
-    !noscriptTagInScope &&
-    resourcesFromElement('title', props)
-  ) {
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
-    return null;
+  if (enableFloat) {
+    if (insertionMode === SVG_MODE || noscriptTagInScope) {
+      return pushTitleImpl(target, props, responseState);
+    } else {
+      pushTitleImpl(responseState.hoistableChunks, props, responseState);
+      return null;
+    }
+  } else {
+    return pushTitleImpl(target, props, responseState);
   }
-  return pushTitleImpl(target, props, responseState);
 }
 
 function pushTitleImpl(
@@ -1920,18 +2068,63 @@ function pushScript(
   textEmbedded: boolean,
   noscriptTagInScope: boolean,
 ): null {
-  if (enableFloat && !noscriptTagInScope && resourcesFromScript(props)) {
-    if (textEmbedded) {
-      // This link follows text but we aren't writing a tag. while not as efficient as possible we need
-      // to be safe and assume text will follow by inserting a textSeparator
-      target.push(textSeparator);
-    }
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
-    return null;
-  }
+  if (enableFloat) {
+    if (!noscriptTagInScope) {
+      const resources = expectCurrentResources();
+      const {src, async, onLoad, onError} = props;
 
-  return pushScriptImpl(target, props, responseState);
+      if (!src || typeof src !== 'string') {
+        // Inline script emits in place
+        return pushScriptImpl(target, props, responseState);
+      }
+
+      if (async) {
+        if (onLoad || onError) {
+          if (__DEV__) {
+            // validate
+          }
+          let preloadResource = resources.preloadsMap.get(src);
+          if (!preloadResource) {
+            preloadResource = createPreloadResource(
+              resources,
+              src,
+              'script',
+              preloadAsScriptPropsFromProps(src, props),
+            );
+            if (__DEV__) {
+              (preloadResource: any)._dev_implicit_construction = true;
+            }
+            resources.usedScriptPreloads.add(preloadResource);
+          }
+        } else {
+          let resource = resources.scriptsMap.get(src);
+          if (resource) {
+            if (__DEV__) {
+              const latestProps = scriptPropsFromRawProps(src, props);
+              adoptPreloadPropsForScriptProps(latestProps, resource.hint.props);
+              validateScriptResourceDifference(resource.props, latestProps);
+            }
+          } else {
+            const resourceProps = scriptPropsFromRawProps(src, props);
+            resource = createScriptResource(resources, src, resourceProps);
+            resources.scripts.add(resource);
+          }
+        }
+        // If the async script had an onLoad or onError we do not emit the script
+        // on the server and expect the client to insert it on hydration
+        if (textEmbedded) {
+          // This link follows text but we aren't writing a tag. while not as efficient as possible we need
+          // to be safe and assume text will follow by inserting a textSeparator
+          target.push(textSeparator);
+        }
+        return null;
+      }
+    }
+    // The script was not a resource or client insertion script so we write it as a component
+    return pushScriptImpl(target, props, responseState);
+  } else {
+    return pushScriptImpl(target, props, responseState);
+  }
 }
 
 function pushScriptImpl(
@@ -2299,20 +2492,13 @@ export function pushStartInstance(
         textEmbedded,
         formatContext.noscriptTagInScope,
       );
-    case 'base':
-      return pushBase(
-        target,
-        props,
-        responseState,
-        textEmbedded,
-        formatContext.noscriptTagInScope,
-      );
     // Newline eating tags
     case 'listing':
     case 'pre': {
       return pushStartPreformattedElement(target, props, type, responseState);
     }
     // Omitted close tags
+    case 'base':
     case 'area':
     case 'br':
     case 'col':
@@ -2466,12 +2652,31 @@ export function writeEarlyPreamble(
           responseState.flushed |= HTML | HEAD;
         }
 
-        return writeEarlyResources(
+        let i = 0;
+        let r = true;
+
+        const {charsetChunks, hoistableChunks} = responseState;
+        for (; i < charsetChunks.length; i++) {
+          writeChunk(destination, charsetChunks[i]);
+        }
+        charsetChunks.length = 0;
+
+        r = writeEarlyResources(
           destination,
           resources,
           responseState,
           willEmitInstructions,
         );
+
+        for (i = 0; i < hoistableChunks.length - 1; i++) {
+          writeChunk(destination, hoistableChunks[i]);
+        }
+        if (i < hoistableChunks.length) {
+          r = writeChunkAndReturn(destination, hoistableChunks[i]);
+        }
+        hoistableChunks.length = 0;
+
+        return r;
       }
     }
   }
@@ -2525,13 +2730,30 @@ export function writePreamble(
       }
     }
 
+    let i = 0;
+    let r = true;
+
+    const {charsetChunks, hoistableChunks} = responseState;
+    for (; i < charsetChunks.length; i++) {
+      writeChunk(destination, charsetChunks[i]);
+    }
+    charsetChunks.length = 0;
+
     // Write all remaining resources that should flush with the Shell
-    let r = writeInitialResources(
+    r = writeInitialResources(
       destination,
       resources,
       responseState,
       willEmitInstructions,
     );
+
+    for (i = 0; i < hoistableChunks.length - 1; i++) {
+      writeChunk(destination, hoistableChunks[i]);
+    }
+    if (i < hoistableChunks.length) {
+      r = writeChunkAndReturn(destination, hoistableChunks[i]);
+    }
+    hoistableChunks.length = 0;
 
     // If we did not render a <head> but we did flush one we need to emit
     // the closing tag now after writing resources. We know we won't get
@@ -3442,7 +3664,6 @@ export function writeEarlyResources(
   const target = [];
 
   const {
-    charset,
     bases,
     preconnects,
     fontPreloads,
@@ -3455,12 +3676,6 @@ export function writeEarlyResources(
     explicitScriptPreloads,
     headResources,
   } = resources;
-
-  if (charset) {
-    pushSelfClosing(target, charset.props, 'meta', responseState);
-    charset.flushed = true;
-    resources.charset = null;
-  }
 
   bases.forEach(r => {
     pushSelfClosing(target, r.props, 'base', responseState);
@@ -3579,7 +3794,6 @@ function writeInitialResources(
   const target: Array<Chunk | PrecomputedChunk> = [];
 
   const {
-    charset,
     bases,
     preconnects,
     fontPreloads,
@@ -3593,12 +3807,6 @@ function writeInitialResources(
     explicitScriptPreloads,
     headResources,
   } = resources;
-
-  if (charset) {
-    pushSelfClosing(target, charset.props, 'meta', responseState);
-    charset.flushed = true;
-    resources.charset = null;
-  }
 
   bases.forEach(r => {
     pushSelfClosing(target, r.props, 'base', responseState);
@@ -3727,7 +3935,6 @@ export function writeResources(
   const target: Array<Chunk | PrecomputedChunk> = [];
 
   const {
-    charset,
     preconnects,
     fontPreloads,
     usedStylePreloads,
@@ -3737,12 +3944,6 @@ export function writeResources(
     explicitScriptPreloads,
     headResources,
   } = resources;
-
-  if (charset) {
-    pushSelfClosing(target, charset.props, 'meta', responseState);
-    charset.flushed = true;
-    resources.charset = null;
-  }
 
   preconnects.forEach(r => {
     // font preload Resources should not already be flushed so we elide this check

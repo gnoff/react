@@ -13,7 +13,6 @@ import ReactDOMSharedInternals from 'shared/ReactDOMSharedInternals.js';
 const {Dispatcher} = ReactDOMSharedInternals;
 import {DOCUMENT_NODE} from '../shared/HTMLNodeType';
 import {
-  warnOnMissingHrefAndRel,
   validatePreloadResourceDifference,
   validateURLKeyedUpdatedProps,
   validateStyleResourceDifference,
@@ -27,9 +26,11 @@ import {createElement, setInitialProperties} from './ReactDOMComponent';
 import {
   getResourcesFromRoot,
   markNodeAsResource,
+  isMarkedResource,
 } from './ReactDOMComponentTree';
 import {HTML_NAMESPACE, SVG_NAMESPACE} from '../shared/DOMNamespaces';
 import {getCurrentRootHostContainer} from 'react-reconciler/src/ReactFiberHostContext';
+import {getPropertyInfo} from '../shared/DOMProperty';
 
 // The resource types we support. currently they match the form for the as argument.
 // In the future this may need to change, especially when modules / scripts are supported
@@ -88,67 +89,24 @@ type ScriptResource = {
   root: FloatRoot,
 };
 
-type TitleProps = {
-  [string]: mixed,
-};
-type TitleResource = {
-  type: 'title',
-  props: TitleProps,
-
-  count: number,
-  instance: ?Element,
-  root: Document,
-};
-
-type MetaProps = {
-  [string]: mixed,
-};
-type MetaResource = {
-  type: 'meta',
-  matcher: string,
-  property: ?string,
-  parentResource: ?MetaResource,
-  props: MetaProps,
-
-  count: number,
-  instance: ?Element,
-  root: Document,
-};
-
-type LinkProps = {
-  href: string,
-  rel: string,
-  [string]: mixed,
-};
-type LinkResource = {
-  type: 'link',
-  props: LinkProps,
-
-  count: number,
-  instance: ?Element,
-  root: Document,
-};
-
-type BaseResource = {
-  type: 'base',
-  matcher: string,
-  props: Props,
-
-  count: number,
-  instance: ?Element,
-  root: Document,
+type HoistableTagType = 'link' | 'meta' | 'title';
+type HoistableResource = {
+  type: HoistableTagType,
+  instance: Element,
+  hydrate: boolean,
 };
 
 type Props = {[string]: mixed};
 
-type HeadResource = TitleResource | MetaResource | LinkResource | BaseResource;
-type Resource = StyleResource | ScriptResource | PreloadResource | HeadResource;
+export type Resource =
+  | StyleResource
+  | ScriptResource
+  | PreloadResource
+  | HoistableResource;
 
 export type RootResources = {
   styles: Map<string, StyleResource>,
   scripts: Map<string, ScriptResource>,
-  head: Map<string, HeadResource>,
-  lastStructuredMeta: Map<string, MetaResource>,
 };
 
 // Brief on purpose due to insertion by script when streaming late boundaries
@@ -206,7 +164,7 @@ function getCurrentResourceRoot(): null | FloatRoot {
 
 // This resource type constraint can be loosened. It really is everything except PreloadResource
 // because that is the only one that does not have an optional instance type. Expand as needed.
-function resetInstance(resource: ScriptResource | HeadResource) {
+function resetInstance(resource: ScriptResource) {
   resource.instance = undefined;
 }
 
@@ -221,9 +179,6 @@ export function clearRootResources(rootContainer: Container): void {
   // Styles stay put
   // Scripts get reset
   resources.scripts.forEach(resetInstance);
-  // Head Resources get reset
-  resources.head.forEach(resetInstance);
-  // lastStructuredMeta stays put
 }
 
 // Preloads are somewhat special. Even if we don't have the Document
@@ -461,15 +416,13 @@ type ScriptQualifyingProps = {
   [string]: mixed,
 };
 
-function getTitleKey(child: string | number): string {
-  return 'title:' + child;
-}
-
 // This function is called in begin work and we should always have a currentDocument set
 export function getResource(
   type: string,
+  current: null | Resource,
   pendingProps: Props,
   currentProps: null | Props,
+  isHydrating: boolean,
 ): null | Resource {
   const resourceRoot = getCurrentResourceRoot();
   if (!resourceRoot) {
@@ -478,148 +431,6 @@ export function getResource(
     );
   }
   switch (type) {
-    case 'base': {
-      const headRoot: Document = getDocumentFromRoot(resourceRoot);
-      const headResources = getResourcesFromRoot(headRoot).head;
-      const {target, href} = pendingProps;
-      let matcher = 'base';
-      matcher +=
-        typeof href === 'string'
-          ? `[href="${escapeSelectorAttributeValueInsideDoubleQuotes(href)}"]`
-          : ':not([href])';
-      matcher +=
-        typeof target === 'string'
-          ? `[target="${escapeSelectorAttributeValueInsideDoubleQuotes(
-              target,
-            )}"]`
-          : ':not([target])';
-      let resource = headResources.get(matcher);
-      if (!resource) {
-        resource = {
-          type: 'base',
-          matcher,
-          props: Object.assign({}, pendingProps),
-          count: 0,
-          instance: null,
-          root: headRoot,
-        };
-        headResources.set(matcher, resource);
-      }
-      return resource;
-    }
-    case 'meta': {
-      let matcher, propertyString, parentResource;
-      const {
-        charSet,
-        content,
-        httpEquiv,
-        name,
-        itemProp,
-        property,
-      } = pendingProps;
-      const headRoot: Document = getDocumentFromRoot(resourceRoot);
-      const {head: headResources, lastStructuredMeta} = getResourcesFromRoot(
-        headRoot,
-      );
-      if (typeof charSet === 'string') {
-        matcher = 'meta[charset]';
-      } else if (typeof content === 'string') {
-        if (typeof httpEquiv === 'string') {
-          matcher = `meta[http-equiv="${escapeSelectorAttributeValueInsideDoubleQuotes(
-            httpEquiv,
-          )}"][content="${escapeSelectorAttributeValueInsideDoubleQuotes(
-            content,
-          )}"]`;
-        } else if (typeof property === 'string') {
-          propertyString = property;
-          matcher = `meta[property="${escapeSelectorAttributeValueInsideDoubleQuotes(
-            property,
-          )}"][content="${escapeSelectorAttributeValueInsideDoubleQuotes(
-            content,
-          )}"]`;
-
-          const parentPropertyPath = property
-            .split(':')
-            .slice(0, -1)
-            .join(':');
-          parentResource = lastStructuredMeta.get(parentPropertyPath);
-          if (parentResource) {
-            // When using parentResource the matcher is not functional for locating
-            // the instance in the DOM but it still serves as a unique key.
-            matcher = parentResource.matcher + matcher;
-          }
-        } else if (typeof name === 'string') {
-          matcher = `meta[name="${escapeSelectorAttributeValueInsideDoubleQuotes(
-            name,
-          )}"][content="${escapeSelectorAttributeValueInsideDoubleQuotes(
-            content,
-          )}"]`;
-        } else if (typeof itemProp === 'string') {
-          matcher = `meta[itemprop="${escapeSelectorAttributeValueInsideDoubleQuotes(
-            itemProp,
-          )}"][content="${escapeSelectorAttributeValueInsideDoubleQuotes(
-            content,
-          )}"]`;
-        }
-      }
-      if (matcher) {
-        let resource = headResources.get(matcher);
-        if (!resource) {
-          resource = {
-            type: 'meta',
-            matcher,
-            property: propertyString,
-            parentResource,
-            props: Object.assign({}, pendingProps),
-            count: 0,
-            instance: null,
-            root: headRoot,
-          };
-          headResources.set(matcher, resource);
-        }
-        if (typeof resource.property === 'string') {
-          // We cast because flow doesn't know that this resource must be a Meta resource
-          lastStructuredMeta.set(resource.property, (resource: any));
-        }
-        return resource;
-      }
-      return null;
-    }
-    case 'title': {
-      const children = pendingProps.children;
-      let child;
-      if (Array.isArray(children)) {
-        child = children.length === 1 ? children[0] : null;
-      } else {
-        child = children;
-      }
-      if (
-        typeof child !== 'function' &&
-        typeof child !== 'symbol' &&
-        child !== null &&
-        child !== undefined
-      ) {
-        // eslint-disable-next-line react-internal/safe-string-coercion
-        const childString = '' + (child: any);
-        const headRoot: Document = getDocumentFromRoot(resourceRoot);
-        const headResources = getResourcesFromRoot(headRoot).head;
-        const key = getTitleKey(childString);
-        let resource = headResources.get(key);
-        if (!resource) {
-          const titleProps = titlePropsFromRawProps(childString, pendingProps);
-          resource = {
-            type: 'title',
-            props: titleProps,
-            count: 0,
-            instance: null,
-            root: headRoot,
-          };
-          headResources.set(key, resource);
-        }
-        return resource;
-      }
-      return null;
-    }
     case 'link': {
       const {rel} = pendingProps;
       switch (rel) {
@@ -707,34 +518,45 @@ export function getResource(
           }
           return null;
         }
-        default: {
-          const {href, sizes, media} = pendingProps;
-          if (typeof rel === 'string' && typeof href === 'string') {
-            const sizeKey =
-              '::sizes:' + (typeof sizes === 'string' ? sizes : '');
-            const mediaKey =
-              '::media:' + (typeof media === 'string' ? media : '');
-            const key = 'rel:' + rel + '::href:' + href + sizeKey + mediaKey;
-            const headRoot = getDocumentFromRoot(resourceRoot);
-            const headResources = getResourcesFromRoot(headRoot).head;
-            let resource = headResources.get(key);
-            if (!resource) {
-              resource = {
-                type: 'link',
-                props: Object.assign({}, pendingProps),
-                count: 0,
-                instance: null,
-                root: headRoot,
-              };
-              headResources.set(key, resource);
-            }
-            return resource;
+        // We intentionally fall through to the title and meta cases because links that do not
+        // match a more specialized resource type like stylesheet or preload are treated like
+        // general Hoistables
+      }
+    }
+    case 'title':
+    case 'meta': {
+      if (current === null) {
+        let props = pendingProps;
+        if (type === 'title') {
+          props = Object.assign({}, pendingProps);
+          const children = pendingProps.children;
+          const child = Array.isArray(children)
+            ? children.length < 2
+              ? children[0]
+              : null
+            : children;
+          if (
+            typeof child !== 'function' &&
+            typeof child !== 'symbol' &&
+            child !== null &&
+            child !== undefined
+          ) {
+            // eslint-disable-next-line react-internal/safe-string-coercion
+            props.children = '' + (child: any);
           }
-          if (__DEV__) {
-            warnOnMissingHrefAndRel(pendingProps, currentProps);
-          }
-          return null;
         }
+        const instance = createResourceInstance(
+          type,
+          props,
+          getDocumentFromRoot(resourceRoot),
+        );
+        return {
+          type,
+          instance,
+          hydrate: isHydrating,
+        };
+      } else {
+        return current;
       }
     }
     case 'script': {
@@ -795,15 +617,6 @@ function preloadPropsFromRawProps(
   return Object.assign({}, rawBorrowedProps);
 }
 
-function titlePropsFromRawProps(
-  child: string | number,
-  rawProps: Props,
-): TitleProps {
-  const props: TitleProps = Object.assign({}, rawProps);
-  props.children = child;
-  return props;
-}
-
 function stylePropsFromRawProps(rawProps: StyleQualifyingProps): StyleProps {
   // $FlowFixMe[prop-missing] - recommended fix is to use object spread operator
   const props: StyleProps = Object.assign({}, rawProps);
@@ -823,13 +636,28 @@ function scriptPropsFromRawProps(rawProps: ScriptQualifyingProps): ScriptProps {
 //      Resource Reconciliation
 // --------------------------------------
 
-export function acquireResource(resource: Resource): Instance {
+export function getResourceProps(
+  resource: Resource,
+  pendingProps: Object,
+): Object {
   switch (resource.type) {
-    case 'base':
     case 'title':
     case 'link':
     case 'meta': {
-      return acquireHeadResource(resource);
+      return pendingProps;
+    }
+    default: {
+      return resource.props;
+    }
+  }
+}
+
+export function acquireResource(resource: Resource): Instance {
+  switch (resource.type) {
+    case 'title':
+    case 'link':
+    case 'meta': {
+      return acquireHoistable(resource);
     }
     case 'style': {
       return acquireStyleResource(resource);
@@ -853,7 +681,7 @@ export function releaseResource(resource: Resource): void {
     case 'link':
     case 'title':
     case 'meta': {
-      return releaseHeadResource(resource);
+      return removeHoistable(resource);
     }
     case 'style': {
       resource.count--;
@@ -862,15 +690,13 @@ export function releaseResource(resource: Resource): void {
   }
 }
 
-function releaseHeadResource(resource: HeadResource): void {
-  if (--resource.count === 0) {
-    // the instance will have existed since we acquired it
-    const instance: Instance = (resource.instance: any);
+function removeHoistable(resource: HoistableResource): void {
+  if (resource.instance) {
+    const instance: Instance = resource.instance;
     const parent = instance.parentNode;
     if (parent) {
       parent.removeChild(instance);
     }
-    resource.instance = null;
   }
 }
 
@@ -880,8 +706,8 @@ function createResourceInstance(
   ownerDocument: Document,
 ): Instance {
   const element = createElement(type, props, ownerDocument, HTML_NAMESPACE);
-  setInitialProperties(element, type, props);
   markNodeAsResource(element);
+  setInitialProperties(element, type, props);
   return element;
 }
 
@@ -1095,149 +921,49 @@ function createPreloadResource(
   };
 }
 
-function acquireHeadResource(resource: HeadResource): Instance {
-  resource.count++;
-  let instance = resource.instance;
-  if (!instance) {
-    const {props, root, type} = resource;
-    switch (type) {
-      case 'title': {
-        const titles = root.querySelectorAll('title');
-        for (let i = 0; i < titles.length; i++) {
-          if (titles[i].textContent === props.children) {
-            instance = resource.instance = titles[i];
-            markNodeAsResource(instance);
-            return instance;
-          }
-        }
-        instance = resource.instance = createResourceInstance(
-          type,
-          props,
-          root,
-        );
-        const firstTitle = titles[0];
-        insertResourceInstanceBefore(
-          root,
-          instance,
-          firstTitle && firstTitle.namespaceURI !== SVG_NAMESPACE
-            ? firstTitle
-            : null,
-        );
-        break;
-      }
-      case 'meta': {
-        let insertBefore = null;
-
-        const metaResource: MetaResource = (resource: any);
-        const {matcher, property, parentResource} = metaResource;
-
-        if (parentResource && typeof property === 'string') {
-          // This resoruce is a structured meta type with a parent.
-          // Instead of using the matcher we just traverse forward
-          // siblings of the parent instance until we find a match
-          // or exhaust.
-          const parent = parentResource.instance;
-          if (parent) {
-            let node = null;
-            let nextNode = (insertBefore = parent.nextSibling);
-            while ((node = nextNode)) {
-              nextNode = node.nextSibling;
-              if (node.nodeName === 'META') {
-                const meta: Element = (node: any);
-                const propertyAttr = meta.getAttribute('property');
-                if (typeof propertyAttr !== 'string') {
-                  continue;
-                } else if (
-                  propertyAttr === property &&
-                  meta.getAttribute('content') === props.content
-                ) {
-                  resource.instance = meta;
-                  markNodeAsResource(meta);
-                  return meta;
-                } else if (property.startsWith(propertyAttr + ':')) {
-                  // This meta starts a new instance of a parent structure for this meta type
-                  // We need to halt our search here because even if we find a later match it
-                  // is for a different parent element
-                  break;
-                }
-              }
-            }
-          }
-        } else if ((instance = root.querySelector(matcher))) {
-          resource.instance = instance;
-          markNodeAsResource(instance);
-          return instance;
-        }
-        instance = resource.instance = createResourceInstance(
-          type,
-          props,
-          root,
-        );
-        insertResourceInstanceBefore(root, instance, insertBefore);
-        break;
-      }
-      case 'link': {
-        const linkProps: LinkProps = (props: any);
-        const limitedEscapedRel = escapeSelectorAttributeValueInsideDoubleQuotes(
-          linkProps.rel,
-        );
-        const limitedEscapedHref = escapeSelectorAttributeValueInsideDoubleQuotes(
-          linkProps.href,
-        );
-        let selector = `link[rel="${limitedEscapedRel}"][href="${limitedEscapedHref}"]`;
-        if (typeof linkProps.sizes === 'string') {
-          const limitedEscapedSizes = escapeSelectorAttributeValueInsideDoubleQuotes(
-            linkProps.sizes,
-          );
-          selector += `[sizes="${limitedEscapedSizes}"]`;
-        }
-        if (typeof linkProps.media === 'string') {
-          const limitedEscapedMedia = escapeSelectorAttributeValueInsideDoubleQuotes(
-            linkProps.media,
-          );
-          selector += `[media="${limitedEscapedMedia}"]`;
-        }
-        const existingEl = root.querySelector(selector);
-        if (existingEl) {
-          instance = resource.instance = existingEl;
-          markNodeAsResource(instance);
-          return instance;
-        }
-        instance = resource.instance = createResourceInstance(
-          type,
-          props,
-          root,
-        );
-        insertResourceInstanceBefore(root, instance, null);
-        return instance;
-      }
-      case 'base': {
-        const baseResource: BaseResource = (resource: any);
-        const {matcher} = baseResource;
-        const base = root.querySelector(matcher);
-        if (base) {
-          instance = resource.instance = base;
-          markNodeAsResource(instance);
-        } else {
-          instance = resource.instance = createResourceInstance(
-            type,
-            props,
-            root,
-          );
-          insertResourceInstanceBefore(
-            root,
-            instance,
-            root.querySelector('base'),
-          );
-        }
-        return instance;
-      }
-      default: {
-        throw new Error(
-          `acquireHeadResource encountered a resource type it did not expect: "${type}". This is a bug in React.`,
-        );
-      }
+function acquireHoistable(resource: HoistableResource): Instance {
+  if (resource.hydrate) {
+    resource.hydrate = false;
+    const {type, instance} = resource;
+    const root = instance.ownerDocument;
+    let selector: string = type;
+    const attributeNames = instance.getAttributeNames();
+    if (attributeNames.length) {
+      selector += `[${attributeNames.join('][')}]`;
     }
+    const nodes = root.querySelectorAll(selector);
+    nodeLoop: for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (
+        isMarkedResource(node) ||
+        node.namespaceURI === SVG_NAMESPACE ||
+        node.textContent !== instance.textContent
+      ) {
+        continue;
+      }
+      const attributes = node.attributes;
+      for (let j = 0; j < attributes.length; j++) {
+        const attr = attributes[j];
+        if (instance.getAttribute(attr.name) !== attr.value) {
+          continue nodeLoop;
+        }
+      }
+      resource.instance = node;
+      markNodeAsResource(node);
+      return node;
+    }
+  }
+  const instance = resource.instance;
+  if (resource.type === 'title') {
+    const root = instance.ownerDocument;
+    const firstHeadTitle = root.querySelector('head > title');
+    insertResourceInstanceBefore(
+      instance.ownerDocument,
+      instance,
+      firstHeadTitle,
+    );
+  } else {
+    insertResourceInstanceBefore(instance.ownerDocument, instance, null);
   }
   return instance;
 }
@@ -1416,6 +1142,11 @@ function insertStyleInstance(
       );
     }
   }
+}
+
+function insertHoistedTitle(ownerDocument: Document, instance: Instance): void {
+  const firstHeadTitle = document.querySelector('head > title');
+  insertResourceInstanceBefore(ownerDocument, instance, firstHeadTitle);
 }
 
 function insertResourceInstanceBefore(

@@ -2639,16 +2639,56 @@ function commitMutationEffectsOnFiber(
         }
 
         if (flags & Update) {
+          const currentResource = current ? current.memoizedState : null;
           const newResource = finishedWork.memoizedState;
-          if (current !== null) {
-            const currentResource = current.memoizedState;
-            if (currentResource !== newResource) {
-              releaseResource(currentResource);
+          if (newResource !== currentResource) {
+            if (newResource) {
+              finishedWork.stateNode = acquireResource(newResource);
+              if (currentResource) {
+                releaseResource(currentResource);
+              }
+            } else {
+              finishedWork.stateNode = null;
+              if (currentResource) {
+                releaseResource(currentResource);
+              }
             }
           }
-          finishedWork.stateNode = newResource
-            ? acquireResource(newResource)
-            : null;
+
+          const stateNode = finishedWork.stateNode;
+
+          if (stateNode != null) {
+            const instance: Instance = stateNode;
+            // Commit the work prepared earlier.
+            const newProps = finishedWork.memoizedProps;
+            // For hydration we reuse the update path but we treat the oldProps
+            // as the newProps. The updatePayload will contain the real change in
+            // this case.
+            const oldProps =
+              current !== null ? current.memoizedProps : newProps;
+            const type = finishedWork.type;
+            // TODO: Type the updateQueue to be specific to host components.
+            const updatePayload: null | UpdatePayload = (finishedWork.updateQueue: any);
+            finishedWork.updateQueue = null;
+            if (updatePayload !== null) {
+              try {
+                commitUpdate(
+                  instance,
+                  updatePayload,
+                  type,
+                  oldProps,
+                  newProps,
+                  finishedWork,
+                );
+              } catch (error) {
+                captureCommitPhaseError(
+                  finishedWork,
+                  finishedWork.return,
+                  error,
+                );
+              }
+            }
+          }
         }
         return;
       }
