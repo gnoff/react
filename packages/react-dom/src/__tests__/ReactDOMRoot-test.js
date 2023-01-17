@@ -345,6 +345,7 @@ describe('ReactDOMRoot', () => {
     ReactDOMClient.createRoot(container); // No warning
   });
 
+  // @gate !enableHostSingletons
   it('warns if creating a root on the document.body', async () => {
     expect(() => {
       ReactDOMClient.createRoot(document.body);

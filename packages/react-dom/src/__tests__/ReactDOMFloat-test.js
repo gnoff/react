@@ -566,7 +566,6 @@ describe('ReactDOMFloat', () => {
   // @gate enableFloat || !__DEV__
   it('warns if you render resource-like elements above <head> or <body>', async () => {
     const root = ReactDOMClient.createRoot(document);
-
     renderSafelyAndExpect(
       root,
       <>

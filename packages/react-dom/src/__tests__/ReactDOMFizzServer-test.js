@@ -5148,158 +5148,136 @@ describe('ReactDOMFizzServer', () => {
     });
 
     it('should warn in dev when given an array of length 2 or more', async () => {
-      const originalConsoleError = console.error;
-      const mockError = jest.fn();
-      console.error = (...args) => {
-        if (args.length > 1) {
-          if (typeof args[1] === 'object') {
-            mockError(args[0].split('\n')[0]);
-            return;
-          }
-        }
-        mockError(...args.map(normalizeCodeLocInfo));
-      };
-
       // a Single string child
       function App() {
-        return <title>{['hello1', 'hello2']}</title>;
+        return (
+          <html>
+            <head>
+              <title>{['hello1', 'hello2']}</title>
+            </head>
+            <body></body>
+          </html>
+        );
       }
 
-      try {
-        prepareJSDOMForTitle();
-
-        await actIntoContainer(async () => {
+      await expect(async () => {
+        await act(async () => {
           const {pipe} = renderToPipeableStream(<App />);
           pipe(writable);
         });
-        if (__DEV__) {
-          expect(mockError).toHaveBeenCalledWith(
-            'Warning: A title element received an array with more than 1 element as children. ' +
-              'In browsers title Elements can only have Text Nodes as children. If ' +
-              'the children being rendered output more than a single text node in aggregate the browser ' +
-              'will display markup and comments as text in the title and hydration will likely fail and ' +
-              'fall back to client rendering%s',
-            '\n' + '    in title (at **)\n' + '    in App (at **)',
-          );
-        } else {
-          expect(mockError).not.toHaveBeenCalled();
-        }
+      }).toErrorDev(
+        'Warning: A title element received an array with more than 1 element as children. ' +
+          'In browsers title Elements can only have Text Nodes as children. If ' +
+          'the children being rendered output more than a single text node in aggregate the browser ' +
+          'will display markup and comments as text in the title and hydration will likely fail and ' +
+          'fall back to client rendering',
+      );
 
-        if (gate(flags => flags.enableFloat)) {
-          // This title was invalid so it is not emitted
-          expect(getMeaningfulChildren(container)).toEqual(undefined);
-        } else {
-          expect(getMeaningfulChildren(container)).toEqual(
-            <title>{'hello1<!-- -->hello2'}</title>,
-          );
-        }
+      if (gate(flags => flags.enableFloat)) {
+        // This title was invalid so it is not emitted
+        expect(getMeaningfulChildren(document.head)).toEqual(<title />);
+      } else {
+        expect(getMeaningfulChildren(document.head)).toEqual(
+          <title>{'hello1<!-- -->hello2'}</title>,
+        );
+      }
 
-        const errors = [];
-        ReactDOMClient.hydrateRoot(container, <App />, {
-          onRecoverableError(error) {
-            errors.push(error.message);
-          },
-        });
+      const errors = [];
+      ReactDOMClient.hydrateRoot(document, <App />, {
+        onRecoverableError(error) {
+          errors.push(error.message);
+        },
+      });
+
+      if (gate(flags => flags.enableFloat)) {
         expect(Scheduler).toFlushAndYield([]);
-        if (gate(flags => flags.enableFloat)) {
-          expect(errors).toEqual([]);
-          // with float, the title doesn't render on the client or on the server
-          expect(getMeaningfulChildren(container)).toEqual(undefined);
-        } else {
-          expect(errors).toEqual(
-            [
-              gate(flags => flags.enableClientRenderFallbackOnTextMismatch)
-                ? 'Text content does not match server-rendered HTML.'
-                : null,
-              'Hydration failed because the initial UI does not match what was rendered on the server.',
-              'There was an error while hydrating. Because the error happened outside of a Suspense boundary, the entire root will switch to client rendering.',
-            ].filter(Boolean),
-          );
-          expect(getMeaningfulChildren(container)).toEqual(
-            <title>{['hello1', 'hello2']}</title>,
-          );
-        }
-      } finally {
-        console.error = originalConsoleError;
+        expect(errors).toEqual([]);
+        // with float, the title doesn't render on the client or on the server
+        expect(getMeaningfulChildren(document.head)).toEqual(<title />);
+      } else {
+        expect(() => {
+          expect(Scheduler).toFlushAndYield([]);
+        }).toErrorDev(
+          [
+            'Text content did not match. Server: "hello1<!-- -->hello2" Client: "hello1"',
+            'An error occurred during hydration. The server HTML was replaced with client content in <#document>',
+          ],
+          {withoutStack: 1},
+        );
+        expect(errors).toEqual(
+          [
+            gate(flags => flags.enableClientRenderFallbackOnTextMismatch)
+              ? 'Text content does not match server-rendered HTML.'
+              : null,
+            'Hydration failed because the initial UI does not match what was rendered on the server.',
+            'There was an error while hydrating. Because the error happened outside of a Suspense boundary, the entire root will switch to client rendering.',
+          ].filter(Boolean),
+        );
+        expect(getMeaningfulChildren(document.head)).toEqual(
+          <title>{['hello1', 'hello2']}</title>,
+        );
       }
     });
 
     it('should warn in dev if you pass a React Component as a child to <title>', async () => {
-      const originalConsoleError = console.error;
-      const mockError = jest.fn();
-      console.error = (...args) => {
-        if (args.length > 1) {
-          if (typeof args[1] === 'object') {
-            mockError(args[0].split('\n')[0]);
-            return;
-          }
-        }
-        mockError(...args.map(normalizeCodeLocInfo));
-      };
-
       function IndirectTitle() {
         return 'hello';
       }
 
       function App() {
         return (
-          <title>
-            <IndirectTitle />
-          </title>
+          <html>
+            <head>
+              <title>
+                <IndirectTitle />
+              </title>
+            </head>
+            <body />
+          </html>
         );
       }
 
-      try {
-        prepareJSDOMForTitle();
-
-        await actIntoContainer(async () => {
+      await expect(async () => {
+        await act(async () => {
           const {pipe} = renderToPipeableStream(<App />);
           pipe(writable);
         });
-        if (__DEV__) {
-          expect(mockError).toHaveBeenCalledWith(
-            'Warning: A title element received a React element for children. ' +
-              'In the browser title Elements can only have Text Nodes as children. If ' +
-              'the children being rendered output more than a single text node in aggregate the browser ' +
-              'will display markup and comments as text in the title and hydration will likely fail and ' +
-              'fall back to client rendering%s',
-            '\n' + '    in title (at **)\n' + '    in App (at **)',
-          );
-        } else {
-          expect(mockError).not.toHaveBeenCalled();
-        }
+      }).toErrorDev(
+        'Warning: A title element received a React element for children. ' +
+          'In the browser title Elements can only have Text Nodes as children. If ' +
+          'the children being rendered output more than a single text node in aggregate the browser ' +
+          'will display markup and comments as text in the title and hydration will likely fail and ' +
+          'fall back to client rendering',
+      );
 
-        if (gate(flags => flags.enableFloat)) {
-          // object titles are toStringed when float is on
-          expect(getMeaningfulChildren(container)).toEqual(
-            <title>{'[object Object]'}</title>,
-          );
-        } else {
-          expect(getMeaningfulChildren(container)).toEqual(
-            <title>hello</title>,
-          );
-        }
+      if (gate(flags => flags.enableFloat)) {
+        // object titles are toStringed when float is on
+        expect(getMeaningfulChildren(document.head)).toEqual(
+          <title>{'[object Object]'}</title>,
+        );
+      } else {
+        expect(getMeaningfulChildren(document.head)).toEqual(
+          <title>hello</title>,
+        );
+      }
 
-        const errors = [];
-        ReactDOMClient.hydrateRoot(container, <App />, {
-          onRecoverableError(error) {
-            errors.push(error.message);
-          },
-        });
-        expect(Scheduler).toFlushAndYield([]);
-        expect(errors).toEqual([]);
-        if (gate(flags => flags.enableFloat)) {
-          // object titles are toStringed when float is on
-          expect(getMeaningfulChildren(container)).toEqual(
-            <title>{'[object Object]'}</title>,
-          );
-        } else {
-          expect(getMeaningfulChildren(container)).toEqual(
-            <title>hello</title>,
-          );
-        }
-      } finally {
-        console.error = originalConsoleError;
+      const errors = [];
+      ReactDOMClient.hydrateRoot(document, <App />, {
+        onRecoverableError(error) {
+          errors.push(error.message);
+        },
+      });
+      expect(Scheduler).toFlushAndYield([]);
+      expect(errors).toEqual([]);
+      if (gate(flags => flags.enableFloat)) {
+        // object titles are toStringed when float is on
+        expect(getMeaningfulChildren(document.head)).toEqual(
+          <title>{'[object Object]'}</title>,
+        );
+      } else {
+        expect(getMeaningfulChildren(document.head)).toEqual(
+          <title>hello</title>,
+        );
       }
     });
 

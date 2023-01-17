@@ -75,10 +75,14 @@ import {
   expectCurrentResources,
   createStyleResource,
   createPreloadResource,
+  createScriptResource,
   preloadAsStylePropsFromProps,
   stylePropsFromRawProps,
   adoptPreloadPropsForStyleProps,
   preloadPropsFromRawProps,
+  preloadAsScriptPropsFromProps,
+  scriptPropsFromRawProps,
+  adoptPreloadPropsForScriptProps,
 } from './ReactDOMFloatServer';
 export {
   createResources,
@@ -92,6 +96,7 @@ import {
   validateStyleResourceDifference,
   validateLinkPropsForPreloadResource,
   validatePreloadResourceDifference,
+  validateScriptResourceDifference,
 } from '../shared/ReactDOMResourceValidation';
 
 import {
@@ -131,7 +136,7 @@ const ScriptStreamingFormat: StreamingFormat = 0;
 const DataStreamingFormat: StreamingFormat = 1;
 
 export type DocumentStructureTag = number;
-export const NONE: /*              */ DocumentStructureTag = 0b0000;
+export const NONE: /*       */ DocumentStructureTag = 0b0000;
 const HTML: /*              */ DocumentStructureTag = 0b0001;
 const HEAD: /*              */ DocumentStructureTag = 0b0010;
 const BODY: /*              */ DocumentStructureTag = 0b0100;
@@ -2063,18 +2068,63 @@ function pushScript(
   textEmbedded: boolean,
   noscriptTagInScope: boolean,
 ): null {
-  if (enableFloat && !noscriptTagInScope && resourcesFromScript(props)) {
-    if (textEmbedded) {
-      // This link follows text but we aren't writing a tag. while not as efficient as possible we need
-      // to be safe and assume text will follow by inserting a textSeparator
-      target.push(textSeparator);
-    }
-    // We have converted this link exclusively to a resource and no longer
-    // need to emit it
-    return null;
-  }
+  if (enableFloat) {
+    if (!noscriptTagInScope) {
+      const resources = expectCurrentResources();
+      const {src, async, onLoad, onError} = props;
 
-  return pushScriptImpl(target, props, responseState);
+      if (!src || typeof src !== 'string') {
+        // Inline script emits in place
+        return pushScriptImpl(target, props, responseState);
+      }
+
+      if (async) {
+        if (onLoad || onError) {
+          if (__DEV__) {
+            // validate
+          }
+          let preloadResource = resources.preloadsMap.get(src);
+          if (!preloadResource) {
+            preloadResource = createPreloadResource(
+              resources,
+              src,
+              'script',
+              preloadAsScriptPropsFromProps(src, props),
+            );
+            if (__DEV__) {
+              (preloadResource: any)._dev_implicit_construction = true;
+            }
+            resources.usedScriptPreloads.add(preloadResource);
+          }
+        } else {
+          let resource = resources.scriptsMap.get(src);
+          if (resource) {
+            if (__DEV__) {
+              const latestProps = scriptPropsFromRawProps(src, props);
+              adoptPreloadPropsForScriptProps(latestProps, resource.hint.props);
+              validateScriptResourceDifference(resource.props, latestProps);
+            }
+          } else {
+            const resourceProps = scriptPropsFromRawProps(src, props);
+            resource = createScriptResource(resources, src, resourceProps);
+            resources.scripts.add(resource);
+          }
+        }
+        // If the async script had an onLoad or onError we do not emit the script
+        // on the server and expect the client to insert it on hydration
+        if (textEmbedded) {
+          // This link follows text but we aren't writing a tag. while not as efficient as possible we need
+          // to be safe and assume text will follow by inserting a textSeparator
+          target.push(textSeparator);
+        }
+        return null;
+      }
+    }
+    // The script was not a resource or client insertion script so we write it as a component
+    return pushScriptImpl(target, props, responseState);
+  } else {
+    return pushScriptImpl(target, props, responseState);
+  }
 }
 
 function pushScriptImpl(

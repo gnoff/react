@@ -416,7 +416,7 @@ export function preloadAsStylePropsFromProps(
   };
 }
 
-function preloadAsScriptPropsFromProps(
+export function preloadAsScriptPropsFromProps(
   href: string,
   props: Props | ScriptProps,
 ): PreloadProps {
@@ -576,13 +576,16 @@ function scriptPropsFromPreinitOptions(
   };
 }
 
-function scriptPropsFromRawProps(src: string, rawProps: Props): ScriptProps {
+export function scriptPropsFromRawProps(
+  src: string,
+  rawProps: Props,
+): ScriptProps {
   const props = Object.assign({}, rawProps);
   props.src = src;
   return props;
 }
 
-function createScriptResource(
+export function createScriptResource(
   resources: Resources,
   src: string,
   props: ScriptProps,
@@ -637,7 +640,7 @@ function createScriptResource(
   return resource;
 }
 
-function adoptPreloadPropsForScriptProps(
+export function adoptPreloadPropsForScriptProps(
   resourceProps: ScriptProps,
   preloadProps: PreloadProps,
 ): void {

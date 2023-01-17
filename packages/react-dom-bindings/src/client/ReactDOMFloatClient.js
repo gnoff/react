@@ -526,9 +526,28 @@ export function getResource(
     case 'title':
     case 'meta': {
       if (current === null) {
+        let props = pendingProps;
+        if (type === 'title') {
+          props = Object.assign({}, pendingProps);
+          const children = pendingProps.children;
+          const child = Array.isArray(children)
+            ? children.length < 2
+              ? children[0]
+              : null
+            : children;
+          if (
+            typeof child !== 'function' &&
+            typeof child !== 'symbol' &&
+            child !== null &&
+            child !== undefined
+          ) {
+            // eslint-disable-next-line react-internal/safe-string-coercion
+            props.children = '' + (child: any);
+          }
+        }
         const instance = createResourceInstance(
           type,
-          pendingProps,
+          props,
           getDocumentFromRoot(resourceRoot),
         );
         return {

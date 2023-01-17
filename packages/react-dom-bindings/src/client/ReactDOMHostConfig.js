@@ -622,16 +622,9 @@ export function removeChildFromContainer(
   if (container.nodeType === COMMENT_NODE) {
     (container.parentNode: any).removeChild(child);
   } else if (
-    container.nodeType === DOCUMENT_NODE ||
-    container.nodeName === 'HTML'
+    (container.nodeType === DOCUMENT_NODE || container.nodeName === 'HTML') &&
+    child.parentNode
   ) {
-    if (__DEV__) {
-      if (child.parentNode == null) {
-        console.error(
-          'removeChildFromContainer was called with a child that does not have a parentNode. This is a bug in React',
-        );
-      }
-    }
     const parentNode: Node = (child.parentNode: any);
     parentNode.removeChild(child);
   } else {
