@@ -18,6 +18,7 @@ describe('ReactDOMConsoleErrorReporting', () => {
   let container;
   let windowOnError;
   let waitForThrow;
+  let onRecoverableError;
 
   beforeEach(() => {
     jest.resetModules();
@@ -28,6 +29,7 @@ describe('ReactDOMConsoleErrorReporting', () => {
 
     const InternalTestUtils = require('internal-test-utils');
     waitForThrow = InternalTestUtils.waitForThrow;
+    onRecoverableError = InternalTestUtils.onRecoverableErrorAsLog;
 
     ErrorBoundary = class extends React.Component {
       state = {error: null};
@@ -239,14 +241,14 @@ describe('ReactDOMConsoleErrorReporting', () => {
       }
     });
 
-    it('logs render errors with an error boundary', async () => {
+    fit('logs render errors with an error boundary', async () => {
       spyOnDevAndProd(console, 'error');
 
       function Foo() {
         throw Error('Boom');
       }
 
-      const root = ReactDOMClient.createRoot(container);
+      const root = ReactDOMClient.createRoot(container, {onRecoverableError});
       await act(() => {
         root.render(
           <ErrorBoundary>
@@ -254,6 +256,7 @@ describe('ReactDOMConsoleErrorReporting', () => {
           </ErrorBoundary>,
         );
       });
+      console.log('after render');
 
       if (__DEV__) {
         expect(windowOnError.mock.calls).toEqual([
@@ -296,6 +299,12 @@ describe('ReactDOMConsoleErrorReporting', () => {
             expect.stringContaining(
               'The above error occurred in the <Foo> component',
             ),
+          ],
+          [
+            // onRecoverableError log for ConcurrentRoot
+            expect.objectContaining({
+              message: 'Boom',
+            }),
           ],
         ]);
       } else {
@@ -824,14 +833,9 @@ describe('ReactDOMConsoleErrorReporting', () => {
         // The top-level error was caught with try/catch, and there's no guarded callback,
         // so in production we don't see an error event.
         expect(windowOnError.mock.calls).toEqual([]);
-        expect(console.error.mock.calls).toEqual([
-          [
-            // Reported by React with no extra message:
-            expect.objectContaining({
-              message: 'Boom',
-            }),
-          ],
-        ]);
+        // in production boundary handled errors are now reported through onRecoverableError
+        // which does not exist for legacy roots.
+        expect(console.error.mock.calls).toEqual([]);
       }
 
       // Check next render doesn't throw.
@@ -969,14 +973,9 @@ describe('ReactDOMConsoleErrorReporting', () => {
         // The top-level error was caught with try/catch, and there's no guarded callback,
         // so in production we don't see an error event.
         expect(windowOnError.mock.calls).toEqual([]);
-        expect(console.error.mock.calls).toEqual([
-          [
-            // Reported by React with no extra message:
-            expect.objectContaining({
-              message: 'Boom',
-            }),
-          ],
-        ]);
+        // in production boundary handled errors are now reported through onRecoverableError
+        // which does not exist for legacy roots.
+        expect(console.error.mock.calls).toEqual([]);
       }
 
       // Check next render doesn't throw.
@@ -1115,14 +1114,9 @@ describe('ReactDOMConsoleErrorReporting', () => {
         // The top-level error was caught with try/catch, and there's no guarded callback,
         // so in production we don't see an error event.
         expect(windowOnError.mock.calls).toEqual([]);
-        expect(console.error.mock.calls).toEqual([
-          [
-            // Reported by React with no extra message:
-            expect.objectContaining({
-              message: 'Boom',
-            }),
-          ],
-        ]);
+        // in production boundary handled errors are now reported through onRecoverableError
+        // which does not exist for legacy roots.
+        expect(console.error.mock.calls).toEqual([]);
       }
 
       // Check next render doesn't throw.

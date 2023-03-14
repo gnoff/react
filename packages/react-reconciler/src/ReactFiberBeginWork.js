@@ -1242,12 +1242,16 @@ function updateClassComponent(
         const lane = pickArbitraryLane(renderLanes);
         workInProgress.lanes = mergeLanes(workInProgress.lanes, lane);
         // Schedule the error boundary to re-render using updated state
-        const update = createClassErrorUpdate(
-          workInProgress,
-          createCapturedValueAtFiber(error, workInProgress),
-          lane,
-        );
-        enqueueCapturedUpdate(workInProgress, update);
+        const root = getWorkInProgressRoot();
+        if (root !== null) {
+          const update = createClassErrorUpdate(
+            getWorkInProgressRoot(),
+            workInProgress,
+            createCapturedValueAtFiber(error, workInProgress),
+            lane,
+          );
+          enqueueCapturedUpdate(workInProgress, update);
+        }
         break;
       }
     }

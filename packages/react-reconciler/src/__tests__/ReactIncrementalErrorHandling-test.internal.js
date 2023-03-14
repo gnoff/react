@@ -1509,10 +1509,11 @@ describe('ReactIncrementalErrorHandling', () => {
     );
 
     if (__DEV__) {
-      expect(console.error).toHaveBeenCalledTimes(1);
+      expect(console.error).toHaveBeenCalledTimes(2);
       expect(console.error.mock.calls[0][0]).toContain(
         'The above error occurred in the <BadRender> component:',
       );
+      expect(console.error.mock.calls[1][0]).toBe(notAnError);
     } else {
       expect(console.error).toHaveBeenCalledTimes(1);
       expect(console.error.mock.calls[0][0]).toBe(notAnError);

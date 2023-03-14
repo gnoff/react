@@ -2620,6 +2620,7 @@ function commitRoot(
   const prevTransition = ReactCurrentBatchConfig.transition;
 
   try {
+    finishedRoot = root;
     ReactCurrentBatchConfig.transition = null;
     setCurrentUpdatePriority(DiscreteEventPriority);
     commitRootImpl(
@@ -2629,12 +2630,16 @@ function commitRoot(
       previousUpdateLanePriority,
     );
   } finally {
+    finishedRoot = null;
     ReactCurrentBatchConfig.transition = prevTransition;
     setCurrentUpdatePriority(previousUpdateLanePriority);
   }
 
   return null;
 }
+
+// During commit phase finishedRoot is the root being committed
+let finishedRoot: null | FiberRoot = null;
 
 function commitRootImpl(
   root: FiberRoot,
@@ -3308,12 +3313,14 @@ export function captureCommitPhaseError(
       const ctor = fiber.type;
       const instance = fiber.stateNode;
       if (
-        typeof ctor.getDerivedStateFromError === 'function' ||
+        (finishedRoot !== null &&
+          typeof ctor.getDerivedStateFromError === 'function') ||
         (typeof instance.componentDidCatch === 'function' &&
           !isAlreadyFailedLegacyErrorBoundary(instance))
       ) {
         const errorInfo = createCapturedValueAtFiber(error, sourceFiber);
         const update = createClassErrorUpdate(
+          finishedRoot,
           fiber,
           errorInfo,
           (SyncLane: Lane),

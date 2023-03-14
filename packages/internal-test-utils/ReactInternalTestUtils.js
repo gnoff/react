@@ -199,3 +199,14 @@ ${diff(expectedLog, actualLog)}
   Error.captureStackTrace(error, assertLog);
   throw error;
 }
+
+export function onRecoverableErrorAsLog(error: mixed, errorInfo: mixed) {
+  SchedulerMock.log(
+    'onRecoverableError: ',
+    typeof error === 'string'
+      ? error
+      : error != null && typeof error.message === 'string'
+      ? error.message
+      : String(error),
+  );
+}

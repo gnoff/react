@@ -2496,8 +2496,8 @@ describe('ReactDOMFizzServer', () => {
       isClient = true;
       const errors = [];
       ReactDOMClient.hydrateRoot(container, <App />, {
-        onRecoverableError(error) {
-          errors.push(error.message);
+        onRecoverableError(error, errorInfo) {
+          errors.push({error, errorInfo});
         },
       });
 
@@ -2506,7 +2506,35 @@ describe('ReactDOMFizzServer', () => {
       await waitForAll([]);
       expect(getVisibleChildren(container)).toEqual('Oops!');
 
-      expectErrors(errors, [], []);
+      expectErrors(
+        errors,
+        [
+          [
+            'Oops!',
+            undefined,
+            componentStack([
+              'Child',
+              'span',
+              'Suspense',
+              'ErrorBoundary',
+              'App',
+            ]),
+          ],
+        ],
+        [
+          [
+            'Oops!',
+            undefined,
+            componentStack([
+              'Child',
+              'span',
+              'Suspense',
+              'ErrorBoundary',
+              'App',
+            ]),
+          ],
+        ],
+      );
     },
   );
 
@@ -5340,11 +5368,13 @@ describe('ReactDOMFizzServer', () => {
       });
       await waitForAll([]);
       expect(getVisibleChildren(container)).toEqual('Oops!');
-      expect(reportedClientErrors.length).toBe(1);
+      expect(reportedClientErrors.length).toBe(2);
       if (__DEV__) {
         expect(reportedClientErrors[0].message).toBe('Oops!');
+        expect(reportedClientErrors[1].message).toBe('Oops!');
       } else {
-        expect(reportedClientErrors[0].message).toBe(
+        expect(reportedClientErrors[0].message).toBe('Oops!');
+        expect(reportedClientErrors[1].message).toBe(
           'The server could not finish this Suspense boundary, likely due to ' +
             'an error during server rendering. Switched to client rendering.',
         );

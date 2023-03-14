@@ -65,6 +65,7 @@ if (process.env.REACT_CLASS_EQUIVALENCE_TEST) {
   // should not be allowed to exit without asserting on the entire log.
   const patchConsoleMethod = (methodName, unexpectedConsoleCallStacks) => {
     const newMethod = function (format, ...args) {
+      console.log('handling', methodName, format);
       // Ignore uncaught errors reported by jsdom
       // and React addendums because they're too noisy.
       if (methodName === 'error' && shouldIgnoreConsoleError(format, args)) {

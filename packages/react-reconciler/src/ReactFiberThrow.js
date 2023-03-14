@@ -64,7 +64,11 @@ import {
   renderDidSuspend,
 } from './ReactFiberWorkLoop';
 import {propagateParentContextChangesToDeferredTree} from './ReactFiberNewContext';
-import {logCapturedError} from './ReactFiberErrorLogger';
+import {
+  logCapturedError,
+  logRecoverableError,
+  explainCapturedErrorDev,
+} from './ReactFiberErrorLogger';
 import {logComponentSuspended} from './DebugTracing';
 import {isDevToolsPresent} from './ReactFiberDevToolsHook';
 import {
@@ -100,6 +104,7 @@ function createRootErrorUpdate(
 }
 
 function createClassErrorUpdate(
+  root: FiberRoot,
   fiber: Fiber,
   errorInfo: CapturedValue<mixed>,
   lane: Lane,
@@ -107,16 +112,25 @@ function createClassErrorUpdate(
   const update = createUpdate(lane);
   update.tag = CaptureUpdate;
   const getDerivedStateFromError = fiber.type.getDerivedStateFromError;
+
   if (typeof getDerivedStateFromError === 'function') {
     const error = errorInfo.value;
     update.payload = () => {
-      return getDerivedStateFromError(error);
+      const state = getDerivedStateFromError(error);
+      return state;
     };
     update.callback = () => {
       if (__DEV__) {
         markFailedErrorBoundaryForHotReloading(fiber);
       }
-      logCapturedError(fiber, errorInfo);
+      if (root.tag === ConcurrentRoot) {
+        if (__DEV__) {
+          explainCapturedErrorDev(fiber, errorInfo);
+        }
+        logRecoverableError(root, errorInfo);
+      } else {
+        logCapturedError(fiber, errorInfo);
+      }
     };
   }
 
@@ -127,7 +141,14 @@ function createClassErrorUpdate(
       if (__DEV__) {
         markFailedErrorBoundaryForHotReloading(fiber);
       }
-      logCapturedError(fiber, errorInfo);
+      if (root.tag === ConcurrentRoot) {
+        if (__DEV__) {
+          explainCapturedErrorDev(fiber, errorInfo);
+        }
+        logRecoverableError(root, errorInfo);
+      } else {
+        logCapturedError(fiber, errorInfo);
+      }
       if (typeof getDerivedStateFromError !== 'function') {
         // To preserve the preexisting retry behavior of error boundaries,
         // we keep track of which ones already failed during this batch.
@@ -551,6 +572,7 @@ function throwException(
           workInProgress.lanes = mergeLanes(workInProgress.lanes, lane);
           // Schedule the error boundary to re-render using updated state
           const update = createClassErrorUpdate(
+            root,
             workInProgress,
             errorInfo,
             lane,

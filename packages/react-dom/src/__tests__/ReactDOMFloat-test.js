@@ -1709,7 +1709,14 @@ body {
       }
     }
 
-    const root = ReactDOMClient.createRoot(container);
+    window.onerror = error => console.log('window.error event');
+
+    const errors = [];
+    const root = ReactDOMClient.createRoot(container, {
+      onRecoverableError(err) {
+        errors.push(err.message);
+      },
+    });
     root.render(
       <ErrorBoundary>
         <link rel="stylesheet" href="foo" precedence="default" />
@@ -1728,6 +1735,7 @@ body {
         </body>
       </html>,
     );
+    expect(errors).toEqual(['Uh oh!']);
   });
 
   // @gate enableFloat
