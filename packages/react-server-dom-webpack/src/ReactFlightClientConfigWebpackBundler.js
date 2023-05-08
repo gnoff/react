@@ -13,7 +13,20 @@ import type {
   RejectedThenable,
 } from 'shared/ReactTypes';
 
-export type SSRManifest = null | {
+import {
+  preinitModulesForSSR,
+  loadChunk,
+} from 'react-client/src/ReactFlightClientConfig';
+
+export type BundleConfig = null | {
+  chunkLoading: {
+    prefix: string,
+    crossOrigin: string | null,
+  },
+  ssrManifest: SSRManifest,
+};
+
+type SSRManifest = {
   [clientId: string]: {
     [clientExportName: string]: ClientReferenceMetadata,
   },
@@ -36,11 +49,11 @@ export opaque type ClientReferenceMetadata = {
 export opaque type ClientReference<T> = ClientReferenceMetadata;
 
 export function resolveClientReference<T>(
-  bundlerConfig: SSRManifest,
+  bundlerConfig: BundleConfig,
   metadata: ClientReferenceMetadata,
 ): ClientReference<T> {
   if (bundlerConfig) {
-    const moduleExports = bundlerConfig[metadata.id];
+    const moduleExports = bundlerConfig.ssrManifest[metadata.id];
     let resolvedModuleData = moduleExports[metadata.name];
     let name;
     if (resolvedModuleData) {
@@ -59,6 +72,14 @@ export function resolveClientReference<T>(
       }
       name = metadata.name;
     }
+
+    const prefix = bundlerConfig.chunkLoading.prefix;
+    const crossOrigin = bundlerConfig.chunkLoading.crossOrigin;
+    const chunkFiles = metadata.chunks;
+    for (let i = 0; i < chunkFiles.length; i++) {
+      preinitModulesForSSR(prefix + chunkFiles[i], crossOrigin);
+    }
+
     return {
       id: resolvedModuleData.id,
       chunks: resolvedModuleData.chunks,
@@ -124,15 +145,15 @@ export function preloadModule<T>(
   const chunks = metadata.chunks;
   const promises = [];
   for (let i = 0; i < chunks.length; i++) {
-    const chunkId = chunks[i];
-    const entry = chunkCache.get(chunkId);
+    const chunk = chunks[i];
+    const entry = chunkCache.get(chunk);
     if (entry === undefined) {
-      const thenable = __webpack_chunk_load__(chunkId);
+      const thenable = loadChunk(chunk);
       promises.push(thenable);
       // $FlowFixMe[method-unbinding]
-      const resolve = chunkCache.set.bind(chunkCache, chunkId, null);
+      const resolve = chunkCache.set.bind(chunkCache, chunk, null);
       thenable.then(resolve, ignoreReject);
-      chunkCache.set(chunkId, thenable);
+      chunkCache.set(chunk, thenable);
     } else if (entry !== null) {
       promises.push(entry);
     }

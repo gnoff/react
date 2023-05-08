@@ -51,3 +51,14 @@ export function dispatchHint(code: string, model: HintModel): void {
     }
   }
 }
+
+export function preinitModulesForSSR(href: string, crossOrigin: string | null) {
+  const dispatcher = ReactDOMCurrentDispatcher.current;
+  if (dispatcher) {
+    if (crossOrigin === null) {
+      dispatcher.preinit(href, {as: 'script'});
+    } else {
+      dispatcher.preinit(href, {as: 'script', crossOrigin});
+    }
+  }
+}

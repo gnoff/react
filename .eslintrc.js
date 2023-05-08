@@ -427,6 +427,10 @@ module.exports = {
       globals: {
         __webpack_chunk_load__: 'readonly',
         __webpack_require__: 'readonly',
+        __webpack_public_path__: 'readonly',
+        __webpack_nonce__: 'readonly',
+        __WEBPACK_FLIGHT_CROSS_ORIGIN_CREDENTIALS__: 'readonly',
+        __WEBPACK_FLIGHT_CROSS_ORIGIN_ANONYMOUS__: 'readonly',
       },
     },
     {

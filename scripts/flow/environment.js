@@ -75,6 +75,10 @@ declare module 'EventListener' {
 
 declare function __webpack_chunk_load__(id: string): Promise<mixed>;
 declare function __webpack_require__(id: string): any;
+declare var __webpack_public_path__: ?string;
+declare var __webpack_nonce__: ?string;
+declare var __WEBPACK_FLIGHT_CROSS_ORIGIN_CREDENTIALS__: boolean;
+declare var __WEBPACK_FLIGHT_CROSS_ORIGIN_ANONYMOUS__: boolean;
 
 declare module 'fs/promises' {
   declare var access: (path: string, mode?: number) => Promise<void>;

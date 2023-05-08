@@ -7,5 +7,6 @@
  * @flow
  */
 
-export * from 'react-server-native-relay/src/ReactFlightClientConfigNativeRelay';
-export * from 'react-client/src/ReactFlightClientConfigNoStream';
+export function loadChunk(chunkFile: string): Promise<mixed> {
+  return Promise.resolve();
+}

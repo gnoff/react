@@ -13,7 +13,17 @@ import type {
   RejectedThenable,
 } from 'shared/ReactTypes';
 
-export type SSRManifest = {
+import {preinitModulesForSSR} from 'react-client/src/ReactFlightClientConfig';
+
+export type BundleConfig = {
+  chunkLoading: {
+    prefix: string,
+    crossOrigin: string | null,
+  },
+  ssrManifest: SSRManifest,
+};
+
+type SSRManifest = {
   [clientId: string]: {
     [clientExportName: string]: ClientReference<any>,
   },
@@ -36,10 +46,11 @@ export opaque type ClientReference<T> = {
 };
 
 export function resolveClientReference<T>(
-  bundlerConfig: SSRManifest,
+  bundlerConfig: BundleConfig,
   metadata: ClientReferenceMetadata,
 ): ClientReference<T> {
-  const moduleExports = bundlerConfig[metadata.id];
+  const ssrManifest = bundlerConfig.ssrManifest;
+  const moduleExports = ssrManifest[metadata.id];
   let resolvedModuleData = moduleExports[metadata.name];
   let name;
   if (resolvedModuleData) {
@@ -58,6 +69,14 @@ export function resolveClientReference<T>(
     }
     name = metadata.name;
   }
+
+  const prefix = bundlerConfig.chunkLoading.prefix;
+  const crossOrigin = bundlerConfig.chunkLoading.crossOrigin;
+  const chunkFiles = metadata.chunks;
+  for (let i = 0; i < chunkFiles.length; i++) {
+    preinitModulesForSSR(prefix + chunkFiles[i], crossOrigin);
+  }
+
   return {
     specifier: resolvedModuleData.specifier,
     name: name,

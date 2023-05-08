@@ -20,6 +20,7 @@ import {
   WebpackError,
   Compilation,
   AsyncDependenciesBlock,
+  DefinePlugin,
 } from 'webpack';
 
 import isArray from 'shared/isArray';
@@ -56,7 +57,7 @@ type Options = {
   clientReferences?: ClientReferencePath | $ReadOnlyArray<ClientReferencePath>,
   chunkName?: string,
   clientManifestFilename?: string,
-  ssrManifestFilename?: string,
+  ssrBundleConfigFilename?: string,
 };
 
 const PLUGIN_NAME = 'React Server Plugin';
@@ -65,7 +66,7 @@ export default class ReactFlightWebpackPlugin {
   clientReferences: $ReadOnlyArray<ClientReferencePath>;
   chunkName: string;
   clientManifestFilename: string;
-  ssrManifestFilename: string;
+  ssrBundleConfigFilename: string;
 
   constructor(options: Options) {
     if (!options || typeof options.isServer !== 'boolean') {
@@ -103,14 +104,31 @@ export default class ReactFlightWebpackPlugin {
     }
     this.clientManifestFilename =
       options.clientManifestFilename || 'react-client-manifest.json';
-    this.ssrManifestFilename =
-      options.ssrManifestFilename || 'react-ssr-manifest.json';
+    this.ssrBundleConfigFilename =
+      options.ssrBundleConfigFilename || 'react-ssr-bundle-config.json';
   }
 
   apply(compiler: any) {
     const _this = this;
     let resolvedClientReferences;
     let clientFileNameFound = false;
+
+    const configuredCrossOriginLoading =
+      compiler.options.output.crossOriginLoading;
+    const crossOriginMode =
+      typeof configuredCrossOriginLoading === 'string'
+        ? configuredCrossOriginLoading === 'use-credentials'
+          ? configuredCrossOriginLoading
+          : 'anonymous'
+        : null;
+
+    const definePlugin = new DefinePlugin({
+      __WEBPACK_FLIGHT_CROSS_ORIGIN_CREDENTIALS__:
+        crossOriginMode === 'use-credentials' ? 'true' : 'false',
+      __WEBPACK_FLIGHT_CROSS_ORIGIN_ANONYMOUS__:
+        crossOriginMode === 'anonymous' ? 'true' : 'false',
+    });
+    definePlugin.apply(compiler);
 
     // Find all client files on the file system
     compiler.hooks.beforeCompile.tapAsync(
@@ -228,14 +246,39 @@ export default class ReactFlightWebpackPlugin {
           const clientManifest: {
             [string]: {chunks: $FlowFixMe, id: string, name: string},
           } = {};
-          const ssrManifest: {
-            [string]: {
-              [string]: {specifier: string, name: string},
+          const ssrConfig: {
+            chunkLoading: {
+              prefix: string,
+              crossOrigin: string | null,
             },
-          } = {};
+            ssrManifest: {
+              [string]: {
+                [string]: {
+                  specifier: string,
+                  name: string,
+                },
+              },
+            },
+          } = {
+            chunkLoading: {
+              prefix: compilation.outputOptions.publicPath || '',
+              crossOrigin: crossOriginMode,
+            },
+            ssrManifest: {},
+          };
+          const ssrManifest = ssrConfig.ssrManifest;
+          const buildTimePublicPath =
+            compilation.outputOptions.publicPath || '';
           compilation.chunkGroups.forEach(function (chunkGroup) {
-            const chunkIds = chunkGroup.chunks.map(function (c) {
-              return c.id;
+            const chunkIds = [];
+            const chunkFiles = [];
+            chunkGroup.chunks.forEach(function (c) {
+              chunkIds.push(c.id);
+              c.files.forEach(fileName => {
+                if (fileName.endsWith('.js')) {
+                  chunkFiles.push(fileName);
+                }
+              });
             });
 
             // $FlowFixMe[missing-local-annot]
@@ -251,12 +294,15 @@ export default class ReactFlightWebpackPlugin {
 
               if (href !== undefined) {
                 const ssrExports: {
-                  [string]: {specifier: string, name: string},
+                  [string]: {
+                    specifier: string,
+                    name: string,
+                  },
                 } = {};
 
                 clientManifest[href] = {
                   id,
-                  chunks: chunkIds,
+                  chunks: chunkFiles,
                   name: '*',
                 };
                 ssrExports['*'] = {
@@ -276,6 +322,7 @@ export default class ReactFlightWebpackPlugin {
                   name: '',
                 };
                 ssrExports[''] = {
+                  ssrChunks: chunkFiles,
                   specifier: href,
                   name: '',
                 };
@@ -292,6 +339,7 @@ export default class ReactFlightWebpackPlugin {
                       name: name,
                     };
                     ssrExports[name] = {
+                      ssrChunks: chunkFiles,
                       specifier: href,
                       name: name,
                     };
@@ -326,9 +374,9 @@ export default class ReactFlightWebpackPlugin {
             _this.clientManifestFilename,
             new sources.RawSource(clientOutput, false),
           );
-          const ssrOutput = JSON.stringify(ssrManifest, null, 2);
+          const ssrOutput = JSON.stringify(ssrConfig, null, 2);
           compilation.emitAsset(
-            _this.ssrManifestFilename,
+            _this.ssrBundleConfigFilename,
             new sources.RawSource(ssrOutput, false),
           );
         },

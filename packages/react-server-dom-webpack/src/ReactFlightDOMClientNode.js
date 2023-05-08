@@ -11,7 +11,7 @@ import type {Thenable} from 'shared/ReactTypes.js';
 
 import type {Response} from 'react-client/src/ReactFlightClientStream';
 
-import type {SSRManifest} from 'react-client/src/ReactFlightClientConfig';
+import type {BundleConfig} from 'react-client/src/ReactFlightClientConfig';
 
 import type {Readable} from 'stream';
 
@@ -41,9 +41,9 @@ export function createServerReference<A: Iterable<any>, T>(
 
 function createFromNodeStream<T>(
   stream: Readable,
-  moduleMap: $NonMaybeType<SSRManifest>,
+  bundleConfig: $NonMaybeType<BundleConfig>,
 ): Thenable<T> {
-  const response: Response = createResponse(moduleMap, noServerCall);
+  const response: Response = createResponse(bundleConfig, noServerCall);
   stream.on('data', chunk => {
     if (typeof chunk === 'string') {
       processStringChunk(response, chunk, 0);

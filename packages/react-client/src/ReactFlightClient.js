@@ -15,7 +15,7 @@ import type {
   ClientReferenceMetadata,
   UninitializedModel,
   Response,
-  SSRManifest,
+  BundleConfig,
 } from './ReactFlightClientConfig';
 
 import type {HintModel} from 'react-server/src/ReactFlightServerConfig';
@@ -159,7 +159,7 @@ Chunk.prototype.then = function <T>(
 };
 
 export type ResponseBase = {
-  _bundlerConfig: SSRManifest,
+  _bundlerConfig: BundleConfig,
   _callServer: CallServerCallback,
   _chunks: Map<number, SomeChunk<any>>,
   ...
@@ -654,7 +654,7 @@ function missingCall() {
 }
 
 export function createResponse(
-  bundlerConfig: SSRManifest,
+  bundlerConfig: BundleConfig,
   callServer: void | CallServerCallback,
 ): ResponseBase {
   const chunks: Map<number, SomeChunk<any>> = new Map();

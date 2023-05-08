@@ -19,6 +19,12 @@ import type {
 import type {ReactScopeInstance} from 'shared/ReactTypes';
 import type {AncestorInfoDev} from './validateDOMNesting';
 import type {FormStatus} from 'react-dom-bindings/src/shared/ReactDOMFormActions';
+import type {
+  PrefetchDNSOptions,
+  PreconnectOptions,
+  PreloadOptions,
+  PreinitOptions,
+} from 'react-dom/src/ReactDOMDispatcher';
 
 import {NotPending} from 'react-dom-bindings/src/shared/ReactDOMFormActions';
 import {getCurrentRootHostContainer} from 'react-reconciler/src/ReactFiberHostContext';
@@ -2112,7 +2118,7 @@ function prefetchDNS(href: string, options?: mixed) {
   preconnectAs('dns-prefetch', null, href);
 }
 
-function preconnect(href: string, options: ?{crossOrigin?: string}) {
+function preconnect(href: string, options?: ?PreconnectOptions) {
   if (!enableFloat) {
     return;
   }
@@ -2143,12 +2149,6 @@ function preconnect(href: string, options: ?{crossOrigin?: string}) {
   preconnectAs('preconnect', crossOrigin, href);
 }
 
-type PreloadOptions = {
-  as: string,
-  crossOrigin?: string,
-  integrity?: string,
-  type?: string,
-};
 function preload(href: string, options: PreloadOptions) {
   if (!enableFloat) {
     return;
@@ -2223,13 +2223,6 @@ function preloadPropsFromPreloadOptions(
   };
 }
 
-type PreinitOptions = {
-  as: string,
-  precedence?: string,
-  crossOrigin?: string,
-  integrity?: string,
-  nonce?: string,
-};
 function preinit(href: string, options: PreinitOptions) {
   if (!enableFloat) {
     return;

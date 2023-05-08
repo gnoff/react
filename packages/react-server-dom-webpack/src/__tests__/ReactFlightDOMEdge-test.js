@@ -75,6 +75,13 @@ describe('ReactFlightDOMEdge', () => {
         '*': ssrMetadata,
       },
     };
+    const bundleConfig = {
+      chunkLoading: {
+        prefix: '',
+        crossOrigin: null,
+      },
+      ssrManifest: translationMap,
+    };
 
     function App() {
       return <ClientComponentOnTheClient />;
@@ -85,7 +92,7 @@ describe('ReactFlightDOMEdge', () => {
       webpackMap,
     );
     const response = ReactServerDOMClient.createFromReadableStream(stream, {
-      moduleMap: translationMap,
+      bundleConfig,
     });
 
     function ClientRoot() {

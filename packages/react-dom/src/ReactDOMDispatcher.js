@@ -25,7 +25,7 @@ export type PreinitOptions = {
 
 export type HostDispatcher = {
   prefetchDNS: (href: string, options?: ?PrefetchDNSOptions) => void,
-  preconnect: (href: string, options: ?PreconnectOptions) => void,
+  preconnect: (href: string, options?: ?PreconnectOptions) => void,
   preload: (href: string, options: PreloadOptions) => void,
   preinit: (href: string, options: PreinitOptions) => void,
 };

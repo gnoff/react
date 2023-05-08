@@ -8,6 +8,18 @@
  */
 
 import type {ReactNodeList, ReactCustomFormAction} from 'shared/ReactTypes';
+import type {FormStatus} from '../shared/ReactDOMFormActions';
+import type {
+  Destination,
+  Chunk,
+  PrecomputedChunk,
+} from 'react-server/src/ReactServerStreamConfig';
+import type {
+  PrefetchDNSOptions,
+  PreconnectOptions,
+  PreloadOptions,
+  PreinitOptions,
+} from 'react-dom/src/ReactDOMDispatcher';
 
 import {
   checkHtmlStringCoercion,
@@ -24,14 +36,6 @@ import {
   enableFormActions,
   enableFizzExternalRuntime,
 } from 'shared/ReactFeatureFlags';
-
-import type {
-  Destination,
-  Chunk,
-  PrecomputedChunk,
-} from 'react-server/src/ReactServerStreamConfig';
-
-import type {FormStatus} from '../shared/ReactDOMFormActions';
 
 import {
   writeChunk,
@@ -4966,7 +4970,7 @@ function getResourceKey(as: string, href: string): string {
   return `[${as}]${href}`;
 }
 
-export function prefetchDNS(href: string, options?: mixed) {
+export function prefetchDNS(href: string, options?: ?PrefetchDNSOptions) {
   if (!enableFloat) {
     return;
   }
@@ -5025,7 +5029,7 @@ export function prefetchDNS(href: string, options?: mixed) {
   }
 }
 
-export function preconnect(href: string, options?: ?{crossOrigin?: string}) {
+export function preconnect(href: string, options?: ?PreconnectOptions) {
   if (!enableFloat) {
     return;
   }
@@ -5088,12 +5092,6 @@ export function preconnect(href: string, options?: ?{crossOrigin?: string}) {
   }
 }
 
-type PreloadOptions = {
-  as: string,
-  crossOrigin?: string,
-  integrity?: string,
-  type?: string,
-};
 export function preload(href: string, options: PreloadOptions) {
   if (!enableFloat) {
     return;
@@ -5232,13 +5230,6 @@ export function preload(href: string, options: PreloadOptions) {
   }
 }
 
-type PreinitOptions = {
-  as: string,
-  precedence?: string,
-  crossOrigin?: string,
-  integrity?: string,
-  nonce?: string,
-};
 function preinit(href: string, options: PreinitOptions): void {
   if (!enableFloat) {
     return;

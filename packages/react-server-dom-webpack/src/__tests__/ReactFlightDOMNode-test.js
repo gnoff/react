@@ -77,6 +77,13 @@ describe('ReactFlightDOMNode', () => {
         '*': ssrMetadata,
       },
     };
+    const bundlerConfig = {
+      chunkLoading: {
+        prefix: '/',
+        crossOrigin: null,
+      },
+      ssrManifest: translationMap,
+    };
 
     function App() {
       return <ClientComponentOnTheClient />;
@@ -89,7 +96,7 @@ describe('ReactFlightDOMNode', () => {
     const readable = new Stream.PassThrough();
     const response = ReactServerDOMClient.createFromNodeStream(
       readable,
-      translationMap,
+      bundlerConfig,
     );
 
     stream.pipe(readable);
