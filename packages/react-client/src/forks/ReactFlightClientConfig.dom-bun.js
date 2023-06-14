@@ -11,6 +11,7 @@ export * from 'react-client/src/ReactFlightClientConfigBrowser';
 export * from 'react-dom-bindings/src/shared/ReactFlightClientConfigDOM';
 
 export type Response = any;
+export opaque type ChunkLoading = mixed;
 export opaque type SSRManifest = mixed;
 export opaque type ServerManifest = mixed;
 export opaque type ServerReferenceId = string;

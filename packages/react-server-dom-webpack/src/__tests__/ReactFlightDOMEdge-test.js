@@ -22,6 +22,7 @@ global.setTimeout = cb => cb();
 let clientExports;
 let webpackMap;
 let webpackModules;
+let webpackChunkLoading;
 let React;
 let ReactDOMServer;
 let ReactServerDOMServer;
@@ -41,6 +42,9 @@ describe('ReactFlightDOMEdge', () => {
     clientExports = WebpackMock.clientExports;
     webpackMap = WebpackMock.webpackMap;
     webpackModules = WebpackMock.webpackModules;
+    webpackChunkLoading = {
+      perfix: '...prefix/',
+    };
     React = require('react');
     ReactDOMServer = require('react-dom/server.edge');
     ReactServerDOMServer = require('react-server-dom-webpack/server.edge');
@@ -107,7 +111,7 @@ describe('ReactFlightDOMEdge', () => {
     // Instead, we have to provide a translation from the client meta data to the SSR
     // meta data.
     const ssrMetadata = webpackMap[ClientComponentOnTheServer.$$id];
-    const translationMap = {
+    const moduleMap = {
       [clientId]: {
         '*': ssrMetadata,
       },
@@ -121,9 +125,13 @@ describe('ReactFlightDOMEdge', () => {
       <App />,
       webpackMap,
     );
-    const response = ReactServerDOMClient.createFromReadableStream(stream, {
-      moduleMap: translationMap,
-    });
+    const response = ReactServerDOMClient.createFromReadableStream(
+      stream,
+      webpackChunkLoading,
+      {
+        moduleMap,
+      },
+    );
 
     function ClientRoot() {
       return use(response);
@@ -154,7 +162,10 @@ describe('ReactFlightDOMEdge', () => {
     expect(serializedContent).not.toContain('\\"');
     expect(serializedContent).toContain('\t');
 
-    const result = await ReactServerDOMClient.createFromReadableStream(stream2);
+    const result = await ReactServerDOMClient.createFromReadableStream(
+      stream2,
+      webpackChunkLoading,
+    );
     // Should still match the result when parsed
     expect(result.text).toBe(testString);
     expect(result.text2).toBe(testString2);

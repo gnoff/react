@@ -25,6 +25,7 @@
 
 declare var $$$config: any;
 
+export opaque type ChunkLoading = mixed;
 export opaque type SSRManifest = mixed;
 export opaque type ServerManifest = mixed;
 export opaque type ServerReferenceId = string;
@@ -36,6 +37,8 @@ export const preloadModule = $$$config.preloadModule;
 export const requireModule = $$$config.requireModule;
 export const dispatchHint = $$$config.dispatchHint;
 export const usedWithSSR = true;
+export const prepareDestinationForModule =
+  $$$config.prepareDestinationForModule;
 
 export opaque type Source = mixed;
 

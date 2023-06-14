@@ -84,6 +84,7 @@ module.exports = [
       'react-server-dom-webpack/server.browser',
       'react-server-dom-webpack/src/ReactFlightDOMClientBrowser.js', // react-server-dom-webpack/client.browser
       'react-server-dom-webpack/src/ReactFlightDOMServerBrowser.js', // react-server-dom-webpack/server.browser
+      'react-server-dom-webpack/src/ReactFlightClientConfigBundlerWebpack.js',
       'react-devtools',
       'react-devtools-core',
       'react-devtools-shell',
@@ -115,6 +116,7 @@ module.exports = [
       'react-server-dom-webpack/server.edge',
       'react-server-dom-webpack/src/ReactFlightDOMClientEdge.js', // react-server-dom-webpack/client.edge
       'react-server-dom-webpack/src/ReactFlightDOMServerEdge.js', // react-server-dom-webpack/server.edge
+      'react-server-dom-webpack/src/ReactFlightClientConfigBundlerWebpack.js',
       'react-devtools',
       'react-devtools-core',
       'react-devtools-shell',
@@ -147,6 +149,7 @@ module.exports = [
       'react-server-dom-webpack/src/ReactFlightDOMServerNode.js', // react-server-dom-webpack/server.node
       'react-server-dom-webpack/node-register',
       'react-server-dom-webpack/src/ReactFlightWebpackNodeRegister.js',
+      'react-server-dom-webpack/src/ReactFlightClientConfigBundlerWebpack.js',
       'react-devtools',
       'react-devtools-core',
       'react-devtools-shell',
@@ -205,6 +208,7 @@ module.exports = [
       'react-dom/src/server/ReactDOMLegacyServerNode.js', // react-dom/server.node
       'react-dom/src/server/ReactDOMLegacyServerNode.classic.fb.js',
       'react-dom/src/server/ReactDOMLegacyServerNodeStream.js', // file indirection to support partial forking of some methods in *Node
+      'react-server-dom-webpack/src/ReactFlightClientConfigBundlerWebpack.js',
       'shared/ReactDOMSharedInternals',
     ],
     isFlowTyped: true,

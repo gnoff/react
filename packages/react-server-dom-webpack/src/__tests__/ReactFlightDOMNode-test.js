@@ -16,6 +16,7 @@ global.setImmediate = cb => cb();
 let clientExports;
 let webpackMap;
 let webpackModules;
+let webpackChunkLoading;
 let React;
 let ReactDOMServer;
 let ReactServerDOMServer;
@@ -36,6 +37,9 @@ describe('ReactFlightDOMNode', () => {
     clientExports = WebpackMock.clientExports;
     webpackMap = WebpackMock.webpackMap;
     webpackModules = WebpackMock.webpackModules;
+    webpackChunkLoading = {
+      prefix: '...prefix/',
+    };
     React = require('react');
     ReactDOMServer = require('react-dom/server.node');
     ReactServerDOMServer = require('react-server-dom-webpack/server.node');
@@ -78,7 +82,7 @@ describe('ReactFlightDOMNode', () => {
     // Instead, we have to provide a translation from the client meta data to the SSR
     // meta data.
     const ssrMetadata = webpackMap[ClientComponentOnTheServer.$$id];
-    const translationMap = {
+    const moduleMap = {
       [clientId]: {
         '*': ssrMetadata,
       },
@@ -95,7 +99,8 @@ describe('ReactFlightDOMNode', () => {
     const readable = new Stream.PassThrough();
     const response = ReactServerDOMClient.createFromNodeStream(
       readable,
-      translationMap,
+      webpackChunkLoading,
+      moduleMap,
     );
 
     stream.pipe(readable);
@@ -121,7 +126,10 @@ describe('ReactFlightDOMNode', () => {
     const readable = new Stream.PassThrough();
 
     const stringResult = readResult(readable);
-    const parsedResult = ReactServerDOMClient.createFromNodeStream(readable);
+    const parsedResult = ReactServerDOMClient.createFromNodeStream(
+      readable,
+      webpackChunkLoading,
+    );
 
     stream.pipe(readable);
 

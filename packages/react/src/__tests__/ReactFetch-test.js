@@ -37,6 +37,13 @@ let ReactServerDOMClient;
 let use;
 let cache;
 
+async function act(callback) {
+  await callback();
+  await new Promise(resolve => {
+    setImmediate(resolve);
+  });
+}
+
 describe('ReactFetch', () => {
   beforeEach(() => {
     jest.resetModules();
@@ -48,7 +55,7 @@ describe('ReactFetch', () => {
     }
 
     React = require('react');
-    ReactServerDOMServer = require('react-server-dom-webpack/server.browser');
+    ReactServerDOMServer = require('react-server-dom-webpack/server.edge');
     ReactServerDOMClient = require('react-server-dom-webpack/client');
     use = React.use;
     cache = React.cache;
@@ -70,13 +77,17 @@ describe('ReactFetch', () => {
   });
 
   // @gate enableFetchInstrumentation && enableCache
-  it('can dedupe fetches inside of render', async () => {
+  fit('can dedupe fetches inside of render', async () => {
     function Component() {
       const response = use(fetch('world'));
       const text = use(response.text());
       return text;
     }
-    expect(await render(Component)).toMatchInlineSnapshot(`"GET world []"`);
+    let result;
+    await act(() => {
+      result = render(Component);
+    });
+    expect(result).toMatchInlineSnapshot(`"GET world []"`);
     expect(fetchCount).toBe(1);
   });
 
