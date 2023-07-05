@@ -13,7 +13,7 @@ import type {
   RejectedThenable,
 } from 'shared/ReactTypes';
 
-export type SSRManifest = {
+export type SSRManifest = null | {
   [clientId: string]: {
     [clientExportName: string]: ClientReference<any>,
   },
@@ -41,6 +41,12 @@ export function resolveClientReference<T>(
   bundlerConfig: SSRManifest,
   metadata: ClientReferenceMetadata,
 ): ClientReference<T> {
+  if (!bundlerConfig) {
+    // @TODO this should probably be forked and put into a config for just NodeWeb since the module map is always required for Node
+    throw new Error(
+      'React is running in unbundled mode on the server and requires a module map to describe how to resolve client references. One was not provided. This is likely a bug in the React Server Components bundler.',
+    );
+  }
   const moduleExports = bundlerConfig[metadata.id];
   let resolvedModuleData = moduleExports[metadata.name];
   let name;

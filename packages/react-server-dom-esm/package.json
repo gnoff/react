@@ -34,6 +34,7 @@
     },
     "./server.node": "./server.node.js",
     "./node-loader": "./esm/react-server-dom-esm-node-loader.production.min.js",
+    "./entries/*": "./entries/*.js",
     "./src/*": "./src/*.js",
     "./package.json": "./package.json"
   },

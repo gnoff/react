@@ -14,7 +14,7 @@ let React;
 let ReactDOMFizzServer;
 let Suspense;
 
-describe('ReactDOMFizzServerBrowser', () => {
+describe('ReactDOMFizzServerNodeWeb', () => {
   beforeEach(() => {
     jest.resetModules();
     React = require('react');

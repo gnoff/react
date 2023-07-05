@@ -17,7 +17,7 @@ module.exports = [
       'react-dom/server-rendering-stub',
       'react-dom/unstable_server-external-runtime',
       'react-server-dom-webpack/server.node.unbundled',
-      'react-server-dom-webpack/client.node.unbundled',
+      'react-server-dom-webpack/entries/client.node.unbundled', // react-server-dom-webpack/client.node.unbundled
     ],
     paths: [
       'react-dom',
@@ -30,7 +30,9 @@ module.exports = [
       'react-dom/src/server/ReactDOMFizzServerNode.js', // react-dom/server.node
       'react-dom/src/server/ReactDOMFizzStaticNode.js',
       'react-server-dom-webpack',
-      'react-server-dom-webpack/client.node.unbundled',
+      'react-server-dom-webpack/entries/client.node', // react-server-dom-webpack/client.node
+      'react-server-dom-webpack/entries/client.node.unbundled', // react-server-dom-webpack/client.node.unbundled
+      'react-server-dom-webpack/src/ReactFlightDOMClientNode.js', // react-server-dom-webpack/client.node.unbundled
       'react-server-dom-webpack/server',
       'react-server-dom-webpack/server.node.unbundled',
       'react-server-dom-webpack/src/ReactFlightDOMServerNode.js', // react-server-dom-webpack/server.node
@@ -46,7 +48,10 @@ module.exports = [
   },
   {
     shortName: 'dom-nodeweb',
-    entryPoints: ['react-dom/src/server/ReactDOMFizzServerNodeWeb.js'],
+    entryPoints: [
+      'react-dom/src/server/ReactDOMFizzServerNodeWeb.js',
+      'react-server-dom-webpack/entries/client.nodeweb.unbundled', // react-server-dom-webpack/client.node.unbundled
+    ],
     paths: [
       'react-dom',
       'react-dom-bindings',
@@ -55,6 +60,8 @@ module.exports = [
       'react-dom/server.node',
       'react-dom/src/server/ReactDOMFizzServerNodeWeb.js',
       'react-server-dom-webpack',
+      'react-server-dom-webpack/entries/client.nodeweb.unbundled', // react-server-dom-webpack/client.node.unbundled
+      'react-server-dom-webpack/src/ReactFlightDOMClientNodeWeb.js', // react-server-dom-webpack/client.node.unbundled
       'react-devtools',
       'react-devtools-core',
       'react-devtools-shell',
@@ -149,7 +156,7 @@ module.exports = [
     shortName: 'dom-node-webpack',
     entryPoints: [
       'react-server-dom-webpack/server.node',
-      'react-server-dom-webpack/client.node',
+      'react-server-dom-webpack/entries/client.node', // react-server-dom-webpack/client.node
     ],
     paths: [
       'react-dom',
@@ -162,9 +169,39 @@ module.exports = [
       'react-dom/src/server/ReactDOMFizzServerNode.js', // react-dom/server.node
       'react-dom/src/server/ReactDOMFizzStaticNode.js',
       'react-server-dom-webpack',
-      'react-server-dom-webpack/client.node',
+      'react-server-dom-webpack/entries/client.node', // react-server-dom-webpack/client.node
+      'react-server-dom-webpack/src/ReactFlightDOMClientNode.js', // react-server-dom-webpack/client.node.unbundled
       'react-server-dom-webpack/server',
       'react-server-dom-webpack/server.node',
+      'react-server-dom-webpack/src/ReactFlightDOMServerNode.js', // react-server-dom-webpack/server.node
+      'react-devtools',
+      'react-devtools-core',
+      'react-devtools-shell',
+      'react-devtools-shared',
+      'react-interactions',
+      'shared/ReactDOMSharedInternals',
+    ],
+    isFlowTyped: true,
+    isServerSupported: true,
+  },
+  {
+    shortName: 'dom-nodeweb-webpack',
+    entryPoints: [
+      'react-server-dom-webpack/server.node',
+      'react-server-dom-webpack/entries/client.nodeweb', // react-server-dom-webpack/client.node
+    ],
+    paths: [
+      'react-dom',
+      'react-dom-bindings',
+      'react-dom/client',
+      'react-dom/server',
+      'react-dom/server.node',
+      'react-dom/static',
+      'react-dom/static.node',
+      'react-dom/src/server/ReactDOMFizzServerNodeWeb.js', // react-dom/server.node
+      'react-server-dom-webpack',
+      'react-server-dom-webpack/entries/client.nodeweb', // react-server-dom-webpack/client.node
+      'react-server-dom-webpack/src/ReactFlightDOMClientNodeWeb.js', // react-server-dom-webpack/client.node.unbundled
       'react-server-dom-webpack/src/ReactFlightDOMServerNode.js', // react-server-dom-webpack/server.node
       'react-devtools',
       'react-devtools-core',
@@ -181,7 +218,7 @@ module.exports = [
     entryPoints: [
       'react-server-dom-esm/client.browser',
       'react-server-dom-esm/server.node',
-      'react-server-dom-esm/client.node',
+      'react-server-dom-esm/entries/client.node',
     ],
     paths: [
       'react-dom',
@@ -194,11 +231,35 @@ module.exports = [
       'react-dom/src/server/ReactDOMFizzServerNode.js', // react-dom/server.node
       'react-dom/src/server/ReactDOMFizzStaticNode.js',
       'react-server-dom-esm',
+      'react-server-dom-esm/client',
       'react-server-dom-esm/client.browser',
-      'react-server-dom-esm/client.node',
+      'react-server-dom-esm/entries/client.node',
       'react-server-dom-esm/server',
       'react-server-dom-esm/server.node',
       'react-server-dom-esm/src/ReactFlightDOMServerNode.js', // react-server-dom-webpack/server.node
+      'react-devtools',
+      'react-devtools-core',
+      'react-devtools-shell',
+      'react-devtools-shared',
+      'react-interactions',
+      'shared/ReactDOMSharedInternals',
+    ],
+    isFlowTyped: true,
+    isServerSupported: true,
+  },
+  {
+    shortName: 'dom-nodeweb-esm',
+    entryPoints: ['react-server-dom-esm/entries/client.nodeweb'],
+    paths: [
+      'react-dom',
+      'react-dom-bindings',
+      'react-dom/client',
+      'react-dom/server',
+      'react-dom/server.node',
+      'react-dom/src/server/ReactDOMFizzServerNodeWeb.js', // react-dom/server.node
+      'react-server-dom-esm',
+      'react-server-dom-esm/entries/client.nodeweb', // react-server-dom-esm/client.node
+      'react-server-dom-esm/src/ReactFlightDOMServerNodeWeb.js', // react-server-dom-esm/server.node
       'react-devtools',
       'react-devtools-core',
       'react-devtools-shell',

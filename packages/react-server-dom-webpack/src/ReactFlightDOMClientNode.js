@@ -33,7 +33,7 @@ function noServerCall() {
   );
 }
 
-export function createServerReference<A: Iterable<any>, T>(
+function createServerReference<A: Iterable<any>, T>(
   id: any,
   callServer: any,
 ): (...A) => Promise<T> {
@@ -55,4 +55,4 @@ function createFromNodeStream<T>(
   return getRoot(response);
 }
 
-export {createFromNodeStream};
+export {createFromNodeStream, createServerReference};
