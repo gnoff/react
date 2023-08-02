@@ -6,6 +6,7 @@
  *
  * @flow
  */
+
 import type {Request} from 'react-server/src/ReactFizzServer';
 
 export * from 'react-dom-bindings/src/server/ReactFizzConfigDOM';

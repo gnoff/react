@@ -9,6 +9,6 @@
 
 // This should really have a Node and a Browser fork but to avoid too many configs we limit this to build the same for both
 export * from 'react-client/src/ReactFlightClientConfigBrowser';
-export * from 'react-server-dom-esm/src/ReactFlightClientConfigESMBundler';
+export * from 'react-server-dom/src/ReactFlightClientBundlerTargetConfig';
 export * from 'react-dom-bindings/src/shared/ReactFlightClientConfigDOM';
 export const usedWithSSR = true;

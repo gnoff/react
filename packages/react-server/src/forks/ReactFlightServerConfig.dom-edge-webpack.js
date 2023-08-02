@@ -6,9 +6,10 @@
  *
  * @flow
  */
+
 import type {Request} from 'react-server/src/ReactFlightServer';
 
-export * from 'react-server-dom-webpack/src/ReactFlightServerConfigWebpackBundler';
+export * from 'react-server-dom/src/ReactFlightServerBundlerTargetConfig';
 export * from 'react-dom-bindings/src/server/ReactFlightServerConfigDOM';
 
 // For now, we get this from the global scope, but this will likely move to a module.

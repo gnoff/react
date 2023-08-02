@@ -43,7 +43,11 @@ function createFromNodeStream<T>(
   moduleRootPath: string,
   moduleBaseURL: string, // TODO: Used for preloading hints
 ): Thenable<T> {
-  const response: Response = createResponse(moduleRootPath, noServerCall);
+  const response: Response = createResponse(
+    moduleRootPath,
+    moduleBaseURL,
+    noServerCall,
+  );
   stream.on('data', chunk => {
     processBinaryChunk(response, chunk);
   });

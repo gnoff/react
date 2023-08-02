@@ -33,9 +33,11 @@ export type Options = {
   callServer?: CallServerCallback,
 };
 
-function createResponseFromOptions(options: void | Options) {
+function createResponseFromOptions(options: void | Options): FlightResponse {
+  const baseURL = options && options.moduleBaseURL ? options.moduleBaseURL : '';
   return createResponse(
-    options && options.moduleBaseURL ? options.moduleBaseURL : '',
+    baseURL, // For Module Loading
+    null,
     options && options.callServer ? options.callServer : undefined,
   );
 }

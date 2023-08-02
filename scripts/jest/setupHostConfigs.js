@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const inlinedHostConfigs = require('../shared/inlinedHostConfigs');
+const inlinedBundlerConfigs = require('../shared/inlinedBundlerConfigs');
 
 function resolveEntryFork(resolvedEntry, isFBBundle) {
   // Pick which entry point fork to use:
@@ -103,21 +104,39 @@ jest.mock('react-client/flight', () => {
   };
 });
 
-const configPaths = [
+const rendererConfigPaths = [
   'react-reconciler/src/ReactFiberConfig',
   'react-client/src/ReactFlightClientConfig',
   'react-server/src/ReactServerStreamConfig',
   'react-server/src/ReactFizzConfig',
   'react-server/src/ReactFlightServerConfig',
+  'react-server-dom-esm/src/ReactFlightClientBundlerConfig',
+  'react-server-dom-webpack/src/ReactFlightClientBundlerConfig',
 ];
 
-function mockAllConfigs(rendererInfo) {
-  configPaths.forEach(path => {
+function mockAllRendererConfigs(rendererInfo) {
+  rendererConfigPaths.forEach(path => {
     // We want the reconciler to pick up the host config for this renderer.
     jest.mock(path, () => {
       let idx = path.lastIndexOf('/');
       let forkPath = path.slice(0, idx) + '/forks' + path.slice(idx);
       return jest.requireActual(`${forkPath}.${rendererInfo.shortName}.js`);
+    });
+  });
+}
+
+const bundlerConfigPaths = [
+  'react-server-dom/src/ReactFlightClientBundlerTargetConfig',
+  'react-server-dom/src/ReactFlightServerBundlerTargetConfig',
+];
+
+function mockAllBundlerConfigs(bundlerInfo) {
+  bundlerConfigPaths.forEach(path => {
+    // We want the reconciler to pick up the host config for this renderer.
+    jest.mock(path, () => {
+      let idx = path.lastIndexOf('/');
+      let forkPath = path.slice(0, idx) + '/forks' + path.slice(idx);
+      return jest.requireActual(`${forkPath}.${bundlerInfo.shortName}.js`);
     });
   });
 }
@@ -131,8 +150,18 @@ inlinedHostConfigs.forEach(rendererInfo => {
     return;
   }
   rendererInfo.entryPoints.forEach(entryPoint => {
+    const bundlerInfo = inlinedBundlerConfigs.find(b => {
+      return (
+        rendererInfo.bundlers &&
+        rendererInfo.bundlers.includes(b.shortName) &&
+        b.entryPoints.includes(entryPoint)
+      );
+    });
     jest.mock(entryPoint, () => {
-      mockAllConfigs(rendererInfo);
+      mockAllRendererConfigs(rendererInfo);
+      if (bundlerInfo) {
+        mockAllBundlerConfigs(bundlerInfo);
+      }
       const resolvedEntryPoint = resolveEntryFork(
         require.resolve(entryPoint),
         global.__WWW__

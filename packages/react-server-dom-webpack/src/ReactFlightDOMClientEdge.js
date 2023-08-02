@@ -11,7 +11,7 @@ import type {Thenable} from 'shared/ReactTypes.js';
 
 import type {Response as FlightResponse} from 'react-client/src/ReactFlightClient';
 
-import type {SSRManifest} from './ReactFlightClientConfigWebpackBundler';
+import type {SSRManifest} from './ReactFlightClientBundlerConfig';
 
 import {
   createResponse,

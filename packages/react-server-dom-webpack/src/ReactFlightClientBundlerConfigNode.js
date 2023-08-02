@@ -60,6 +60,7 @@ export function resolveClientReference<T>(
     }
     name = metadata.name;
   }
+
   return {
     specifier: resolvedModuleData.specifier,
     name: name,

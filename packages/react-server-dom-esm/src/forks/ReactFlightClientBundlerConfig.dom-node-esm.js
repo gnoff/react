@@ -7,4 +7,5 @@
  * @flow
  */
 
-export * from 'react-server-dom-fb/src/ReactServerStreamConfigFB';
+export * from '../ReactFlightClientBundlerConfigESM';
+export * from '../ReactFlightClientBundlerConfigDestinationDownstream';

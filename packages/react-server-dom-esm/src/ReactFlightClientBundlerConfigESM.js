@@ -30,13 +30,19 @@ export opaque type ClientReference<T> = {
   name: string,
 };
 
+export function getSpecifierFromMetadata(
+  metadata: ClientReferenceMetadata,
+): string {
+  return metadata[0];
+}
+
 export function resolveClientReference<T>(
   bundlerConfig: SSRManifest,
   metadata: ClientReferenceMetadata,
 ): ClientReference<T> {
-  const baseURL = bundlerConfig;
+  const baseURLOrPath = bundlerConfig;
   return {
-    specifier: baseURL + metadata[0],
+    specifier: baseURLOrPath + metadata[0],
     name: metadata[1],
   };
 }

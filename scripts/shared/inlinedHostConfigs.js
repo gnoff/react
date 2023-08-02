@@ -18,6 +18,8 @@ module.exports = [
       'react-dom/unstable_server-external-runtime',
       'react-server-dom-webpack/server.node.unbundled',
       'react-server-dom-webpack/client.node.unbundled',
+      'react-server-dom-esm/server.node',
+      'react-server-dom-esm/client.node',
     ],
     paths: [
       'react-dom',
@@ -29,11 +31,18 @@ module.exports = [
       'react-dom/static.node',
       'react-dom/src/server/ReactDOMFizzServerNode.js', // react-dom/server.node
       'react-dom/src/server/ReactDOMFizzStaticNode.js',
-      'react-server-dom-webpack',
+      'react-server-dom/',
+      'react-server-dom-webpack/',
       'react-server-dom-webpack/client.node.unbundled',
       'react-server-dom-webpack/server',
       'react-server-dom-webpack/server.node.unbundled',
       'react-server-dom-webpack/src/ReactFlightDOMServerNode.js', // react-server-dom-webpack/server.node
+      'react-server-dom-esm/',
+      'react-server-dom-esm/client.node',
+      'react-server-dom-esm/server',
+      'react-server-dom-esm/server.node',
+      'react-server-dom-esm/src/ReactFlightDOMClientNode.js', // react-server-dom-webpack/client.node
+      'react-server-dom-esm/src/ReactFlightDOMServerNode.js', // react-server-dom-webpack/server.node
       'react-devtools',
       'react-devtools-core',
       'react-devtools-shell',
@@ -41,6 +50,7 @@ module.exports = [
       'react-interactions',
       'shared/ReactDOMSharedInternals',
     ],
+    bundlers: ['webpack', 'esm'],
     isFlowTyped: true,
     isServerSupported: true,
   },
@@ -68,6 +78,7 @@ module.exports = [
       'react-dom/unstable_server-external-runtime',
       'react-server-dom-webpack/server.browser',
       'react-server-dom-webpack/client.browser',
+      'react-server-dom-esm/client.browser',
     ],
     paths: [
       'react-dom',
@@ -78,18 +89,25 @@ module.exports = [
       'react-dom/unstable_testing',
       'react-dom/src/server/ReactDOMFizzServerBrowser.js', // react-dom/server.browser
       'react-dom/src/server/ReactDOMFizzStaticBrowser.js',
-      'react-server-dom-webpack',
+      'react-server-dom/',
+      'react-server-dom-webpack/',
       'react-server-dom-webpack/client',
       'react-server-dom-webpack/client.browser',
       'react-server-dom-webpack/server.browser',
       'react-server-dom-webpack/src/ReactFlightDOMClientBrowser.js', // react-server-dom-webpack/client.browser
       'react-server-dom-webpack/src/ReactFlightDOMServerBrowser.js', // react-server-dom-webpack/server.browser
+      'react-server-dom-webpack/src/ReactFlightClientBundlerConfigWebpack.js',
+      'react-server-dom-esm/',
+      'react-server-dom-esm/client',
+      'react-server-dom-esm/client.browser',
+      'react-server-dom-esm/src/ReactFlightDOMClientBrowser.js', // react-server-dom-esm/client.browser
       'react-devtools',
       'react-devtools-core',
       'react-devtools-shell',
       'react-devtools-shared',
       'shared/ReactDOMSharedInternals',
     ],
+    bundlers: ['webpack', 'esm'],
     isFlowTyped: true,
     isServerSupported: true,
   },
@@ -110,17 +128,20 @@ module.exports = [
       'react-dom/unstable_testing',
       'react-dom/src/server/ReactDOMFizzServerEdge.js', // react-dom/server.edge
       'react-dom/src/server/ReactDOMFizzStaticEdge.js',
-      'react-server-dom-webpack',
+      'react-server-dom/',
+      'react-server-dom-webpack/',
       'react-server-dom-webpack/client.edge',
       'react-server-dom-webpack/server.edge',
       'react-server-dom-webpack/src/ReactFlightDOMClientEdge.js', // react-server-dom-webpack/client.edge
       'react-server-dom-webpack/src/ReactFlightDOMServerEdge.js', // react-server-dom-webpack/server.edge
+      'react-server-dom-webpack/src/ReactFlightClientBundlerConfigWebpack.js',
       'react-devtools',
       'react-devtools-core',
       'react-devtools-shell',
       'react-devtools-shared',
       'shared/ReactDOMSharedInternals',
     ],
+    bundlers: ['webpack'],
     isFlowTyped: true,
     isServerSupported: true,
   },
@@ -140,13 +161,16 @@ module.exports = [
       'react-dom/static.node',
       'react-dom/src/server/ReactDOMFizzServerNode.js', // react-dom/server.node
       'react-dom/src/server/ReactDOMFizzStaticNode.js',
-      'react-server-dom-webpack',
+      'react-server-dom/',
+      'react-server-dom-webpack/',
       'react-server-dom-webpack/client.node',
       'react-server-dom-webpack/server',
       'react-server-dom-webpack/server.node',
+      'react-server-dom-webpack/src/ReactFlightDOMClientNode.js', // react-server-dom-webpack/client.node
       'react-server-dom-webpack/src/ReactFlightDOMServerNode.js', // react-server-dom-webpack/server.node
       'react-server-dom-webpack/node-register',
       'react-server-dom-webpack/src/ReactFlightWebpackNodeRegister.js',
+      'react-server-dom-webpack/src/ReactFlightClientBundlerConfigWebpack.js',
       'react-devtools',
       'react-devtools-core',
       'react-devtools-shell',
@@ -154,13 +178,13 @@ module.exports = [
       'react-interactions',
       'shared/ReactDOMSharedInternals',
     ],
+    bundlers: ['webpack'],
     isFlowTyped: true,
     isServerSupported: true,
   },
   {
     shortName: 'dom-node-esm',
     entryPoints: [
-      'react-server-dom-esm/client.browser',
       'react-server-dom-esm/server.node',
       'react-server-dom-esm/client.node',
     ],
@@ -174,11 +198,12 @@ module.exports = [
       'react-dom/static.node',
       'react-dom/src/server/ReactDOMFizzServerNode.js', // react-dom/server.node
       'react-dom/src/server/ReactDOMFizzStaticNode.js',
-      'react-server-dom-esm',
-      'react-server-dom-esm/client.browser',
+      'react-server-dom/',
+      'react-server-dom-esm/',
       'react-server-dom-esm/client.node',
       'react-server-dom-esm/server',
       'react-server-dom-esm/server.node',
+      'react-server-dom-esm/src/ReactFlightDOMClientNode.js', // react-server-dom-webpack/client.node
       'react-server-dom-esm/src/ReactFlightDOMServerNode.js', // react-server-dom-webpack/server.node
       'react-devtools',
       'react-devtools-core',
@@ -187,6 +212,7 @@ module.exports = [
       'react-interactions',
       'shared/ReactDOMSharedInternals',
     ],
+    bundlers: ['esm'],
     isFlowTyped: true,
     isServerSupported: true,
   },
@@ -199,14 +225,17 @@ module.exports = [
     paths: [
       'react-dom',
       'react-dom-bindings',
-      'react-server-dom-webpack',
       'react-dom/src/server/ReactDOMLegacyServerImpl.js', // not an entrypoint, but only usable in *Brower and *Node files
       'react-dom/src/server/ReactDOMLegacyServerBrowser.js', // react-dom/server.browser
       'react-dom/src/server/ReactDOMLegacyServerNode.js', // react-dom/server.node
       'react-dom/src/server/ReactDOMLegacyServerNode.classic.fb.js',
       'react-dom/src/server/ReactDOMLegacyServerNodeStream.js', // file indirection to support partial forking of some methods in *Node
+      'react-server-dom/',
+      'react-server-dom-webpack/',
+      'react-server-dom-webpack/src/ReactFlightClientBundlerConfigWebpack.js',
       'shared/ReactDOMSharedInternals',
     ],
+    bundlers: ['webpack'],
     isFlowTyped: true,
     isServerSupported: true,
   },

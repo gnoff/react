@@ -59,6 +59,7 @@ export function resolveClientReference<T>(
       }
       name = metadata.name;
     }
+
     return {
       id: resolvedModuleData.id,
       chunks: resolvedModuleData.chunks,

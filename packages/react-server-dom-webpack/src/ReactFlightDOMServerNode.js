@@ -12,7 +12,7 @@ import type {
   ReactClientValue,
 } from 'react-server/src/ReactFlightServer';
 import type {Destination} from 'react-server/src/ReactServerStreamConfigNode';
-import type {ClientManifest} from './ReactFlightServerConfigWebpackBundler';
+import type {ClientManifest} from './ReactFlightServerBundlerConfig';
 import type {ServerManifest} from 'react-client/src/ReactFlightClientConfig';
 import type {Busboy} from 'busboy';
 import type {Writable} from 'stream';
