@@ -148,7 +148,7 @@ app.all('/', async function (req, res, next) {
       let root;
       let Root = () => {
         if (root) {
-          return root;
+          return React.use(root);
         }
         return React.use(
           (root = createFromNodeStream(rscResponse, ssrManifest))
