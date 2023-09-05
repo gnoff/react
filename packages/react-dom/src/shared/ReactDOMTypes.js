@@ -7,6 +7,8 @@
  * @flow
  */
 
+import type {CrossOriginString} from 'react-dom-bindings/src/shared/crossOriginStrings';
+
 export type PrefetchDNSOptions = {};
 export type PreconnectOptions = {crossOrigin?: string};
 export type PreloadOptions = {
@@ -24,6 +26,7 @@ export type PreloadModuleOptions = {
   as?: string,
   crossOrigin?: string,
   integrity?: string,
+  nonce?: string,
 };
 export type PreinitOptions = {
   as: string,
@@ -37,9 +40,10 @@ export type PreinitModuleOptions = {
   as?: string,
   crossOrigin?: string,
   integrity?: string,
+  nonce?: string,
 };
 
-export type CrossOriginEnum = '' | 'use-credentials';
+export type CrossOriginEnum = '' | 'use-credentials' | CrossOriginString;
 export type FetchPriorityEnum = 'high' | 'low' | 'auto';
 
 export type PreloadImplOptions = {
@@ -58,12 +62,12 @@ export type PreloadModuleImplOptions = {
   integrity?: ?string,
 };
 export type PreinitStyleOptions = {
-  crossOrigin?: ?string,
+  crossOrigin?: ?CrossOriginEnum,
   integrity?: ?string,
   fetchPriority?: ?FetchPriorityEnum,
 };
 export type PreinitScriptOptions = {
-  crossOrigin?: ?string,
+  crossOrigin?: ?CrossOriginEnum,
   integrity?: ?string,
   fetchPriority?: ?FetchPriorityEnum,
   nonce?: ?string,
@@ -71,6 +75,7 @@ export type PreinitScriptOptions = {
 export type PreinitModuleScriptOptions = {
   crossOrigin?: ?CrossOriginEnum,
   integrity?: string,
+  nonce?: ?string,
 };
 
 export type HostDispatcher = {
