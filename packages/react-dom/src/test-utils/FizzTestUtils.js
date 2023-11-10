@@ -110,6 +110,10 @@ async function executeScript(script: Element) {
       newScript.setAttribute(attribute.name, attribute.value);
     }
 
+    newScript.onerror = function () {
+      console.log('error');
+    };
+
     parent.insertBefore(newScript, script);
     parent.removeChild(script);
   }

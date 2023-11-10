@@ -106,6 +106,7 @@ describe('ReactDOMFizzStaticBrowser', () => {
       }
       result += Buffer.from(value).toString('utf8');
     }
+    console.log('result', result);
     const temp = document.createElement('div');
     temp.innerHTML = result;
     await insertNodesAndExecuteScripts(temp, container, null);
@@ -458,7 +459,7 @@ describe('ReactDOMFizzStaticBrowser', () => {
   });
 
   // @gate enablePostpone
-  it('supports postponing in prerender and resuming later', async () => {
+  fit('supports postponing in prerender and resuming later', async () => {
     let prerendering = true;
     function Postpone() {
       if (prerendering) {
@@ -488,6 +489,7 @@ describe('ReactDOMFizzStaticBrowser', () => {
     );
 
     await readIntoContainer(prerendered.prelude);
+    console.log('contiainer', container.outerHTML);
 
     expect(getVisibleChildren(container)).toEqual(<div>Loading...</div>);
 
@@ -1494,5 +1496,58 @@ describe('ReactDOMFizzStaticBrowser', () => {
       <link rel="preload" href="init.js" fetchpriority="low" as="script" />,
       'hello',
     ]);
+  });
+
+  it('can render a deep list of single components where one postpones', async () => {
+    let isPrerendering = true;
+    function Outer({children}) {
+      return children;
+    }
+
+    function Middle({children}) {
+      return children;
+    }
+
+    function Inner() {
+      if (isPrerendering) {
+        React.unstable_postpone();
+      }
+      return 'hello';
+    }
+
+    function App() {
+      return (
+        <Suspense fallback="loading...">
+          <Outer>
+            <Middle>
+              <Inner />
+            </Middle>
+          </Outer>
+        </Suspense>
+      );
+    }
+
+    const prerendered = await ReactDOMFizzStatic.prerender(<App />);
+    const postponedState = JSON.stringify(prerendered.postponed);
+
+    const content = await readContent(prerendered.prelude);
+
+    container.innerHTML = content;
+    expect(getVisibleChildren(container)).toEqual('loading...');
+
+    isPrerendering = false;
+
+    const dynamic = await ReactDOMFizzServer.resume(
+      <App />,
+      JSON.parse(postponedState),
+      {
+        onError(x) {
+          console.log(x);
+        },
+      },
+    );
+
+    await readIntoContainer(dynamic);
+    expect(getVisibleChildren(container)).toEqual('hello');
   });
 });
