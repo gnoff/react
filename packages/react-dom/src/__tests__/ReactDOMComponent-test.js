@@ -13,15 +13,21 @@ describe('ReactDOMComponent', () => {
   let React;
   let ReactTestUtils;
   let ReactDOM;
+  let ReactDOMClient;
   let ReactDOMServer;
+  let waitForAll;
   const ReactFeatureFlags = require('shared/ReactFeatureFlags');
 
   beforeEach(() => {
     jest.resetModules();
     React = require('react');
+    ReactDOMClient = require('react-dom/client');
     ReactDOM = require('react-dom');
     ReactDOMServer = require('react-dom/server');
     ReactTestUtils = require('react-dom/test-utils');
+
+    const InternalTestUtils = require('internal-test-utils');
+    waitForAll = InternalTestUtils.waitForAll;
   });
 
   afterEach(() => {
@@ -29,15 +35,23 @@ describe('ReactDOMComponent', () => {
   });
 
   describe('updateDOM', () => {
-    it('should handle className', () => {
+    fit('should handle className', async () => {
       const container = document.createElement('div');
-      ReactDOM.render(<div style={{}} />, container);
+      const root = ReactDOMClient.createRoot(container);
 
-      ReactDOM.render(<div className={'foo'} />, container);
+      root.render(<div className={'foo'} />);
+      await waitForAll([]);
+
+      root.render(<div className={'foo'} />);
+      await waitForAll([]);
       expect(container.firstChild.className).toEqual('foo');
-      ReactDOM.render(<div className={'bar'} />, container);
+
+      root.render(<div className={'bar'} />);
+      await waitForAll([]);
       expect(container.firstChild.className).toEqual('bar');
-      ReactDOM.render(<div className={null} />, container);
+
+      root.render(<div className={null} />);
+      await waitForAll([]);
       expect(container.firstChild.className).toEqual('');
     });
 
