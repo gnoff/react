@@ -3593,47 +3593,6 @@ describe('ReactDOMFizzServer', () => {
     );
   });
 
-  it('warns in dev if you access digest from errorInfo in onRecoverableError', async () => {
-    await act(() => {
-      const {pipe} = renderToPipeableStream(
-        <div>
-          <Suspense fallback={'loading...'}>
-            <AsyncText text={'hello'} />
-          </Suspense>
-        </div>,
-        {
-          onError(error) {
-            return 'a digest';
-          },
-        },
-      );
-      rejectText('hello');
-      pipe(writable);
-    });
-    expect(getVisibleChildren(container)).toEqual(<div>loading...</div>);
-
-    ReactDOMClient.hydrateRoot(
-      container,
-      <div>
-        <Suspense fallback={'loading...'}>hello</Suspense>
-      </div>,
-      {
-        onRecoverableError(error, errorInfo) {
-          expect(() => {
-            expect(error.digest).toBe('a digest');
-            expect(errorInfo.digest).toBe('a digest');
-          }).toErrorDev(
-            'Warning: You are accessing "digest" from the errorInfo object passed to onRecoverableError.' +
-              ' This property is deprecated and will be removed in a future version of React.' +
-              ' To access the digest of an Error look for this property on the Error instance itself.',
-            {withoutStack: true},
-          );
-        },
-      },
-    );
-    await waitForAll([]);
-  });
-
   it('takes an importMap option which emits an "importmap" script in the head', async () => {
     const importMap = {
       foo: './path/to/foo.js',

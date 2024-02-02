@@ -3105,30 +3105,10 @@ function commitRootImpl(
 }
 
 function makeErrorInfo(digest: ?string, componentStack: ?string) {
-  if (__DEV__) {
-    const errorInfo = {
-      componentStack,
-      digest,
-    };
-    Object.defineProperty(errorInfo, 'digest', {
-      configurable: false,
-      enumerable: true,
-      get() {
-        console.error(
-          'You are accessing "digest" from the errorInfo object passed to onRecoverableError.' +
-            ' This property is deprecated and will be removed in a future version of React.' +
-            ' To access the digest of an Error look for this property on the Error instance itself.',
-        );
-        return digest;
-      },
-    });
-    return errorInfo;
-  } else {
-    return {
-      digest,
-      componentStack,
-    };
-  }
+  return {
+    digest,
+    componentStack,
+  };
 }
 
 function releaseRootPooledCache(root: FiberRoot, remainingLanes: Lanes) {
