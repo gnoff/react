@@ -38,7 +38,7 @@ describe('ReactDOMFizzServerNode', () => {
       writable.on('finish', () => {
         resolve();
       });
-      writable.on('error', pl => {
+      writable.on('error', () => {
         resolve();
       });
     });
@@ -589,7 +589,6 @@ describe('ReactDOMFizzServerNode', () => {
       if (!hasLoaded) {
         throw promise;
       }
-      console.log('rendering');
       rendered = true;
       return 'Done';
     }
