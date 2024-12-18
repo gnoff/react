@@ -74,7 +74,6 @@ describe('forwardRef', () => {
     expect(ref.current).toBe(null);
   });
 
-  // @gate !disableDefaultPropsExceptForClasses
   it('should support defaultProps', async () => {
     function FunctionComponent({forwardedRef, optional, required}) {
       return (
@@ -193,11 +192,8 @@ describe('forwardRef', () => {
     await expect(async () => {
       await waitForAll([]);
     }).toErrorDev(
-      'Each child in a list should have a unique "key" prop.' +
-        '\n\nCheck the top-level render call using <ForwardRef>. It was passed a child from ForwardRef. ' +
-        'See https://react.dev/link/warning-keys for more information.\n' +
-        '    in span (at **)\n' +
-        '    in ',
+      'Each child in a list should have a unique "key" prop. See https://reactjs.org/link/warning-keys for more information.\n' +
+        '    in p (at **)',
     );
   });
 
@@ -213,20 +209,17 @@ describe('forwardRef', () => {
     await expect(async () => {
       await waitForAll([]);
     }).toErrorDev(
-      'Each child in a list should have a unique "key" prop.' +
-        '\n\nCheck the top-level render call using <ForwardRef(Inner)>. It was passed a child from ForwardRef(Inner). ' +
-        'See https://react.dev/link/warning-keys for more information.\n' +
-        '    in span (at **)\n' +
-        '    in Inner (at **)' +
-        (gate(flags => flags.enableOwnerStacks) ? '' : '\n    in p (at **)'),
+      'Each child in a list should have a unique "key" prop. See https://reactjs.org/link/warning-keys for more information.\n' +
+        '    in Inner (at **)\n' +
+        '    in p (at **)',
     );
   });
 
-  it('should use the inner name in the stack', async () => {
+  it('should use the inner displayName in the stack', async () => {
     const fn = (props, ref) => {
       return [<span />];
     };
-    Object.defineProperty(fn, 'name', {value: 'Inner'});
+    fn.displayName = 'Inner';
     const RefForwardingComponent = React.forwardRef(fn);
     ReactNoop.render(
       <p>
@@ -236,12 +229,9 @@ describe('forwardRef', () => {
     await expect(async () => {
       await waitForAll([]);
     }).toErrorDev(
-      'Each child in a list should have a unique "key" prop.' +
-        '\n\nCheck the top-level render call using <ForwardRef(Inner)>. It was passed a child from ForwardRef(Inner). ' +
-        'See https://react.dev/link/warning-keys for more information.\n' +
-        '    in span (at **)\n' +
-        '    in Inner (at **)' +
-        (gate(flags => flags.enableOwnerStacks) ? '' : '\n    in p (at **)'),
+      'Each child in a list should have a unique "key" prop. See https://reactjs.org/link/warning-keys for more information.\n' +
+        '    in Inner (at **)\n' +
+        '    in p (at **)',
     );
   });
 
@@ -258,20 +248,17 @@ describe('forwardRef', () => {
     await expect(async () => {
       await waitForAll([]);
     }).toErrorDev(
-      'Each child in a list should have a unique "key" prop.' +
-        '\n\nCheck the top-level render call using <Outer>. It was passed a child from Outer. ' +
-        'See https://react.dev/link/warning-keys for more information.\n' +
-        '    in span (at **)\n' +
-        '    in Outer (at **)' +
-        (gate(flags => flags.enableOwnerStacks) ? '' : '\n    in p (at **)'),
+      'Each child in a list should have a unique "key" prop. See https://reactjs.org/link/warning-keys for more information.\n' +
+        '    in Outer (at **)\n' +
+        '    in p (at **)',
     );
   });
 
-  it('should prefer the inner name to the outer displayName in the stack', async () => {
+  it('should prefer the inner to the outer displayName in the stack', async () => {
     const fn = (props, ref) => {
       return [<span />];
     };
-    Object.defineProperty(fn, 'name', {value: 'Inner'});
+    fn.displayName = 'Inner';
     const RefForwardingComponent = React.forwardRef(fn);
     RefForwardingComponent.displayName = 'Outer';
     ReactNoop.render(
@@ -282,12 +269,9 @@ describe('forwardRef', () => {
     await expect(async () => {
       await waitForAll([]);
     }).toErrorDev(
-      'Each child in a list should have a unique "key" prop.' +
-        '\n\nCheck the top-level render call using <Outer>. It was passed a child from Outer. ' +
-        'See https://react.dev/link/warning-keys for more information.\n' +
-        '    in span (at **)\n' +
-        '    in Inner (at **)' +
-        (gate(flags => flags.enableOwnerStacks) ? '' : '\n    in p (at **)'),
+      'Each child in a list should have a unique "key" prop. See https://reactjs.org/link/warning-keys for more information.\n' +
+        '    in Inner (at **)\n' +
+        '    in p (at **)',
     );
   });
 
@@ -427,7 +411,7 @@ describe('forwardRef', () => {
       );
     }).toErrorDev(
       [
-        'forwardRef requires a render function but received a `memo` ' +
+        'Warning: forwardRef requires a render function but received a `memo` ' +
           'component. Instead of forwardRef(memo(...)), use ' +
           'memo(forwardRef(...)).',
       ],

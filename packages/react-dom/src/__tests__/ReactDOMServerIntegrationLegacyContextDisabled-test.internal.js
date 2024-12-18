@@ -13,7 +13,7 @@
 const ReactDOMServerIntegrationUtils = require('./utils/ReactDOMServerIntegrationTestUtils');
 
 let React;
-let ReactDOMClient;
+let ReactDOM;
 let ReactFeatureFlags;
 let ReactDOMServer;
 
@@ -21,7 +21,7 @@ function initModules() {
   // Reset warning cache.
   jest.resetModules();
   React = require('react');
-  ReactDOMClient = require('react-dom/client');
+  ReactDOM = require('react-dom');
   ReactDOMServer = require('react-dom/server');
 
   ReactFeatureFlags = require('shared/ReactFeatureFlags');
@@ -29,7 +29,7 @@ function initModules() {
 
   // Make them available to the helpers.
   return {
-    ReactDOMClient,
+    ReactDOM,
     ReactDOMServer,
   };
 }

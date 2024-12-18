@@ -63,9 +63,15 @@ describe('ReactDOMFizzStaticNode', () => {
       </html>,
     );
     const prelude = await readContent(result.prelude);
-    expect(prelude).toMatchInlineSnapshot(
-      `"<!DOCTYPE html><html><head></head><body>hello world</body></html>"`,
-    );
+    if (gate(flags => flags.enableFloat)) {
+      expect(prelude).toMatchInlineSnapshot(
+        `"<!DOCTYPE html><html><head></head><body>hello world</body></html>"`,
+      );
+    } else {
+      expect(prelude).toMatchInlineSnapshot(
+        `"<!DOCTYPE html><html><body>hello world</body></html>"`,
+      );
+    }
   });
 
   // @gate experimental
@@ -111,7 +117,9 @@ describe('ReactDOMFizzStaticNode', () => {
 
     const result = await resultPromise;
     const prelude = await readContent(result.prelude);
-    expect(prelude).toMatchInlineSnapshot(`"<div><!--$-->Done<!--/$--></div>"`);
+    expect(prelude).toMatchInlineSnapshot(
+      `"<div><!--$-->Done<!-- --><!--/$--></div>"`,
+    );
   });
 
   // @gate experimental
@@ -212,8 +220,7 @@ describe('ReactDOMFizzStaticNode', () => {
   });
 
   // @gate experimental
-  // @gate !enableHalt
-  it('should reject if aborting before the shell is complete and enableHalt is disabled', async () => {
+  it('should reject if aborting before the shell is complete', async () => {
     const errors = [];
     const controller = new AbortController();
     const promise = ReactDOMFizzStatic.prerenderToNodeStream(
@@ -241,40 +248,6 @@ describe('ReactDOMFizzStaticNode', () => {
     }
     expect(caughtError).toBe(theReason);
     expect(errors).toEqual(['aborted for reasons']);
-  });
-
-  // @gate enableHalt
-  it('should resolve an empty shell if aborting before the shell is complete', async () => {
-    const errors = [];
-    const controller = new AbortController();
-    const promise = ReactDOMFizzStatic.prerenderToNodeStream(
-      <div>
-        <InfiniteSuspend />
-      </div>,
-      {
-        signal: controller.signal,
-        onError(x) {
-          errors.push(x.message);
-        },
-      },
-    );
-
-    await jest.runAllTimers();
-
-    const theReason = new Error('aborted for reasons');
-    controller.abort(theReason);
-
-    let didThrow = false;
-    let prelude;
-    try {
-      ({prelude} = await promise);
-    } catch (error) {
-      didThrow = true;
-    }
-    expect(didThrow).toBe(false);
-    expect(errors).toEqual(['aborted for reasons']);
-    const content = await readContent(prelude);
-    expect(content).toBe('');
   });
 
   // @gate experimental
@@ -301,26 +274,18 @@ describe('ReactDOMFizzStaticNode', () => {
       },
     );
 
-    if (gate(flags => flags.enableHalt)) {
-      const {prelude} = await streamPromise;
-      const content = await readContent(prelude);
-      expect(errors).toEqual(['This operation was aborted']);
-      expect(content).toBe('');
-    } else {
-      let caughtError = null;
-      try {
-        await streamPromise;
-      } catch (error) {
-        caughtError = error;
-      }
-      expect(caughtError.message).toBe('This operation was aborted');
-      expect(errors).toEqual(['This operation was aborted']);
+    let caughtError = null;
+    try {
+      await streamPromise;
+    } catch (error) {
+      caughtError = error;
     }
+    expect(caughtError.message).toBe('This operation was aborted');
+    expect(errors).toEqual(['This operation was aborted']);
   });
 
   // @gate experimental
-  // @gate !enableHalt
-  it('should reject if passing an already aborted signal and enableHalt is disabled', async () => {
+  it('should reject if passing an already aborted signal', async () => {
     const errors = [];
     const controller = new AbortController();
     const theReason = new Error('aborted for reasons');
@@ -350,43 +315,6 @@ describe('ReactDOMFizzStaticNode', () => {
     }
     expect(caughtError).toBe(theReason);
     expect(errors).toEqual(['aborted for reasons']);
-  });
-
-  // @gate enableHalt
-  it('should resolve with an empty prelude if passing an already aborted signal', async () => {
-    const errors = [];
-    const controller = new AbortController();
-    const theReason = new Error('aborted for reasons');
-    controller.abort(theReason);
-
-    const promise = ReactDOMFizzStatic.prerenderToNodeStream(
-      <div>
-        <Suspense fallback={<div>Loading</div>}>
-          <InfiniteSuspend />
-        </Suspense>
-      </div>,
-      {
-        signal: controller.signal,
-        onError(x) {
-          errors.push(x.message);
-        },
-      },
-    );
-
-    // Technically we could still continue rendering the shell but currently the
-    // semantics mean that we also abort any pending CPU work.
-
-    let didThrow = false;
-    let prelude;
-    try {
-      ({prelude} = await promise);
-    } catch (error) {
-      didThrow = true;
-    }
-    expect(didThrow).toBe(false);
-    expect(errors).toEqual(['aborted for reasons']);
-    const content = await readContent(prelude);
-    expect(content).toBe('');
   });
 
   // @gate experimental

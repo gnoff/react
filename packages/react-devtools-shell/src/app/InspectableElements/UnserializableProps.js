@@ -31,7 +31,7 @@ const immutable = Immutable.fromJS({
     xyz: 1,
   },
 });
-const bigInt = BigInt(123);
+const bigInt = BigInt(123); // eslint-disable-line no-undef
 
 class Foo {
   flag = false;
@@ -58,9 +58,5 @@ export default function UnserializableProps(): React.Node {
 }
 
 function ChildComponent(props: any) {
-  return (
-    <>
-      <div>{props.bigInt}</div>
-    </>
-  );
+  return null;
 }

@@ -94,7 +94,6 @@ function handleNode(node_: Node) {
       dataset['dgst'],
       dataset['msg'],
       dataset['stck'],
-      dataset['cstck'],
     );
     node.remove();
   } else if (dataset['rri'] != null) {

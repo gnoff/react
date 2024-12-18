@@ -34,7 +34,7 @@ import {
 
 import {getParentSuspenseInstance} from './ReactFiberConfigDOM';
 
-import {enableScopeAPI} from 'shared/ReactFeatureFlags';
+import {enableScopeAPI, enableFloat} from 'shared/ReactFeatureFlags';
 
 const randomKey = Math.random().toString(36).slice(2);
 const internalInstanceKey = '__reactFiber$' + randomKey;
@@ -175,7 +175,7 @@ export function getInstanceFromNode(node: Node): Fiber | null {
       tag === HostComponent ||
       tag === HostText ||
       tag === SuspenseComponent ||
-      tag === HostHoistable ||
+      (enableFloat ? tag === HostHoistable : false) ||
       tag === HostSingleton ||
       tag === HostRoot
     ) {
@@ -195,7 +195,7 @@ export function getNodeFromInstance(inst: Fiber): Instance | TextInstance {
   const tag = inst.tag;
   if (
     tag === HostComponent ||
-    tag === HostHoistable ||
+    (enableFloat ? tag === HostHoistable : false) ||
     tag === HostSingleton ||
     tag === HostText
   ) {

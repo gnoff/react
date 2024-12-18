@@ -8,4 +8,3 @@
  */
 
 export * from 'react-dom-bindings/src/client/ReactFiberConfigDOM';
-export * from 'react-client/src/ReactClientConsoleConfigBrowser';

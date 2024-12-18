@@ -84,9 +84,7 @@ function createDehydrated(
     preview_long: formatDataForPreview(data, true),
     preview_short: formatDataForPreview(data, false),
     name:
-      typeof data.constructor !== 'function' ||
-      typeof data.constructor.name !== 'string' ||
-      data.constructor.name === 'Object'
+      !data.constructor || data.constructor.name === 'Object'
         ? ''
         : data.constructor.name,
   };
@@ -216,19 +214,16 @@ export function dehydrate(
       if (level >= LEVEL_THRESHOLD && !isPathAllowedCheck) {
         return createDehydrated(type, true, data, cleaned, path);
       }
-      const arr: Array<Object> = [];
-      for (let i = 0; i < data.length; i++) {
-        arr[i] = dehydrateKey(
-          data,
-          i,
+      return data.map((item, i) =>
+        dehydrate(
+          item,
           cleaned,
           unserializable,
           path.concat([i]),
           isPathAllowed,
           isPathAllowedCheck ? 1 : level + 1,
-        );
-      }
-      return arr;
+        ),
+      );
 
     case 'html_all_collection':
     case 'typed_array':
@@ -245,9 +240,7 @@ export function dehydrate(
           preview_short: formatDataForPreview(data, false),
           preview_long: formatDataForPreview(data, true),
           name:
-            typeof data.constructor !== 'function' ||
-            typeof data.constructor.name !== 'string' ||
-            data.constructor.name === 'Object'
+            !data.constructor || data.constructor.name === 'Object'
               ? ''
               : data.constructor.name,
         };
@@ -314,9 +307,8 @@ export function dehydrate(
         } = {};
         getAllEnumerableKeys(data).forEach(key => {
           const name = key.toString();
-          object[name] = dehydrateKey(
-            data,
-            key,
+          object[name] = dehydrate(
+            data[key],
             cleaned,
             unserializable,
             path.concat([name]),
@@ -340,11 +332,7 @@ export function dehydrate(
         readonly: true,
         preview_short: formatDataForPreview(data, false),
         preview_long: formatDataForPreview(data, true),
-        name:
-          typeof data.constructor !== 'function' ||
-          typeof data.constructor.name !== 'string'
-            ? ''
-            : data.constructor.name,
+        name: data.constructor.name,
       };
 
       getAllEnumerableKeys(data).forEach(key => {
@@ -374,46 +362,6 @@ export function dehydrate(
 
     default:
       return data;
-  }
-}
-
-function dehydrateKey(
-  parent: Object,
-  key: number | string | symbol,
-  cleaned: Array<Array<string | number>>,
-  unserializable: Array<Array<string | number>>,
-  path: Array<string | number>,
-  isPathAllowed: (path: Array<string | number>) => boolean,
-  level: number = 0,
-): $PropertyType<DehydratedData, 'data'> {
-  try {
-    return dehydrate(
-      parent[key],
-      cleaned,
-      unserializable,
-      path,
-      isPathAllowed,
-      level,
-    );
-  } catch (error) {
-    let preview = '';
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      typeof error.stack === 'string'
-    ) {
-      preview = error.stack;
-    } else if (typeof error === 'string') {
-      preview = error;
-    }
-    cleaned.push(path);
-    return {
-      inspectable: false,
-      preview_short: '[Exception]',
-      preview_long: preview ? '[Exception: ' + preview + ']' : '[Exception]',
-      name: preview,
-      type: 'unknown',
-    };
   }
 }
 

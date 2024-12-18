@@ -3,7 +3,9 @@
 'use strict';
 
 function setExtensionIconAndPopup(reactBuildType, tabId) {
-  chrome.action.setIcon({
+  const action = __IS_FIREFOX__ ? chrome.browserAction : chrome.action;
+
+  action.setIcon({
     tabId,
     path: {
       '16': chrome.runtime.getURL(`icons/16-${reactBuildType}.png`),
@@ -13,7 +15,7 @@ function setExtensionIconAndPopup(reactBuildType, tabId) {
     },
   });
 
-  chrome.action.setPopup({
+  action.setPopup({
     tabId,
     popup: chrome.runtime.getURL(`popups/${reactBuildType}.html`),
   });

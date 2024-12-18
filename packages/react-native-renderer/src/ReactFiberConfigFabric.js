@@ -12,10 +12,9 @@ import type {
   TouchedViewDataAtPoint,
   ViewConfig,
 } from './ReactNativeTypes';
-import {create, diff} from './ReactNativeAttributePayloadFabric';
+import {create, diff} from './ReactNativeAttributePayload';
 import {dispatchEvent} from './ReactFabricEventEmitter';
 import {
-  NoEventPriority,
   DefaultEventPriority,
   DiscreteEventPriority,
   type EventPriority,
@@ -48,28 +47,10 @@ const {
   unstable_getCurrentEventPriority: fabricGetCurrentEventPriority,
 } = nativeFabricUIManager;
 
-import {getClosestInstanceFromNode} from './ReactFabricComponentTree';
-
 import {
-  getInspectorDataForViewTag,
-  getInspectorDataForViewAtPoint,
-  getInspectorDataForInstance,
-} from './ReactNativeFiberInspector';
-
-import {
-  enableFabricCompleteRootInCommitPhase,
+  useMicrotasksForSchedulingInFabric,
   passChildrenWhenCloningPersistedNodes,
 } from 'shared/ReactFeatureFlags';
-import {REACT_CONTEXT_TYPE} from 'shared/ReactSymbols';
-import type {ReactContext} from 'shared/ReactTypes';
-
-export {default as rendererVersion} from 'shared/ReactVersion'; // TODO: Consider exporting the react-native version.
-export const rendererPackageName = 'react-native-renderer';
-export const extraDevToolsConfig = {
-  getInspectorDataForInstance,
-  getInspectorDataForViewTag,
-  getInspectorDataForViewAtPoint,
-};
 
 const {get: getViewConfigForType} = ReactNativeViewConfigRegistry;
 
@@ -152,8 +133,6 @@ export function appendInitialChild(
 ): void {
   appendChildNode(parentInstance.node, child.node);
 }
-
-const PROD_HOST_CONTEXT: HostContext = {isInAParentText: true};
 
 export function createInstance(
   type: string,
@@ -243,35 +222,29 @@ export function finalizeInitialChildren(
 export function getRootHostContext(
   rootContainerInstance: Container,
 ): HostContext {
-  if (__DEV__) {
-    return {isInAParentText: false};
-  }
-
-  return PROD_HOST_CONTEXT;
+  return {isInAParentText: false};
 }
 
 export function getChildHostContext(
   parentHostContext: HostContext,
   type: string,
 ): HostContext {
-  if (__DEV__) {
-    const prevIsInAParentText = parentHostContext.isInAParentText;
-    const isInAParentText =
-      type === 'AndroidTextInput' || // Android
-      type === 'RCTMultilineTextInputView' || // iOS
-      type === 'RCTSinglelineTextInputView' || // iOS
-      type === 'RCTText' ||
-      type === 'RCTVirtualText';
+  const prevIsInAParentText = parentHostContext.isInAParentText;
+  const isInAParentText =
+    type === 'AndroidTextInput' || // Android
+    type === 'RCTMultilineTextInputView' || // iOS
+    type === 'RCTSinglelineTextInputView' || // iOS
+    type === 'RCTText' ||
+    type === 'RCTVirtualText';
 
-    // TODO: If this is an offscreen host container, we should reuse the
-    // parent context.
+  // TODO: If this is an offscreen host container, we should reuse the
+  // parent context.
 
-    if (prevIsInAParentText !== isInAParentText) {
-      return {isInAParentText};
-    }
+  if (prevIsInAParentText !== isInAParentText) {
+    return {isInAParentText};
+  } else {
+    return parentHostContext;
   }
-
-  return parentHostContext;
 }
 
 export function getPublicInstance(instance: Instance): null | PublicInstance {
@@ -341,20 +314,7 @@ export function shouldSetTextContent(type: string, props: Props): boolean {
   return false;
 }
 
-let currentUpdatePriority: EventPriority = NoEventPriority;
-export function setCurrentUpdatePriority(newPriority: EventPriority): void {
-  currentUpdatePriority = newPriority;
-}
-
-export function getCurrentUpdatePriority(): EventPriority {
-  return currentUpdatePriority;
-}
-
-export function resolveUpdatePriority(): EventPriority {
-  if (currentUpdatePriority !== NoEventPriority) {
-    return currentUpdatePriority;
-  }
-
+export function getCurrentEventPriority(): EventPriority {
   const currentEventPriority = fabricGetCurrentEventPriority
     ? fabricGetCurrentEventPriority()
     : null;
@@ -370,16 +330,6 @@ export function resolveUpdatePriority(): EventPriority {
   }
 
   return DefaultEventPriority;
-}
-
-export function trackSchedulerEvent(): void {}
-
-export function resolveEventType(): null | string {
-  return null;
-}
-
-export function resolveEventTimeStamp(): number {
-  return -1.1;
 }
 
 export function shouldAttemptEagerTransition(): boolean {
@@ -500,9 +450,7 @@ export function finalizeContainerChildren(
   container: Container,
   newChildren: ChildSet,
 ): void {
-  if (!enableFabricCompleteRootInCommitPhase) {
-    completeRoot(container, newChildren);
-  }
+  completeRoot(container, newChildren);
 }
 
 export function replaceContainerChildren(
@@ -510,12 +458,11 @@ export function replaceContainerChildren(
   newChildren: ChildSet,
 ): void {
   // Noop - children will be replaced in finalizeContainerChildren
-  if (enableFabricCompleteRootInCommitPhase) {
-    completeRoot(container, newChildren);
-  }
 }
 
-export {getClosestInstanceFromNode as getInstanceFromNode};
+export function getInstanceFromNode(node: any): empty {
+  throw new Error('Not yet implemented.');
+}
 
 export function beforeActiveInstanceBlur(
   internalInstanceHandle: InternalInstanceHandle,
@@ -556,25 +503,10 @@ export function waitForCommitToBeReady(): null {
 }
 
 export const NotPendingTransition: TransitionStatus = null;
-export const HostTransitionContext: ReactContext<TransitionStatus> = {
-  $$typeof: REACT_CONTEXT_TYPE,
-  Provider: (null: any),
-  Consumer: (null: any),
-  _currentValue: NotPendingTransition,
-  _currentValue2: NotPendingTransition,
-  _threadCount: 0,
-};
-
-export type FormInstance = Instance;
-export function resetFormInstance(form: Instance): void {}
 
 // -------------------
 //     Microtasks
 // -------------------
-
-export const supportsMicrotasks: boolean =
-  typeof RN$enableMicrotasksInReact !== 'undefined' &&
-  !!RN$enableMicrotasksInReact;
-
+export const supportsMicrotasks = useMicrotasksForSchedulingInFabric;
 export const scheduleMicrotask: any =
   typeof queueMicrotask === 'function' ? queueMicrotask : scheduleTimeout;

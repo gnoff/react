@@ -43,7 +43,7 @@ describe('InvalidEventListeners', () => {
     );
     const node = container.firstChild;
 
-    console.error = jest.fn();
+    spyOnProd(console, 'error');
 
     const uncaughtErrors = [];
     function handleWindowError(e) {
@@ -51,11 +51,13 @@ describe('InvalidEventListeners', () => {
     }
     window.addEventListener('error', handleWindowError);
     try {
-      node.dispatchEvent(
-        new MouseEvent('click', {
-          bubbles: true,
-        }),
-      );
+      await act(() => {
+        node.dispatchEvent(
+          new MouseEvent('click', {
+            bubbles: true,
+          }),
+        );
+      });
     } finally {
       window.removeEventListener('error', handleWindowError);
     }
@@ -68,16 +70,18 @@ describe('InvalidEventListeners', () => {
       }),
     );
 
-    expect(console.error).toHaveBeenCalledTimes(1);
-    expect(console.error.mock.calls[0][0]).toEqual(
-      expect.objectContaining({
-        detail: expect.objectContaining({
-          message:
-            'Expected `onClick` listener to be a function, instead got a value of `string` type.',
+    if (!__DEV__) {
+      expect(console.error).toHaveBeenCalledTimes(1);
+      expect(console.error.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          detail: expect.objectContaining({
+            message:
+              'Expected `onClick` listener to be a function, instead got a value of `string` type.',
+          }),
+          type: 'unhandled exception',
         }),
-        type: 'unhandled exception',
-      }),
-    );
+      );
+    }
   });
 
   it('should not prevent null listeners, at dispatch', async () => {

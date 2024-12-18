@@ -6,7 +6,7 @@
   "keywords": [
     "react"
   ],
-  "homepage": "https://react.dev/",
+  "homepage": "https://reactjs.org/",
   "bugs": "https://github.com/facebook/react/issues",
   "license": "MIT",
   "files": [
@@ -28,6 +28,6 @@
     "react": "^17.0.0"
   },
   "dependencies": {
-    "error-stack-parser": "^2.1.4"
+    "error-stack-parser": "^2.0.2"
   }
 }

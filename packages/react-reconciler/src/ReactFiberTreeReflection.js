@@ -12,6 +12,7 @@ import type {Container, SuspenseInstance} from './ReactFiberConfig';
 import type {SuspenseState} from './ReactFiberSuspenseComponent';
 
 import {get as getInstance} from 'shared/ReactInstanceMap';
+import ReactSharedInternals from 'shared/ReactSharedInternals';
 import getComponentNameFromFiber from 'react-reconciler/src/getComponentNameFromFiber';
 import {
   ClassComponent,
@@ -24,7 +25,9 @@ import {
   SuspenseComponent,
 } from './ReactWorkTags';
 import {NoFlags, Placement, Hydrating} from './ReactFiberFlags';
-import {current as currentOwner, isRendering} from './ReactCurrentFiber';
+import {enableFloat} from 'shared/ReactFeatureFlags';
+
+const ReactCurrentOwner = ReactSharedInternals.ReactCurrentOwner;
 
 export function getNearestMountedFiber(fiber: Fiber): null | Fiber {
   let node = fiber;
@@ -89,8 +92,8 @@ export function isFiberMounted(fiber: Fiber): boolean {
 
 export function isMounted(component: React$Component<any, any>): boolean {
   if (__DEV__) {
-    const owner = currentOwner;
-    if (owner !== null && isRendering && owner.tag === ClassComponent) {
+    const owner = (ReactCurrentOwner.current: any);
+    if (owner !== null && owner.tag === ClassComponent) {
       const ownerFiber: Fiber = owner;
       const instance = ownerFiber.stateNode;
       if (!instance._warnedAboutRefsInRender) {
@@ -277,7 +280,7 @@ function findCurrentHostFiberImpl(node: Fiber): Fiber | null {
   const tag = node.tag;
   if (
     tag === HostComponent ||
-    tag === HostHoistable ||
+    (enableFloat ? tag === HostHoistable : false) ||
     tag === HostSingleton ||
     tag === HostText
   ) {
@@ -308,7 +311,7 @@ function findCurrentHostFiberWithNoPortalsImpl(node: Fiber): Fiber | null {
   const tag = node.tag;
   if (
     tag === HostComponent ||
-    tag === HostHoistable ||
+    (enableFloat ? tag === HostHoistable : false) ||
     tag === HostSingleton ||
     tag === HostText
   ) {

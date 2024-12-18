@@ -16,7 +16,11 @@ import type {
   Transition,
 } from './ReactFiberTracingMarkerComponent';
 
-import {enableTransitionTracing} from 'shared/ReactFeatureFlags';
+import {
+  enableCache,
+  enableTransitionTracing,
+  enableAsyncActions,
+} from 'shared/ReactFeatureFlags';
 import {isPrimaryRenderer} from './ReactFiberConfig';
 import {createCursor, push, pop} from './ReactFiberStack';
 import {
@@ -31,58 +35,37 @@ import {
 
 import ReactSharedInternals from 'shared/ReactSharedInternals';
 import {entangleAsyncAction} from './ReactFiberAsyncAction';
-import {startAsyncTransitionTimer} from './ReactProfilerTimer';
+
+const {ReactCurrentBatchConfig} = ReactSharedInternals;
 
 export const NoTransition = null;
 
-// Attach this reconciler instance's onStartTransitionFinish implementation to
-// the shared internals object. This is used by the isomorphic implementation of
-// startTransition to compose all the startTransitions together.
-//
-//   function startTransition(fn) {
-//     return startTransitionDOM(() => {
-//       return startTransitionART(() => {
-//         return startTransitionThreeFiber(() => {
-//           // and so on...
-//           return fn();
-//         });
-//       });
-//     });
-//   }
-//
-// Currently we only compose together the code that runs at the end of each
-// startTransition, because for now that's sufficient — the part that sets
-// isTransition=true on the stack uses a separate shared internal field. But
-// really we should delete the shared field and track isTransition per
-// reconciler. Leaving this for a future PR.
-const prevOnStartTransitionFinish = ReactSharedInternals.S;
-ReactSharedInternals.S = function onStartTransitionFinishForReconciler(
+export function requestCurrentTransition(): BatchConfigTransition | null {
+  const transition = ReactCurrentBatchConfig.transition;
+  if (transition !== null) {
+    // Whenever a transition update is scheduled, register a callback on the
+    // transition object so we can get the return value of the scope function.
+    transition._callbacks.add(handleAsyncAction);
+  }
+  return transition;
+}
+
+function handleAsyncAction(
+  transition: BatchConfigTransition,
+  thenable: Thenable<mixed>,
+): void {
+  if (enableAsyncActions) {
+    // This is an async action.
+    entangleAsyncAction(transition, thenable);
+  }
+}
+
+export function notifyTransitionCallbacks(
   transition: BatchConfigTransition,
   returnValue: mixed,
 ) {
-  if (
-    typeof returnValue === 'object' &&
-    returnValue !== null &&
-    typeof returnValue.then === 'function'
-  ) {
-    // If we're going to wait on some async work before scheduling an update.
-    // We mark the time so we can later log how long we were blocked on the Action.
-    // Ideally, we'd include the sync part of the action too but since that starts
-    // in isomorphic code it currently leads to tricky layering. We'd have to pass
-    // in performance.now() to this callback but we sometimes use a polyfill.
-    startAsyncTransitionTimer();
-
-    // This is an async action
-    const thenable: Thenable<mixed> = (returnValue: any);
-    entangleAsyncAction(transition, thenable);
-  }
-  if (prevOnStartTransitionFinish !== null) {
-    prevOnStartTransitionFinish(transition, returnValue);
-  }
-};
-
-export function requestCurrentTransition(): BatchConfigTransition | null {
-  return ReactSharedInternals.T;
+  const callbacks = transition._callbacks;
+  callbacks.forEach(callback => callback(transition, returnValue));
 }
 
 // When retrying a Suspense/Offscreen boundary, we restore the cache that was
@@ -98,6 +81,10 @@ const transitionStack: StackCursor<Array<Transition> | null> =
   createCursor(null);
 
 function peekCacheFromPool(): Cache | null {
+  if (!enableCache) {
+    return (null: any);
+  }
+
   // Check if the cache pool already has a cache we can use.
 
   // If we're rendering inside a Suspense boundary that is currently hidden,
@@ -169,10 +156,12 @@ export function pushTransition(
   prevCachePool: SpawnedCachePool | null,
   newTransitions: Array<Transition> | null,
 ): void {
-  if (prevCachePool === null) {
-    push(resumedCache, resumedCache.current, offscreenWorkInProgress);
-  } else {
-    push(resumedCache, prevCachePool.pool, offscreenWorkInProgress);
+  if (enableCache) {
+    if (prevCachePool === null) {
+      push(resumedCache, resumedCache.current, offscreenWorkInProgress);
+    } else {
+      push(resumedCache, prevCachePool.pool, offscreenWorkInProgress);
+    }
   }
 
   if (enableTransitionTracing) {
@@ -196,7 +185,9 @@ export function popTransition(workInProgress: Fiber, current: Fiber | null) {
       pop(transitionStack, workInProgress);
     }
 
-    pop(resumedCache, workInProgress);
+    if (enableCache) {
+      pop(resumedCache, workInProgress);
+    }
   }
 }
 
@@ -209,6 +200,9 @@ export function getPendingTransitions(): Array<Transition> | null {
 }
 
 export function getSuspendedCache(): SpawnedCachePool | null {
+  if (!enableCache) {
+    return null;
+  }
   // This function is called when a Suspense boundary suspends. It returns the
   // cache that would have been used to render fresh data during this render,
   // if there was any, so that we can resume rendering with the same cache when
@@ -229,6 +223,10 @@ export function getSuspendedCache(): SpawnedCachePool | null {
 }
 
 export function getOffscreenDeferredCache(): SpawnedCachePool | null {
+  if (!enableCache) {
+    return null;
+  }
+
   const cacheFromPool = peekCacheFromPool();
   if (cacheFromPool === null) {
     return null;

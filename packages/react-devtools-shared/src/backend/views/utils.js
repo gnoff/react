@@ -108,7 +108,7 @@ export function getNestedBoundingClientRect(
   }
 }
 
-export function getElementDimensions(domElement: HTMLElement): {
+export function getElementDimensions(domElement: Element): {
   borderBottom: number,
   borderLeft: number,
   borderRight: number,
@@ -136,30 +136,5 @@ export function getElementDimensions(domElement: HTMLElement): {
     paddingRight: parseInt(calculatedStyle.paddingRight, 10),
     paddingTop: parseInt(calculatedStyle.paddingTop, 10),
     paddingBottom: parseInt(calculatedStyle.paddingBottom, 10),
-  };
-}
-
-export function extractHOCNames(displayName: string): {
-  baseComponentName: string,
-  hocNames: string[],
-} {
-  if (!displayName) return {baseComponentName: '', hocNames: []};
-
-  const hocRegex = /([A-Z][a-zA-Z0-9]*?)\((.*)\)/g;
-  const hocNames: string[] = [];
-  let baseComponentName = displayName;
-  let match;
-
-  while ((match = hocRegex.exec(baseComponentName)) != null) {
-    if (Array.isArray(match)) {
-      const [, hocName, inner] = match;
-      hocNames.push(hocName);
-      baseComponentName = inner;
-    }
-  }
-
-  return {
-    baseComponentName,
-    hocNames,
   };
 }

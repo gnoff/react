@@ -29,7 +29,7 @@ export default function SettingsModalContextToggle(): React.Node {
   // Explicitly disallow it for now.
   const isProfilingSubscription = useMemo(
     () => ({
-      getCurrentValue: () => profilerStore.isProfilingBasedOnUserInput,
+      getCurrentValue: () => profilerStore.isProfiling,
       subscribe: (callback: Function) => {
         profilerStore.addListener('isProfiling', callback);
         return () => profilerStore.removeListener('isProfiling', callback);

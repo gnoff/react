@@ -8,4 +8,3 @@
  */
 
 export * from 'react-art/src/ReactFiberConfigART';
-export * from 'react-client/src/ReactClientConsoleConfigBrowser';

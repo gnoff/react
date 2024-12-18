@@ -9,6 +9,10 @@ import {ATTRIBUTE_NAME_CHAR} from './isAttributeNameSafe';
 import isCustomElement from './isCustomElement';
 import possibleStandardNames from './possibleStandardNames';
 import hasOwnProperty from 'shared/hasOwnProperty';
+import {
+  enableCustomElementPropertySupport,
+  enableFormActions,
+} from 'shared/ReactFeatureFlags';
 
 const warnedProperties = {};
 const EVENT_NAME_REGEX = /^on./;
@@ -37,18 +41,21 @@ function validateProperty(tagName, name, value, eventRegistry) {
       return true;
     }
 
-    // Actions are special because unlike events they can have other value types.
-    if (typeof value === 'function') {
-      if (tagName === 'form' && name === 'action') {
-        return true;
-      }
-      if (tagName === 'input' && name === 'formAction') {
-        return true;
-      }
-      if (tagName === 'button' && name === 'formAction') {
-        return true;
+    if (enableFormActions) {
+      // Actions are special because unlike events they can have other value types.
+      if (typeof value === 'function') {
+        if (tagName === 'form' && name === 'action') {
+          return true;
+        }
+        if (tagName === 'input' && name === 'formAction') {
+          return true;
+        }
+        if (tagName === 'button' && name === 'formAction') {
+          return true;
+        }
       }
     }
+
     // We can't rely on the event system being injected on the server.
     if (eventRegistry != null) {
       const {registrationNameDependencies, possibleRegistrationNames} =
@@ -185,7 +192,9 @@ function validateProperty(tagName, name, value, eventRegistry) {
       }
       case 'innerText': // Properties
       case 'textContent':
-        return true;
+        if (enableCustomElementPropertySupport) {
+          return true;
+        }
     }
 
     switch (typeof value) {
@@ -227,12 +236,10 @@ function validateProperty(tagName, name, value, eventRegistry) {
           case 'seamless':
           case 'itemScope':
           case 'capture':
-          case 'download':
-          case 'inert': {
+          case 'download': {
             // Boolean properties can accept boolean values
             return true;
           }
-          // fallthrough
           default: {
             const prefix = name.toLowerCase().slice(0, 5);
             if (prefix === 'data-' || prefix === 'aria-') {
@@ -271,7 +278,7 @@ function validateProperty(tagName, name, value, eventRegistry) {
         }
       }
       case 'function':
-      case 'symbol':
+      case 'symbol': // eslint-disable-line
         // Warn when a known attribute is a bad type
         warnedProperties[name] = true;
         return false;
@@ -304,8 +311,7 @@ function validateProperty(tagName, name, value, eventRegistry) {
             case 'reversed':
             case 'scoped':
             case 'seamless':
-            case 'itemScope':
-            case 'inert': {
+            case 'itemScope': {
               break;
             }
             default: {
@@ -350,7 +356,7 @@ function warnUnknownProperties(type, props, eventRegistry) {
       console.error(
         'Invalid value for prop %s on <%s> tag. Either remove it from the element, ' +
           'or pass a string or number value to keep it in the DOM. ' +
-          'For details, see https://react.dev/link/attribute-behavior ',
+          'For details, see https://reactjs.org/link/attribute-behavior ',
         unknownPropString,
         type,
       );
@@ -358,7 +364,7 @@ function warnUnknownProperties(type, props, eventRegistry) {
       console.error(
         'Invalid values for props %s on <%s> tag. Either remove them from the element, ' +
           'or pass a string or number value to keep them in the DOM. ' +
-          'For details, see https://react.dev/link/attribute-behavior ',
+          'For details, see https://reactjs.org/link/attribute-behavior ',
         unknownPropString,
         type,
       );

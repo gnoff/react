@@ -7,5 +7,4 @@
  * @flow
  */
 
-import ReactShallowRenderer from './npm/shallow.js';
-export default ReactShallowRenderer;
+export {default} from 'react-shallow-renderer';

@@ -37,9 +37,6 @@ import {
   createRootFormatContext,
 } from 'react-dom-bindings/src/server/ReactFizzConfigDOM';
 
-import {ensureCorrectIsomorphicReactVersion} from '../shared/ensureCorrectIsomorphicReactVersion';
-ensureCorrectIsomorphicReactVersion();
-
 type Options = {
   identifierPrefix?: string,
   namespaceURI?: string,

@@ -24,19 +24,19 @@ export default function InspectHostNodesToggle(): React.Node {
 
       if (isChecked) {
         logEvent({event_name: 'inspect-element-button-clicked'});
-        bridge.send('startInspectingHost');
+        bridge.send('startInspectingNative');
       } else {
-        bridge.send('stopInspectingHost', false);
+        bridge.send('stopInspectingNative', false);
       }
     },
     [bridge],
   );
 
   useEffect(() => {
-    const onStopInspectingHost = () => setIsInspecting(false);
-    bridge.addListener('stopInspectingHost', onStopInspectingHost);
+    const onStopInspectingNative = () => setIsInspecting(false);
+    bridge.addListener('stopInspectingNative', onStopInspectingNative);
     return () =>
-      bridge.removeListener('stopInspectingHost', onStopInspectingHost);
+      bridge.removeListener('stopInspectingNative', onStopInspectingNative);
   }, [bridge]);
 
   return (

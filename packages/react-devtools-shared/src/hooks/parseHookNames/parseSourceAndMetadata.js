@@ -276,11 +276,6 @@ function parseSourceAST(
             columnNumber,
             lineNumber,
           });
-        if (sourceContent === null || sourceURL === null) {
-          throw Error(
-            `Could not find original source for line:${lineNumber} and column:${columnNumber}`,
-          );
-        }
 
         originalSourceColumnNumber = column;
         originalSourceLineNumber = line;

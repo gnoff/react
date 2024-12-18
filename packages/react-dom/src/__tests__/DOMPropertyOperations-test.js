@@ -10,19 +10,21 @@
 'use strict';
 
 // Set by `yarn test-fire`.
-const {disableInputAttributeSyncing} = require('shared/ReactFeatureFlags');
+const {
+  enableCustomElementPropertySupport,
+  disableInputAttributeSyncing,
+} = require('shared/ReactFeatureFlags');
 
 describe('DOMPropertyOperations', () => {
   let React;
   let ReactDOMClient;
   let act;
-  let assertConsoleErrorDev;
 
   beforeEach(() => {
     jest.resetModules();
     React = require('react');
     ReactDOMClient = require('react-dom/client');
-    ({act, assertConsoleErrorDev} = require('internal-test-utils'));
+    ({act} = require('internal-test-utils'));
   });
 
   // Sets a value in a way that React doesn't see,
@@ -232,6 +234,7 @@ describe('DOMPropertyOperations', () => {
       expect(container.firstChild.hasAttribute('value')).toBe(false);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom element custom events lowercase', async () => {
       const oncustomevent = jest.fn();
       function Test() {
@@ -248,6 +251,7 @@ describe('DOMPropertyOperations', () => {
       expect(oncustomevent).toHaveBeenCalledTimes(1);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom element custom events uppercase', async () => {
       const oncustomevent = jest.fn();
       function Test() {
@@ -264,6 +268,7 @@ describe('DOMPropertyOperations', () => {
       expect(oncustomevent).toHaveBeenCalledTimes(1);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom element custom event with dash in name', async () => {
       const oncustomevent = jest.fn();
       function Test() {
@@ -280,6 +285,7 @@ describe('DOMPropertyOperations', () => {
       expect(oncustomevent).toHaveBeenCalledTimes(1);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom element remove event handler', async () => {
       const oncustomevent = jest.fn();
       function Test(props) {
@@ -337,8 +343,12 @@ describe('DOMPropertyOperations', () => {
       expect(customElement.getAttribute('onstring')).toBe('hello');
       expect(customElement.getAttribute('onobj')).toBe('[object Object]');
       expect(customElement.getAttribute('onarray')).toBe('one,two');
-      expect(customElement.getAttribute('ontrue')).toBe('');
-      expect(customElement.getAttribute('onfalse')).toBe(null);
+      expect(customElement.getAttribute('ontrue')).toBe(
+        enableCustomElementPropertySupport ? '' : 'true',
+      );
+      expect(customElement.getAttribute('onfalse')).toBe(
+        enableCustomElementPropertySupport ? null : 'false',
+      );
 
       // Dispatch the corresponding event names to make sure that nothing crashes.
       customElement.dispatchEvent(new Event('string'));
@@ -375,6 +385,7 @@ describe('DOMPropertyOperations', () => {
       expect(syntheticClickEvent.nativeEvent).toBe(nativeClickEvent);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom elements should have working onChange event listeners', async () => {
       let reactChangeEvent = null;
       const eventHandler = jest.fn(event => (reactChangeEvent = event));
@@ -439,6 +450,7 @@ describe('DOMPropertyOperations', () => {
       expect(eventHandler).toHaveBeenCalledTimes(expectedHandlerCallCount);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom elements should have separate onInput and onChange handling', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -464,6 +476,7 @@ describe('DOMPropertyOperations', () => {
       expect(changeEventHandler).toHaveBeenCalledTimes(1);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom elements should be able to remove and re-add custom event listeners', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -745,6 +758,7 @@ describe('DOMPropertyOperations', () => {
       expect(customOnClickHandler).toHaveBeenCalledTimes(0);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('onChange/onInput/onClick on div with various types of children', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -937,6 +951,7 @@ describe('DOMPropertyOperations', () => {
       expect(onClickHandler).toBeCalledTimes(1);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom element onChange/onInput/onClick with event target custom element child', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -972,6 +987,7 @@ describe('DOMPropertyOperations', () => {
       expect(onClickHandler).toBeCalledTimes(1);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom elements should allow custom events with capture event listeners', async () => {
       const oncustomeventCapture = jest.fn();
       const oncustomevent = jest.fn();
@@ -1015,6 +1031,7 @@ describe('DOMPropertyOperations', () => {
       expect(customElement.hasChildNodes()).toBe(false);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('innerText should not work on custom elements', async () => {
       const container = document.createElement('div');
       const root = ReactDOMClient.createRoot(container);
@@ -1034,6 +1051,7 @@ describe('DOMPropertyOperations', () => {
       expect(customElement.hasChildNodes()).toBe(false);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('textContent should not work on custom elements', async () => {
       const container = document.createElement('div');
       const root = ReactDOMClient.createRoot(container);
@@ -1053,6 +1071,7 @@ describe('DOMPropertyOperations', () => {
       expect(customElement.hasChildNodes()).toBe(false);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('values should not be converted to booleans when assigning into custom elements', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -1104,6 +1123,7 @@ describe('DOMPropertyOperations', () => {
       expect(customElement.foo).toBe(null);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('boolean props should not be stringified in attributes', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -1123,6 +1143,7 @@ describe('DOMPropertyOperations', () => {
       expect(customElement.getAttribute('foo')).toBe(null);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom element custom event handlers assign multiple types', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -1176,6 +1197,7 @@ describe('DOMPropertyOperations', () => {
       expect(customelement.getAttribute('oncustomevent')).toBe(null);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom element custom event handlers assign multiple types with setter', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -1231,10 +1253,11 @@ describe('DOMPropertyOperations', () => {
       });
       customelement.dispatchEvent(new Event('customevent'));
       expect(oncustomevent).toHaveBeenCalledTimes(2);
-      expect(customelement.oncustomevent).toBe(undefined);
+      expect(customelement.oncustomevent).toBe(null);
       expect(customelement.getAttribute('oncustomevent')).toBe(null);
     });
 
+    // @gate enableCustomElementPropertySupport
     it('assigning to a custom element property should not remove attributes', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -1261,6 +1284,7 @@ describe('DOMPropertyOperations', () => {
       expect(customElement.getAttribute('foo')).toBe('one');
     });
 
+    // @gate enableCustomElementPropertySupport
     it('custom element properties should accept functions', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -1291,59 +1315,11 @@ describe('DOMPropertyOperations', () => {
       await act(() => {
         root.render(<my-custom-element />);
       });
-      expect(customElement.foo).toBe(undefined);
+      expect(customElement.foo).toBe(null);
       await act(() => {
         root.render(<my-custom-element foo={myFunction} />);
       });
       expect(customElement.foo).toBe(myFunction);
-    });
-
-    it('switching between null and undefined should update a property', async () => {
-      const container = document.createElement('div');
-      document.body.appendChild(container);
-      const root = ReactDOMClient.createRoot(container);
-      await act(() => {
-        root.render(<my-custom-element foo={undefined} />);
-      });
-      const customElement = container.querySelector('my-custom-element');
-      customElement.foo = undefined;
-
-      await act(() => {
-        root.render(<my-custom-element foo={null} />);
-      });
-      expect(customElement.foo).toBe(null);
-
-      await act(() => {
-        root.render(<my-custom-element foo={undefined} />);
-      });
-      expect(customElement.foo).toBe(undefined);
-    });
-
-    it('warns when using popoverTarget={HTMLElement}', async () => {
-      const popoverTarget = document.createElement('div');
-      const container = document.createElement('div');
-      const root = ReactDOMClient.createRoot(container);
-
-      await act(() => {
-        root.render(
-          <button key="one" popoverTarget={popoverTarget}>
-            Toggle popover
-          </button>,
-        );
-      });
-
-      assertConsoleErrorDev([
-        'The `popoverTarget` prop expects the ID of an Element as a string. Received HTMLDivElement {} instead.',
-      ]);
-
-      // Dedupe warning
-      await act(() => {
-        root.render(
-          <button key="two" popoverTarget={popoverTarget}>
-            Toggle popover
-          </button>,
-        );
-      });
     });
   });
 
@@ -1397,54 +1373,6 @@ describe('DOMPropertyOperations', () => {
         root.render(<my-icon size="5px" />);
       });
       expect(container.firstChild.getAttribute('size')).toBe('5px');
-    });
-
-    it('custom elements should remove by setting undefined to restore defaults', async () => {
-      const container = document.createElement('div');
-      document.body.appendChild(container);
-      const root = ReactDOMClient.createRoot(container);
-      await act(() => {
-        root.render(<my-custom-element />);
-      });
-      const customElement = container.querySelector('my-custom-element');
-
-      // Non-setter but existing property to active the `in` heuristic
-      customElement.raw = 1;
-
-      // Install a setter to activate the `in` heuristic
-      Object.defineProperty(customElement, 'object', {
-        set: function (value = null) {
-          this._object = value;
-        },
-        get: function () {
-          return this._object;
-        },
-      });
-
-      Object.defineProperty(customElement, 'string', {
-        set: function (value = '') {
-          this._string = value;
-        },
-        get: function () {
-          return this._string;
-        },
-      });
-
-      const obj = {};
-      await act(() => {
-        root.render(<my-custom-element raw={2} object={obj} string="hi" />);
-      });
-      expect(customElement.raw).toBe(2);
-      expect(customElement.object).toBe(obj);
-      expect(customElement.string).toBe('hi');
-
-      // Removing the properties should reset to defaults by passing undefined
-      await act(() => {
-        root.render(<my-custom-element />);
-      });
-      expect(customElement.raw).toBe(undefined);
-      expect(customElement.object).toBe(null);
-      expect(customElement.string).toBe('');
     });
   });
 });

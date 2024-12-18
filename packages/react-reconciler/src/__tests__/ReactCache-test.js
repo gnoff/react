@@ -25,11 +25,9 @@ describe('ReactCache', () => {
     ReactNoopFlightClient = require('react-noop-renderer/flight-client');
 
     cache = React.cache;
-
-    jest.resetModules();
-    __unmockReact();
   });
 
+  // @gate enableCache
   it('cache objects and primitive arguments and a mix of them', async () => {
     const types = cache((a, b) => ({a: typeof a, b: typeof b}));
     function Print({a, b}) {
@@ -169,6 +167,7 @@ describe('ReactCache', () => {
     ).toEqual('number number true false false false ');
   });
 
+  // @gate enableCache
   it('cached functions that throw should cache the error', async () => {
     const throws = cache(v => {
       throw new Error(v);
@@ -201,6 +200,7 @@ describe('ReactCache', () => {
     expect(z).not.toBe(x);
   });
 
+  // @gate enableCache
   it('introspection of returned wrapper function is same on client and server', async () => {
     // When the variant flag is true, test the client version of `cache`.
     if (gate(flags => flags.variant)) {

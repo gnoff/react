@@ -24,15 +24,6 @@ let hasErrored = false;
 let fatalError = undefined;
 let waitForAll;
 
-function normalizeError(msg) {
-  // Take the first sentence to make it easier to assert on.
-  const idx = msg.indexOf('.');
-  if (idx > -1) {
-    return msg.slice(0, idx + 1);
-  }
-  return msg;
-}
-
 describe('ReactDOM HostSingleton', () => {
   beforeEach(() => {
     jest.resetModules();
@@ -128,10 +119,11 @@ describe('ReactDOM HostSingleton', () => {
     return children.length === 0
       ? undefined
       : children.length === 1
-        ? children[0]
-        : children;
+      ? children[0]
+      : children;
   }
 
+  // @gate enableFloat
   it('warns if you render the same singleton twice at the same time', async () => {
     const root = ReactDOMClient.createRoot(document);
     root.render(
@@ -165,7 +157,7 @@ describe('ReactDOM HostSingleton', () => {
     await expect(async () => {
       await waitForAll([]);
     }).toErrorDev(
-      'You are mounting a new head component when a previous one has not first unmounted. It is an error to render more than one head component at a time and attributes and children of these components will likely fail in unpredictable ways. Please only render a single instance of <head> and if you need to mount a new one, ensure any previous ones have unmounted first',
+      'Warning: You are mounting a new head component when a previous one has not first unmounted. It is an error to render more than one head component at a time and attributes and children of these components will likely fail in unpredictable ways. Please only render a single instance of <head> and if you need to mount a new one, ensure any previous ones have unmounted first',
     );
     expect(getVisibleChildren(document)).toEqual(
       <html>
@@ -216,6 +208,7 @@ describe('ReactDOM HostSingleton', () => {
     );
   });
 
+  // @gate enableFloat
   it('renders into html, head, and body persistently so the node identities never change and extraneous styles are retained', async () => {
     // Server render some html that will get replaced with a client render
     await actIntoEmptyDocument(() => {
@@ -463,7 +456,7 @@ describe('ReactDOM HostSingleton', () => {
       {
         onRecoverableError(error, errorInfo) {
           hydrationErrors.push([
-            normalizeError(error.message),
+            error.message,
             errorInfo.componentStack
               ? errorInfo.componentStack.split('\n')[1].trim()
               : null,
@@ -471,11 +464,26 @@ describe('ReactDOM HostSingleton', () => {
         },
       },
     );
-    await waitForAll([]);
+    await expect(async () => {
+      await waitForAll([]);
+    }).toErrorDev(
+      [
+        `Warning: Expected server HTML to contain a matching <div> in <body>.
+    in div (at **)
+    in body (at **)
+    in html (at **)`,
+        `Warning: An error occurred during hydration. The server HTML was replaced with client content in <#document>.`,
+      ],
+      {withoutStack: 1},
+    );
     expect(hydrationErrors).toEqual([
       [
-        "Hydration failed because the server rendered HTML didn't match the client.",
-        'at div (<anonymous>)',
+        'Hydration failed because the initial UI does not match what was rendered on the server.',
+        'at div',
+      ],
+      [
+        'There was an error while hydrating. Because the error happened outside of a Suspense boundary, the entire root will switch to client rendering.',
+        null,
       ],
     ]);
     expect(persistentElements).toEqual([
@@ -540,12 +548,7 @@ describe('ReactDOM HostSingleton', () => {
       },
     );
     expect(hydrationErrors).toEqual([]);
-    await expect(async () => {
-      await waitForAll([]);
-    }).toErrorDev(
-      "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties.",
-      {withoutStack: true},
-    );
+    await waitForAll([]);
     expect(persistentElements).toEqual([
       document.documentElement,
       document.head,
@@ -590,8 +593,7 @@ describe('ReactDOM HostSingleton', () => {
   });
 
   // This test is not supported in this implementation. If we reintroduce insertion edge we should revisit
-  // eslint-disable-next-line jest/no-disabled-tests
-  it.skip('is able to maintain insertions in head and body between tree-adjacent Nodes', async () => {
+  xit('is able to maintain insertions in head and body between tree-adjacent Nodes', async () => {
     // Server render some html and hydrate on the client
     await actIntoEmptyDocument(() => {
       const {pipe} = ReactDOMFizzServer.renderToPipeableStream(
@@ -804,6 +806,7 @@ describe('ReactDOM HostSingleton', () => {
     );
   });
 
+  // @gate enableFloat
   it('clears persistent body when it is the container', async () => {
     await actIntoEmptyDocument(() => {
       const {pipe} = ReactDOMFizzServer.renderToPipeableStream(
@@ -993,19 +996,16 @@ describe('ReactDOM HostSingleton', () => {
   });
 
   // https://github.com/facebook/react/issues/26128
-  // @gate !disableLegacyMode
   it('(#26128) does not throw when rendering at body in legacy mode', async () => {
     ReactDOM.render(<div />, document.body);
   });
 
   // https://github.com/facebook/react/issues/26128
-  // @gate !disableLegacyMode
   it('(#26128) does not throw when rendering at <html> in legacy mode', async () => {
     ReactDOM.render(<body />, document.documentElement);
   });
 
   // https://github.com/facebook/react/issues/26128
-  // @gate !disableLegacyMode
   it('(#26128) does not throw when rendering at document in legacy mode', async () => {
     ReactDOM.render(<html />, document);
   });

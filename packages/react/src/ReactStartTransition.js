@@ -9,49 +9,65 @@
 import type {BatchConfigTransition} from 'react-reconciler/src/ReactFiberTracingMarkerComponent';
 import type {StartTransitionOptions} from 'shared/ReactTypes';
 
-import ReactSharedInternals from 'shared/ReactSharedInternals';
-
-import {enableTransitionTracing} from 'shared/ReactFeatureFlags';
-
-import reportGlobalError from 'shared/reportGlobalError';
+import ReactCurrentBatchConfig from './ReactCurrentBatchConfig';
+import {
+  enableAsyncActions,
+  enableTransitionTracing,
+} from 'shared/ReactFeatureFlags';
 
 export function startTransition(
   scope: () => void,
   options?: StartTransitionOptions,
 ) {
-  const prevTransition = ReactSharedInternals.T;
-  const currentTransition: BatchConfigTransition = {};
-  ReactSharedInternals.T = currentTransition;
+  const prevTransition = ReactCurrentBatchConfig.transition;
+  // Each renderer registers a callback to receive the return value of
+  // the scope function. This is used to implement async actions.
+  const callbacks = new Set<(BatchConfigTransition, mixed) => mixed>();
+  const transition: BatchConfigTransition = {
+    _callbacks: callbacks,
+  };
+  ReactCurrentBatchConfig.transition = transition;
+  const currentTransition = ReactCurrentBatchConfig.transition;
 
   if (__DEV__) {
-    currentTransition._updatedFibers = new Set();
+    ReactCurrentBatchConfig.transition._updatedFibers = new Set();
   }
 
   if (enableTransitionTracing) {
     if (options !== undefined && options.name !== undefined) {
-      currentTransition.name = options.name;
-      currentTransition.startTime = -1;
+      // $FlowFixMe[incompatible-use] found when upgrading Flow
+      ReactCurrentBatchConfig.transition.name = options.name;
+      // $FlowFixMe[incompatible-use] found when upgrading Flow
+      ReactCurrentBatchConfig.transition.startTime = -1;
     }
   }
 
-  try {
-    const returnValue = scope();
-    const onStartTransitionFinish = ReactSharedInternals.S;
-    if (onStartTransitionFinish !== null) {
-      onStartTransitionFinish(currentTransition, returnValue);
+  if (enableAsyncActions) {
+    try {
+      const returnValue = scope();
+      if (
+        typeof returnValue === 'object' &&
+        returnValue !== null &&
+        typeof returnValue.then === 'function'
+      ) {
+        callbacks.forEach(callback => callback(currentTransition, returnValue));
+        returnValue.then(noop, onError);
+      }
+    } catch (error) {
+      onError(error);
+    } finally {
+      warnAboutTransitionSubscriptions(prevTransition, currentTransition);
+      ReactCurrentBatchConfig.transition = prevTransition;
     }
-    if (
-      typeof returnValue === 'object' &&
-      returnValue !== null &&
-      typeof returnValue.then === 'function'
-    ) {
-      returnValue.then(noop, reportGlobalError);
+  } else {
+    // When async actions are not enabled, startTransition does not
+    // capture errors.
+    try {
+      scope();
+    } finally {
+      warnAboutTransitionSubscriptions(prevTransition, currentTransition);
+      ReactCurrentBatchConfig.transition = prevTransition;
     }
-  } catch (error) {
-    reportGlobalError(error);
-  } finally {
-    warnAboutTransitionSubscriptions(prevTransition, currentTransition);
-    ReactSharedInternals.T = prevTransition;
   }
 }
 
@@ -75,3 +91,16 @@ function warnAboutTransitionSubscriptions(
 }
 
 function noop() {}
+
+// Use reportError, if it exists. Otherwise console.error. This is the same as
+// the default for onRecoverableError.
+const onError =
+  typeof reportError === 'function'
+    ? // In modern browsers, reportError will dispatch an error event,
+      // emulating an uncaught JavaScript error.
+      reportError
+    : (error: mixed) => {
+        // In older browsers and test environments, fallback to console.error.
+        // eslint-disable-next-line react-internal/no-production-logging
+        console['error'](error);
+      };

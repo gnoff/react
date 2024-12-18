@@ -16,7 +16,6 @@ export type PreloadOptions = {
   crossOrigin?: string,
   integrity?: string,
   type?: string,
-  media?: string,
   nonce?: string,
   fetchPriority?: FetchPriorityEnum,
   imageSrcSet?: string,
@@ -82,26 +81,17 @@ export type PreinitModuleScriptOptions = {
 };
 
 export type HostDispatcher = {
-  f /* flushSyncWork */: () => boolean | void,
-  r /* requestFormReset */: (form: HTMLFormElement) => void,
-  D /* prefetchDNS */: (href: string) => void,
-  C /* preconnect */: (href: string, crossOrigin?: ?CrossOriginEnum) => void,
-  L /* preload */: (
-    href: string,
-    as: string,
-    options?: ?PreloadImplOptions,
-  ) => void,
-  m /* preloadModule */: (
-    href: string,
-    options?: ?PreloadModuleImplOptions,
-  ) => void,
-  S /* preinitStyle */: (
+  prefetchDNS: (href: string) => void,
+  preconnect: (href: string, crossOrigin?: ?CrossOriginEnum) => void,
+  preload: (href: string, as: string, options?: ?PreloadImplOptions) => void,
+  preloadModule: (href: string, options?: ?PreloadModuleImplOptions) => void,
+  preinitStyle: (
     href: string,
     precedence: ?string,
     options?: ?PreinitStyleOptions,
   ) => void,
-  X /* preinitScript */: (src: string, options?: ?PreinitScriptOptions) => void,
-  M /* preinitModuleScript */: (
+  preinitScript: (src: string, options?: PreinitScriptOptions) => void,
+  preinitModuleScript: (
     src: string,
     options?: ?PreinitModuleScriptOptions,
   ) => void,

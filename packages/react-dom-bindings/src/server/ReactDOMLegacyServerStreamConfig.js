@@ -20,14 +20,6 @@ export function scheduleWork(callback: () => void) {
   callback();
 }
 
-export function scheduleMicrotask(callback: () => void) {
-  // While this defies the method name the legacy builds have special
-  // overrides that make work scheduling sync. At the moment scheduleMicrotask
-  // isn't used by any legacy APIs so this is somewhat academic but if they
-  // did in the future we'd probably want to have this be in sync with scheduleWork
-  callback();
-}
-
 export function flushBuffered(destination: Destination) {}
 
 export function beginWriting(destination: Destination) {}
@@ -66,9 +58,15 @@ export function typedArrayToBinaryChunk(
   throw new Error('Not implemented.');
 }
 
-export const byteLengthOfChunk:
-  | null
-  | ((chunk: Chunk | PrecomputedChunk) => number) = null;
+export function clonePrecomputedChunk(
+  chunk: PrecomputedChunk,
+): PrecomputedChunk {
+  return chunk;
+}
+
+export function byteLengthOfChunk(chunk: Chunk | PrecomputedChunk): number {
+  throw new Error('Not implemented.');
+}
 
 export function byteLengthOfBinaryChunk(chunk: BinaryChunk): number {
   throw new Error('Not implemented.');

@@ -28,7 +28,7 @@ describe('SyntheticFocusEvent', () => {
     container = null;
   });
 
-  it('onFocus events have the focus type', async () => {
+  test('onFocus events have the focus type', async () => {
     const log = [];
     const root = ReactDOMClient.createRoot(container);
     await act(() => {
@@ -54,7 +54,7 @@ describe('SyntheticFocusEvent', () => {
     expect(log).toEqual(['onFocusCapture: focus', 'onFocus: focus']);
   });
 
-  it('onBlur events have the blur type', async () => {
+  test('onBlur events have the blur type', async () => {
     const log = [];
     const root = ReactDOMClient.createRoot(container);
     await act(() => {

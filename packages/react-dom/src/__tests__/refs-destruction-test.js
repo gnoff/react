@@ -12,6 +12,7 @@
 let React;
 let ReactDOM;
 let ReactDOMClient;
+let ReactTestUtils;
 let TestComponent;
 let act;
 let theInnerDivRef;
@@ -24,6 +25,7 @@ describe('refs-destruction', () => {
     React = require('react');
     ReactDOM = require('react-dom');
     ReactDOMClient = require('react-dom/client');
+    ReactTestUtils = require('react-dom/test-utils');
     act = require('internal-test-utils').act;
 
     class ClassComponent extends React.Component {
@@ -73,7 +75,7 @@ describe('refs-destruction', () => {
       root.render(<TestComponent />);
     });
 
-    expect(theInnerDivRef.current).toBeInstanceOf(Element);
+    expect(ReactTestUtils.isDOMComponent(theInnerDivRef.current)).toBe(true);
     expect(theInnerClassComponentRef.current).toBeTruthy();
 
     root.unmount();
@@ -89,7 +91,7 @@ describe('refs-destruction', () => {
       root.render(<TestComponent />);
     });
 
-    expect(theInnerDivRef.current).toBeInstanceOf(Element);
+    expect(ReactTestUtils.isDOMComponent(theInnerDivRef.current)).toBe(true);
     expect(theInnerClassComponentRef.current).toBeTruthy();
 
     await act(async () => {
@@ -107,7 +109,7 @@ describe('refs-destruction', () => {
       root.render(<TestComponent />);
     });
 
-    expect(theInnerDivRef.current).toBeInstanceOf(Element);
+    expect(ReactTestUtils.isDOMComponent(theInnerDivRef.current)).toBe(true);
     expect(theInnerClassComponentRef.current).toBeTruthy();
 
     await act(async () => {

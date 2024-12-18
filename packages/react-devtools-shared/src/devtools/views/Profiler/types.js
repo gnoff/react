@@ -25,9 +25,6 @@ export type CommitTreeNode = {
   parentID: number,
   treeBaseDuration: number,
   type: ElementType,
-  // If component is compiled with Forget, the backend will send its name as Forget(...)
-  // Later, on the frontend side, we will strip HOC names and Forget prefix.
-  compiledWithForget: boolean,
 };
 
 export type CommitTree = {
@@ -42,9 +39,6 @@ export type SnapshotNode = {
   hocDisplayNames: Array<string> | null,
   key: number | string | null,
   type: ElementType,
-  // If component is compiled with Forget, the backend will send its name as Forget(...)
-  // Later, on the frontend side, we will strip HOC names and Forget prefix.
-  compiledWithForget: boolean,
 };
 
 export type ChangeDescription = {

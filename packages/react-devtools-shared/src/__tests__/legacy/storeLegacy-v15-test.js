@@ -11,10 +11,13 @@ describe('Store (legacy)', () => {
   let React;
   let ReactDOM;
   let store;
+
   const act = (callback: Function) => {
     callback();
+
     jest.runAllTimers(); // Flush Bridge operations
   };
+
   beforeEach(() => {
     store = global.store;
 
@@ -24,66 +27,56 @@ describe('Store (legacy)', () => {
     jest.mock('react-dom', () =>
       jest.requireActual('react-dom-15/dist/react-dom.js'),
     );
+
     React = require('react');
     ReactDOM = require('react-dom');
   });
+
   it('should not allow a root node to be collapsed', () => {
-    const Component = () => React.createElement('div', null, 'Hi');
+    const Component = () => <div>Hi</div>;
+
     act(() =>
-      ReactDOM.render(
-        React.createElement(Component, {
-          count: 4,
-        }),
-        document.createElement('div'),
-      ),
+      ReactDOM.render(<Component count={4} />, document.createElement('div')),
     );
     expect(store).toMatchInlineSnapshot(`
       [root]
         ▾ <Component>
             <div>
     `);
+
     expect(store.roots).toHaveLength(1);
+
     const rootID = store.roots[0];
+
     expect(() => store.toggleIsCollapsed(rootID, true)).toThrow(
       'Root nodes cannot be collapsed',
     );
   });
+
   describe('collapseNodesByDefault:false', () => {
     beforeEach(() => {
       store.collapseNodesByDefault = false;
     });
+
     it('should support mount and update operations', () => {
-      const Grandparent = ({count}) =>
-        React.createElement(
-          'div',
-          null,
-          React.createElement(Parent, {
-            count: count,
-          }),
-          React.createElement(Parent, {
-            count: count,
-          }),
-        );
-      const Parent = ({count}) =>
-        React.createElement(
-          'div',
-          null,
-          new Array(count).fill(true).map((_, index) =>
-            React.createElement(Child, {
-              key: index,
-            }),
-          ),
-        );
-      const Child = () => React.createElement('div', null, 'Hi!');
+      const Grandparent = ({count}) => (
+        <div>
+          <Parent count={count} />
+          <Parent count={count} />
+        </div>
+      );
+      const Parent = ({count}) => (
+        <div>
+          {new Array(count).fill(true).map((_, index) => (
+            <Child key={index} />
+          ))}
+        </div>
+      );
+      const Child = () => <div>Hi!</div>;
+
       const container = document.createElement('div');
-      act(() =>
-        ReactDOM.render(
-          React.createElement(Grandparent, {
-            count: 4,
-          }),
-          container,
-        ),
-      );
+
+      act(() => ReactDOM.render(<Grandparent count={4} />, container));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▾ <Grandparent>
@@ -109,14 +102,8 @@ describe('Store (legacy)', () => {
                   ▾ <Child key="3">
                       <div>
       `);
-      act(() =>
-        ReactDOM.render(
-          React.createElement(Grandparent, {
-            count: 2,
-          }),
-          container,
-        ),
-      );
+
+      act(() => ReactDOM.render(<Grandparent count={2} />, container));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▾ <Grandparent>
@@ -134,38 +121,27 @@ describe('Store (legacy)', () => {
                   ▾ <Child key="1">
                       <div>
       `);
+
       act(() => ReactDOM.unmountComponentAtNode(container));
       expect(store).toMatchInlineSnapshot(``);
     });
+
     it('should support mount and update operations for multiple roots', () => {
-      const Parent = ({count}) =>
-        React.createElement(
-          'div',
-          null,
-          new Array(count).fill(true).map((_, index) =>
-            React.createElement(Child, {
-              key: index,
-            }),
-          ),
-        );
-      const Child = () => React.createElement('div', null, 'Hi!');
+      const Parent = ({count}) => (
+        <div>
+          {new Array(count).fill(true).map((_, index) => (
+            <Child key={index} />
+          ))}
+        </div>
+      );
+      const Child = () => <div>Hi!</div>;
+
       const containerA = document.createElement('div');
       const containerB = document.createElement('div');
+
       act(() => {
-        ReactDOM.render(
-          React.createElement(Parent, {
-            key: 'A',
-            count: 3,
-          }),
-          containerA,
-        );
-        ReactDOM.render(
-          React.createElement(Parent, {
-            key: 'B',
-            count: 2,
-          }),
-          containerB,
-        );
+        ReactDOM.render(<Parent key="A" count={3} />, containerA);
+        ReactDOM.render(<Parent key="B" count={2} />, containerB);
       });
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -185,21 +161,10 @@ describe('Store (legacy)', () => {
               ▾ <Child key="1">
                   <div>
       `);
+
       act(() => {
-        ReactDOM.render(
-          React.createElement(Parent, {
-            key: 'A',
-            count: 4,
-          }),
-          containerA,
-        );
-        ReactDOM.render(
-          React.createElement(Parent, {
-            key: 'B',
-            count: 1,
-          }),
-          containerB,
-        );
+        ReactDOM.render(<Parent key="A" count={4} />, containerA);
+        ReactDOM.render(<Parent key="B" count={1} />, containerB);
       });
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -219,6 +184,7 @@ describe('Store (legacy)', () => {
               ▾ <Child key="0">
                   <div>
       `);
+
       act(() => ReactDOM.unmountComponentAtNode(containerB));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -233,46 +199,35 @@ describe('Store (legacy)', () => {
               ▾ <Child key="3">
                   <div>
       `);
+
       act(() => ReactDOM.unmountComponentAtNode(containerA));
       expect(store).toMatchInlineSnapshot(``);
     });
+
     it('should not filter DOM nodes from the store tree', () => {
-      const Grandparent = ({flip}) =>
-        React.createElement(
-          'div',
-          null,
-          React.createElement(
-            'div',
-            null,
-            React.createElement(Parent, {
-              flip: flip,
-            }),
-          ),
-          React.createElement(Parent, {
-            flip: flip,
-          }),
-          React.createElement(Nothing, null),
-        );
-      const Parent = ({flip}) =>
-        React.createElement(
-          'div',
-          null,
-          flip ? 'foo' : null,
-          React.createElement(Child, null),
-          flip && [null, 'hello', 42],
-          flip ? 'bar' : 'baz',
-        );
-      const Child = () => React.createElement('div', null, 'Hi!');
+      const Grandparent = ({flip}) => (
+        <div>
+          <div>
+            <Parent flip={flip} />
+          </div>
+          <Parent flip={flip} />
+          <Nothing />
+        </div>
+      );
+      const Parent = ({flip}) => (
+        <div>
+          {flip ? 'foo' : null}
+          <Child />
+          {flip && [null, 'hello', 42]}
+          {flip ? 'bar' : 'baz'}
+        </div>
+      );
+      const Child = () => <div>Hi!</div>;
       const Nothing = () => null;
+
       const container = document.createElement('div');
       act(() =>
-        ReactDOM.render(
-          React.createElement(Grandparent, {
-            count: 4,
-            flip: false,
-          }),
-          container,
-        ),
+        ReactDOM.render(<Grandparent count={4} flip={false} />, container),
       );
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -289,14 +244,9 @@ describe('Store (legacy)', () => {
                       <div>
                 <Nothing>
       `);
+
       act(() =>
-        ReactDOM.render(
-          React.createElement(Grandparent, {
-            count: 4,
-            flip: true,
-          }),
-          container,
-        ),
+        ReactDOM.render(<Grandparent count={4} flip={true} />, container),
       );
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -313,37 +263,30 @@ describe('Store (legacy)', () => {
                       <div>
                 <Nothing>
       `);
+
       act(() => ReactDOM.unmountComponentAtNode(container));
       expect(store).toMatchInlineSnapshot(``);
     });
+
     it('should support collapsing parts of the tree', () => {
-      const Grandparent = ({count}) =>
-        React.createElement(
-          'div',
-          null,
-          React.createElement(Parent, {
-            count: count,
-          }),
-          React.createElement(Parent, {
-            count: count,
-          }),
-        );
-      const Parent = ({count}) =>
-        React.createElement(
-          'div',
-          null,
-          new Array(count).fill(true).map((_, index) =>
-            React.createElement(Child, {
-              key: index,
-            }),
-          ),
-        );
-      const Child = () => React.createElement('div', null, 'Hi!');
+      const Grandparent = ({count}) => (
+        <div>
+          <Parent count={count} />
+          <Parent count={count} />
+        </div>
+      );
+      const Parent = ({count}) => (
+        <div>
+          {new Array(count).fill(true).map((_, index) => (
+            <Child key={index} />
+          ))}
+        </div>
+      );
+      const Child = () => <div>Hi!</div>;
+
       act(() =>
         ReactDOM.render(
-          React.createElement(Grandparent, {
-            count: 2,
-          }),
+          <Grandparent count={2} />,
           document.createElement('div'),
         ),
       );
@@ -364,9 +307,11 @@ describe('Store (legacy)', () => {
                   ▾ <Child key="1">
                       <div>
       `);
+
       const grandparentID = store.getElementIDAtIndex(0);
       const parentOneID = store.getElementIDAtIndex(2);
       const parentTwoID = store.getElementIDAtIndex(8);
+
       act(() => store.toggleIsCollapsed(parentOneID, true));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -380,6 +325,7 @@ describe('Store (legacy)', () => {
                   ▾ <Child key="1">
                       <div>
       `);
+
       act(() => store.toggleIsCollapsed(parentTwoID, true));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -388,6 +334,7 @@ describe('Store (legacy)', () => {
               ▸ <Parent>
               ▸ <Parent>
       `);
+
       act(() => store.toggleIsCollapsed(parentOneID, false));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -401,11 +348,13 @@ describe('Store (legacy)', () => {
                       <div>
               ▸ <Parent>
       `);
+
       act(() => store.toggleIsCollapsed(grandparentID, true));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▸ <Grandparent>
       `);
+
       act(() => store.toggleIsCollapsed(grandparentID, false));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -420,19 +369,18 @@ describe('Store (legacy)', () => {
               ▸ <Parent>
       `);
     });
+
     it('should support adding and removing children', () => {
-      const Root = ({children}) => React.createElement('div', null, children);
-      const Component = () => React.createElement('div', null);
+      const Root = ({children}) => <div>{children}</div>;
+      const Component = () => <div />;
+
       const container = document.createElement('div');
+
       act(() =>
         ReactDOM.render(
-          React.createElement(
-            Root,
-            null,
-            React.createElement(Component, {
-              key: 'a',
-            }),
-          ),
+          <Root>
+            <Component key="a" />
+          </Root>,
           container,
         ),
       );
@@ -443,18 +391,13 @@ describe('Store (legacy)', () => {
               ▾ <Component key="a">
                   <div>
       `);
+
       act(() =>
         ReactDOM.render(
-          React.createElement(
-            Root,
-            null,
-            React.createElement(Component, {
-              key: 'a',
-            }),
-            React.createElement(Component, {
-              key: 'b',
-            }),
-          ),
+          <Root>
+            <Component key="a" />
+            <Component key="b" />
+          </Root>,
           container,
         ),
       );
@@ -467,15 +410,12 @@ describe('Store (legacy)', () => {
               ▾ <Component key="b">
                   <div>
       `);
+
       act(() =>
         ReactDOM.render(
-          React.createElement(
-            Root,
-            null,
-            React.createElement(Component, {
-              key: 'b',
-            }),
-          ),
+          <Root>
+            <Component key="b" />
+          </Root>,
           container,
         ),
       );
@@ -487,34 +427,21 @@ describe('Store (legacy)', () => {
                   <div>
       `);
     });
+
     it('should support reordering of children', () => {
-      const Root = ({children}) => React.createElement('div', null, children);
-      const Component = () => React.createElement('div', null);
-      const Foo = () =>
-        React.createElement('div', null, [
-          React.createElement(Component, {
-            key: '0',
-          }),
-        ]);
-      const Bar = () =>
-        React.createElement('div', null, [
-          React.createElement(Component, {
-            key: '0',
-          }),
-          React.createElement(Component, {
-            key: '1',
-          }),
-        ]);
-      const foo = React.createElement(Foo, {
-        key: 'foo',
-      });
-      const bar = React.createElement(Bar, {
-        key: 'bar',
-      });
+      const Root = ({children}) => <div>{children}</div>;
+      const Component = () => <div />;
+
+      const Foo = () => <div>{[<Component key="0" />]}</div>;
+      const Bar = () => (
+        <div>{[<Component key="0" />, <Component key="1" />]}</div>
+      );
+      const foo = <Foo key="foo" />;
+      const bar = <Bar key="bar" />;
+
       const container = document.createElement('div');
-      act(() =>
-        ReactDOM.render(React.createElement(Root, null, [foo, bar]), container),
-      );
+
+      act(() => ReactDOM.render(<Root>{[foo, bar]}</Root>, container));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▾ <Root>
@@ -530,9 +457,8 @@ describe('Store (legacy)', () => {
                   ▾ <Component key="1">
                       <div>
       `);
-      act(() =>
-        ReactDOM.render(React.createElement(Root, null, [bar, foo]), container),
-      );
+
+      act(() => ReactDOM.render(<Root>{[bar, foo]}</Root>, container));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▾ <Root>
@@ -548,11 +474,13 @@ describe('Store (legacy)', () => {
                   ▾ <Component key="0">
                       <div>
       `);
+
       act(() => store.toggleIsCollapsed(store.getElementIDAtIndex(0), true));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▸ <Root>
       `);
+
       act(() => store.toggleIsCollapsed(store.getElementIDAtIndex(0), false));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -571,35 +499,30 @@ describe('Store (legacy)', () => {
       `);
     });
   });
+
   describe('collapseNodesByDefault:true', () => {
     beforeEach(() => {
       store.collapseNodesByDefault = true;
     });
+
     it('should support mount and update operations', () => {
-      const Parent = ({count}) =>
-        React.createElement(
-          'div',
-          null,
-          new Array(count).fill(true).map((_, index) =>
-            React.createElement(Child, {
-              key: index,
-            }),
-          ),
-        );
-      const Child = () => React.createElement('div', null, 'Hi!');
+      const Parent = ({count}) => (
+        <div>
+          {new Array(count).fill(true).map((_, index) => (
+            <Child key={index} />
+          ))}
+        </div>
+      );
+      const Child = () => <div>Hi!</div>;
+
       const container = document.createElement('div');
+
       act(() =>
         ReactDOM.render(
-          React.createElement(
-            'div',
-            null,
-            React.createElement(Parent, {
-              count: 1,
-            }),
-            React.createElement(Parent, {
-              count: 3,
-            }),
-          ),
+          <div>
+            <Parent count={1} />
+            <Parent count={3} />
+          </div>,
           container,
         ),
       );
@@ -607,18 +530,13 @@ describe('Store (legacy)', () => {
         [root]
           ▸ <div>
       `);
+
       act(() =>
         ReactDOM.render(
-          React.createElement(
-            'div',
-            null,
-            React.createElement(Parent, {
-              count: 2,
-            }),
-            React.createElement(Parent, {
-              count: 1,
-            }),
-          ),
+          <div>
+            <Parent count={2} />
+            <Parent count={1} />
+          </div>,
           container,
         ),
       );
@@ -626,38 +544,27 @@ describe('Store (legacy)', () => {
         [root]
           ▸ <div>
       `);
+
       act(() => ReactDOM.unmountComponentAtNode(container));
       expect(store).toMatchInlineSnapshot(``);
     });
+
     it('should support mount and update operations for multiple roots', () => {
-      const Parent = ({count}) =>
-        React.createElement(
-          'div',
-          null,
-          new Array(count).fill(true).map((_, index) =>
-            React.createElement(Child, {
-              key: index,
-            }),
-          ),
-        );
-      const Child = () => React.createElement('div', null, 'Hi!');
+      const Parent = ({count}) => (
+        <div>
+          {new Array(count).fill(true).map((_, index) => (
+            <Child key={index} />
+          ))}
+        </div>
+      );
+      const Child = () => <div>Hi!</div>;
+
       const containerA = document.createElement('div');
       const containerB = document.createElement('div');
+
       act(() => {
-        ReactDOM.render(
-          React.createElement(Parent, {
-            key: 'A',
-            count: 3,
-          }),
-          containerA,
-        );
-        ReactDOM.render(
-          React.createElement(Parent, {
-            key: 'B',
-            count: 2,
-          }),
-          containerB,
-        );
+        ReactDOM.render(<Parent key="A" count={3} />, containerA);
+        ReactDOM.render(<Parent key="B" count={2} />, containerB);
       });
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -665,21 +572,10 @@ describe('Store (legacy)', () => {
         [root]
           ▸ <Parent key="B">
       `);
+
       act(() => {
-        ReactDOM.render(
-          React.createElement(Parent, {
-            key: 'A',
-            count: 4,
-          }),
-          containerA,
-        );
-        ReactDOM.render(
-          React.createElement(Parent, {
-            key: 'B',
-            count: 1,
-          }),
-          containerB,
-        );
+        ReactDOM.render(<Parent key="A" count={4} />, containerA);
+        ReactDOM.render(<Parent key="B" count={1} />, containerB);
       });
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -687,62 +583,54 @@ describe('Store (legacy)', () => {
         [root]
           ▸ <Parent key="B">
       `);
+
       act(() => ReactDOM.unmountComponentAtNode(containerB));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▸ <Parent key="A">
       `);
+
       act(() => ReactDOM.unmountComponentAtNode(containerA));
       expect(store).toMatchInlineSnapshot(``);
     });
+
     it('should not filter DOM nodes from the store tree', () => {
-      const Grandparent = ({flip}) =>
-        React.createElement(
-          'div',
-          null,
-          React.createElement(
-            'div',
-            null,
-            React.createElement(Parent, {
-              flip: flip,
-            }),
-          ),
-          React.createElement(Parent, {
-            flip: flip,
-          }),
-          React.createElement(Nothing, null),
-        );
-      const Parent = ({flip}) =>
-        React.createElement(
-          'div',
-          null,
-          flip ? 'foo' : null,
-          React.createElement(Child, null),
-          flip && [null, 'hello', 42],
-          flip ? 'bar' : 'baz',
-        );
-      const Child = () => React.createElement('div', null, 'Hi!');
+      const Grandparent = ({flip}) => (
+        <div>
+          <div>
+            <Parent flip={flip} />
+          </div>
+          <Parent flip={flip} />
+          <Nothing />
+        </div>
+      );
+      const Parent = ({flip}) => (
+        <div>
+          {flip ? 'foo' : null}
+          <Child />
+          {flip && [null, 'hello', 42]}
+          {flip ? 'bar' : 'baz'}
+        </div>
+      );
+      const Child = () => <div>Hi!</div>;
       const Nothing = () => null;
+
       const container = document.createElement('div');
       act(() =>
-        ReactDOM.render(
-          React.createElement(Grandparent, {
-            count: 4,
-            flip: false,
-          }),
-          container,
-        ),
+        ReactDOM.render(<Grandparent count={4} flip={false} />, container),
       );
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▸ <Grandparent>
       `);
+
       act(() => store.toggleIsCollapsed(store.getElementIDAtIndex(0), false));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▾ <Grandparent>
             ▸ <div>
       `);
+
       act(() => store.toggleIsCollapsed(store.getElementIDAtIndex(1), false));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -752,14 +640,9 @@ describe('Store (legacy)', () => {
               ▸ <Parent>
                 <Nothing>
       `);
+
       act(() =>
-        ReactDOM.render(
-          React.createElement(Grandparent, {
-            count: 4,
-            flip: true,
-          }),
-          container,
-        ),
+        ReactDOM.render(<Grandparent count={4} flip={true} />, container),
       );
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -769,37 +652,30 @@ describe('Store (legacy)', () => {
               ▸ <Parent>
                 <Nothing>
       `);
+
       act(() => ReactDOM.unmountComponentAtNode(container));
       expect(store).toMatchInlineSnapshot(``);
     });
+
     it('should support expanding parts of the tree', () => {
-      const Grandparent = ({count}) =>
-        React.createElement(
-          'div',
-          null,
-          React.createElement(Parent, {
-            count: count,
-          }),
-          React.createElement(Parent, {
-            count: count,
-          }),
-        );
-      const Parent = ({count}) =>
-        React.createElement(
-          'div',
-          null,
-          new Array(count).fill(true).map((_, index) =>
-            React.createElement(Child, {
-              key: index,
-            }),
-          ),
-        );
-      const Child = () => React.createElement('div', null, 'Hi!');
+      const Grandparent = ({count}) => (
+        <div>
+          <Parent count={count} />
+          <Parent count={count} />
+        </div>
+      );
+      const Parent = ({count}) => (
+        <div>
+          {new Array(count).fill(true).map((_, index) => (
+            <Child key={index} />
+          ))}
+        </div>
+      );
+      const Child = () => <div>Hi!</div>;
+
       act(() =>
         ReactDOM.render(
-          React.createElement(Grandparent, {
-            count: 2,
-          }),
+          <Grandparent count={2} />,
           document.createElement('div'),
         ),
       );
@@ -807,13 +683,16 @@ describe('Store (legacy)', () => {
         [root]
           ▸ <Grandparent>
       `);
+
       const grandparentID = store.getElementIDAtIndex(0);
+
       act(() => store.toggleIsCollapsed(grandparentID, false));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▾ <Grandparent>
             ▸ <div>
       `);
+
       const parentDivID = store.getElementIDAtIndex(1);
       act(() => store.toggleIsCollapsed(parentDivID, false));
       expect(store).toMatchInlineSnapshot(`
@@ -823,8 +702,10 @@ describe('Store (legacy)', () => {
               ▸ <Parent>
               ▸ <Parent>
       `);
+
       const parentOneID = store.getElementIDAtIndex(2);
       const parentTwoID = store.getElementIDAtIndex(3);
+
       act(() => store.toggleIsCollapsed(parentOneID, false));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -834,6 +715,7 @@ describe('Store (legacy)', () => {
                 ▸ <div>
               ▸ <Parent>
       `);
+
       act(() => store.toggleIsCollapsed(parentTwoID, false));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -844,6 +726,7 @@ describe('Store (legacy)', () => {
               ▾ <Parent>
                 ▸ <div>
       `);
+
       act(() => store.toggleIsCollapsed(parentOneID, true));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -853,6 +736,7 @@ describe('Store (legacy)', () => {
               ▾ <Parent>
                 ▸ <div>
       `);
+
       act(() => store.toggleIsCollapsed(parentTwoID, true));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -861,6 +745,7 @@ describe('Store (legacy)', () => {
               ▸ <Parent>
               ▸ <Parent>
       `);
+
       act(() => store.toggleIsCollapsed(grandparentID, true));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -868,51 +753,125 @@ describe('Store (legacy)', () => {
       `);
     });
 
+    // TODO: These tests don't work when enableRefAsProp is on because the
+    // JSX runtime that's injected into the test environment by the compiler
+    // is not compatible with older versions of React. Need to configure the
+    // the test environment in such a way that certain test modules like this
+    // one can use an older transform.
+    if (!require('shared/ReactFeatureFlags').enableRefAsProp) {
+      it('should support expanding deep parts of the tree', () => {
+        const Wrapper = ({forwardedRef}) => (
+          <Nested depth={3} forwardedRef={forwardedRef} />
+        );
+        const Nested = ({depth, forwardedRef}) =>
+          depth > 0 ? (
+            <Nested depth={depth - 1} forwardedRef={forwardedRef} />
+          ) : (
+            <div ref={forwardedRef} />
+          );
+
+        let ref = null;
+        const refSetter = value => {
+          ref = value;
+        };
+
+        act(() =>
+          ReactDOM.render(
+            <Wrapper forwardedRef={refSetter} />,
+            document.createElement('div'),
+          ),
+        );
+        expect(store).toMatchInlineSnapshot(`
+        [root]
+          ▸ <Wrapper>
+      `);
+
+        const deepestedNodeID = global.agent.getIDForNode(ref);
+
+        act(() => store.toggleIsCollapsed(deepestedNodeID, false));
+        expect(store).toMatchInlineSnapshot(`
+        [root]
+          ▾ <Wrapper>
+            ▾ <Nested>
+              ▾ <Nested>
+                ▾ <Nested>
+                  ▾ <Nested>
+                      <div>
+      `);
+
+        const rootID = store.getElementIDAtIndex(0);
+
+        act(() => store.toggleIsCollapsed(rootID, true));
+        expect(store).toMatchInlineSnapshot(`
+        [root]
+          ▸ <Wrapper>
+      `);
+
+        act(() => store.toggleIsCollapsed(rootID, false));
+        expect(store).toMatchInlineSnapshot(`
+        [root]
+          ▾ <Wrapper>
+            ▾ <Nested>
+              ▾ <Nested>
+                ▾ <Nested>
+                  ▾ <Nested>
+                      <div>
+      `);
+
+        const id = store.getElementIDAtIndex(1);
+
+        act(() => store.toggleIsCollapsed(id, true));
+        expect(store).toMatchInlineSnapshot(`
+        [root]
+          ▾ <Wrapper>
+            ▸ <Nested>
+      `);
+
+        act(() => store.toggleIsCollapsed(id, false));
+        expect(store).toMatchInlineSnapshot(`
+        [root]
+          ▾ <Wrapper>
+            ▾ <Nested>
+              ▾ <Nested>
+                ▾ <Nested>
+                  ▾ <Nested>
+                      <div>
+      `);
+      });
+    }
+
     it('should support reordering of children', () => {
-      const Root = ({children}) => React.createElement('div', null, children);
-      const Component = () => React.createElement('div', null);
-      const Foo = () =>
-        React.createElement('div', null, [
-          React.createElement(Component, {
-            key: '0',
-          }),
-        ]);
-      const Bar = () =>
-        React.createElement('div', null, [
-          React.createElement(Component, {
-            key: '0',
-          }),
-          React.createElement(Component, {
-            key: '1',
-          }),
-        ]);
-      const foo = React.createElement(Foo, {
-        key: 'foo',
-      });
-      const bar = React.createElement(Bar, {
-        key: 'bar',
-      });
+      const Root = ({children}) => <div>{children}</div>;
+      const Component = () => <div />;
+
+      const Foo = () => <div>{[<Component key="0" />]}</div>;
+      const Bar = () => (
+        <div>{[<Component key="0" />, <Component key="1" />]}</div>
+      );
+      const foo = <Foo key="foo" />;
+      const bar = <Bar key="bar" />;
+
       const container = document.createElement('div');
-      act(() =>
-        ReactDOM.render(React.createElement(Root, null, [foo, bar]), container),
-      );
+
+      act(() => ReactDOM.render(<Root>{[foo, bar]}</Root>, container));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▸ <Root>
       `);
-      act(() =>
-        ReactDOM.render(React.createElement(Root, null, [bar, foo]), container),
-      );
+
+      act(() => ReactDOM.render(<Root>{[bar, foo]}</Root>, container));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▸ <Root>
       `);
+
       act(() => store.toggleIsCollapsed(store.getElementIDAtIndex(0), false));
       expect(store).toMatchInlineSnapshot(`
         [root]
           ▾ <Root>
             ▸ <div>
       `);
+
       act(() => store.toggleIsCollapsed(store.getElementIDAtIndex(1), false));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -921,6 +880,7 @@ describe('Store (legacy)', () => {
               ▸ <Bar key="bar">
               ▸ <Foo key="foo">
       `);
+
       act(() => {
         store.toggleIsCollapsed(store.getElementIDAtIndex(3), false);
         store.toggleIsCollapsed(store.getElementIDAtIndex(2), false);
@@ -934,6 +894,7 @@ describe('Store (legacy)', () => {
               ▾ <Foo key="foo">
                 ▸ <div>
       `);
+
       act(() => store.toggleIsCollapsed(store.getElementIDAtIndex(0), true));
       expect(store).toMatchInlineSnapshot(`
         [root]
@@ -941,11 +902,14 @@ describe('Store (legacy)', () => {
       `);
     });
   });
+
   describe('StrictMode compliance', () => {
     it('should mark all elements as strict mode compliant', () => {
       const App = () => null;
+
       const container = document.createElement('div');
-      act(() => ReactDOM.render(React.createElement(App, null), container));
+      act(() => ReactDOM.render(<App />, container));
+
       expect(store.getElementAtIndex(0).isStrictModeNonCompliant).toBe(false);
     });
   });

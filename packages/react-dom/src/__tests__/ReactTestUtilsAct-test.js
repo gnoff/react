@@ -9,6 +9,7 @@
 
 let React;
 let ReactDOMClient;
+let ReactTestUtils;
 let Scheduler;
 let act;
 let container;
@@ -26,7 +27,7 @@ function sleep(period) {
   });
 }
 
-describe('React.act()', () => {
+describe('ReactTestUtils.act()', () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -83,8 +84,9 @@ function runActTests(render, unmount, rerender) {
       jest.resetModules();
       React = require('react');
       ReactDOMClient = require('react-dom/client');
+      ReactTestUtils = require('react-dom/test-utils');
       Scheduler = require('scheduler');
-      act = React.act;
+      act = ReactTestUtils.act;
 
       const InternalTestUtils = require('internal-test-utils');
       assertLog = InternalTestUtils.assertLog;

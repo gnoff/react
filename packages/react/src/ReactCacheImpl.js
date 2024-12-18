@@ -7,7 +7,7 @@
  * @flow
  */
 
-import ReactSharedInternals from 'shared/ReactSharedInternals';
+import ReactCurrentCache from './ReactCurrentCache';
 
 const UNTERMINATED = 0;
 const TERMINATED = 1;
@@ -54,7 +54,7 @@ function createCacheNode<T>(): CacheNode<T> {
 
 export function cache<A: Iterable<mixed>, T>(fn: (...A) => T): (...A) => T {
   return function () {
-    const dispatcher = ReactSharedInternals.A;
+    const dispatcher = ReactCurrentCache.current;
     if (!dispatcher) {
       // If there is no dispatcher, then we treat this as not being cached.
       // $FlowFixMe[incompatible-call]: We don't want to use rest arguments since we transpile the code.

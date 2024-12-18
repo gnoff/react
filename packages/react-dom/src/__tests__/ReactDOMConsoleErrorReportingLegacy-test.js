@@ -46,8 +46,6 @@ describe('ReactDOMConsoleErrorReporting', () => {
     document.body.appendChild(container);
     windowOnError = jest.fn();
     window.addEventListener('error', windowOnError);
-    spyOnDevAndProd(console, 'error');
-    spyOnDevAndProd(console, 'warn');
   });
 
   afterEach(() => {
@@ -57,8 +55,9 @@ describe('ReactDOMConsoleErrorReporting', () => {
   });
 
   describe('ReactDOM.render', () => {
-    // @gate !disableLegacyMode
     it('logs errors during event handlers', async () => {
+      spyOnDevAndProd(console, 'error');
+
       function Foo() {
         return (
           <button
@@ -74,136 +73,159 @@ describe('ReactDOMConsoleErrorReporting', () => {
         ReactDOM.render(<Foo />, container);
       });
 
-      await expect(async () => {
-        await act(() => {
-          container.firstChild.dispatchEvent(
-            new MouseEvent('click', {
-              bubbles: true,
-            }),
-          );
-        });
-      }).rejects.toThrow(
-        expect.objectContaining({
-          message: 'Boom',
-        }),
-      );
-
-      // Reported because we're in a browser click event:
-      expect(windowOnError.mock.calls).toEqual([
-        [
-          expect.objectContaining({
-            message: 'Boom',
+      await act(() => {
+        container.firstChild.dispatchEvent(
+          new MouseEvent('click', {
+            bubbles: true,
           }),
-        ],
-      ]);
-      expect(console.warn).not.toBeCalled();
+        );
+      });
 
       if (__DEV__) {
-        expect(console.error.mock.calls).toEqual([
+        expect(windowOnError.mock.calls).toEqual([
           [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
+            // Reported because we're in a browser click event:
+            expect.objectContaining({
+              message: 'Boom',
+            }),
+          ],
+          [
+            // This one is jsdom-only. Real browser deduplicates it.
+            // (In DEV, we have a nested event due to guarded callback.)
+            expect.objectContaining({
+              message: 'Boom',
+            }),
+          ],
+        ]);
+        expect(console.error.mock.calls).toEqual([
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
+          [
+            // Reported because we're in a browser click event:
+            expect.objectContaining({
+              detail: expect.objectContaining({
+                message: 'Boom',
+              }),
+              type: 'unhandled exception',
+            }),
+          ],
+          [
+            // This one is jsdom-only. Real browser deduplicates it.
+            // (In DEV, we have a nested event due to guarded callback.)
+            expect.objectContaining({
+              detail: expect.objectContaining({
+                message: 'Boom',
+              }),
+              type: 'unhandled exception',
+            }),
           ],
         ]);
       } else {
-        expect(console.error).not.toBeCalled();
+        expect(windowOnError.mock.calls).toEqual([
+          [
+            // Reported because we're in a browser click event:
+            expect.objectContaining({
+              message: 'Boom',
+            }),
+          ],
+        ]);
+        expect(console.error.mock.calls).toEqual([
+          [
+            // Reported because we're in a browser click event:
+            expect.objectContaining({
+              detail: expect.objectContaining({
+                message: 'Boom',
+              }),
+              type: 'unhandled exception',
+            }),
+          ],
+        ]);
       }
 
       // Check next render doesn't throw.
       windowOnError.mockReset();
-      console.warn.mockReset();
       console.error.mockReset();
       await act(() => {
         ReactDOM.render(<NoError />, container);
       });
       expect(container.textContent).toBe('OK');
-      expect(windowOnError).not.toBeCalled();
-      expect(console.warn).not.toBeCalled();
+      expect(windowOnError.mock.calls).toEqual([]);
       if (__DEV__) {
         expect(console.error.mock.calls).toEqual([
-          [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
         ]);
-      } else {
-        expect(console.error).not.toBeCalled();
       }
     });
 
-    // @gate !disableLegacyMode
     it('logs render errors without an error boundary', async () => {
+      spyOnDevAndProd(console, 'error');
+
       function Foo() {
         throw Error('Boom');
       }
 
-      await expect(async () => {
-        await act(() => {
-          ReactDOM.render(<Foo />, container);
-        });
-      }).rejects.toThrow('Boom');
-
-      // Reported because errors without a boundary are reported to window.
-      expect(windowOnError.mock.calls).toEqual([
-        [
-          expect.objectContaining({
-            message: 'Boom',
-          }),
-        ],
-      ]);
+      expect(() => {
+        ReactDOM.render(<Foo />, container);
+      }).toThrow('Boom');
 
       if (__DEV__) {
-        expect(console.warn.mock.calls).toEqual([
+        expect(windowOnError.mock.calls).toEqual([
           [
-            // Formatting
-            expect.stringContaining('%s'),
-            // Addendum by React:
-            expect.stringContaining('An error occurred in the <Foo> component'),
-            expect.stringContaining('Consider adding an error boundary'),
-            // The component stack is not added without the polyfill/devtools.
-            // expect.stringContaining('Foo'),
+            // Reported due to guarded callback:
+            expect.objectContaining({
+              message: 'Boom',
+            }),
           ],
         ]);
-
         expect(console.error.mock.calls).toEqual([
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
           [
+            // Reported due to the guarded callback:
+            expect.objectContaining({
+              detail: expect.objectContaining({
+                message: 'Boom',
+              }),
+              type: 'unhandled exception',
+            }),
+          ],
+          [
+            // Addendum by React:
             expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
+              'The above error occurred in the <Foo> component',
             ),
           ],
         ]);
       } else {
-        expect(console.warn).not.toBeCalled();
-        expect(console.error).not.toBeCalled();
+        // The top-level error was caught with try/catch, and there's no guarded callback,
+        // so in production we don't see an error event.
+        expect(windowOnError.mock.calls).toEqual([]);
+        expect(console.error.mock.calls).toEqual([
+          [
+            // Reported by React with no extra message:
+            expect.objectContaining({
+              message: 'Boom',
+            }),
+          ],
+        ]);
       }
 
       // Check next render doesn't throw.
       windowOnError.mockReset();
-      console.warn.mockReset();
       console.error.mockReset();
       await act(() => {
         ReactDOM.render(<NoError />, container);
       });
       expect(container.textContent).toBe('OK');
-      expect(console.warn).not.toBeCalled();
-      expect(windowOnError).not.toBeCalled();
+      expect(windowOnError.mock.calls).toEqual([]);
       if (__DEV__) {
         expect(console.error.mock.calls).toEqual([
-          [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
         ]);
-      } else {
-        expect(console.error).not.toBeCalled();
       }
     });
 
-    // @gate !disableLegacyMode
     it('logs render errors with an error boundary', async () => {
+      spyOnDevAndProd(console, 'error');
+
       function Foo() {
         throw Error('Boom');
       }
@@ -217,34 +239,37 @@ describe('ReactDOMConsoleErrorReporting', () => {
         );
       });
 
-      // The top-level error was caught with try/catch,
-      // so we don't see an error event.
-      expect(windowOnError).not.toBeCalled();
-      expect(console.warn).not.toBeCalled();
-
       if (__DEV__) {
-        expect(console.error.mock.calls).toEqual([
+        expect(windowOnError.mock.calls).toEqual([
           [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
-          [
-            // Formatting
-            expect.stringContaining('%o'),
+            // Reported due to guarded callback:
             expect.objectContaining({
               message: 'Boom',
             }),
+          ],
+        ]);
+        expect(console.error.mock.calls).toEqual([
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
+          [
+            // Reported by jsdom due to the guarded callback:
+            expect.objectContaining({
+              detail: expect.objectContaining({
+                message: 'Boom',
+              }),
+              type: 'unhandled exception',
+            }),
+          ],
+          [
             // Addendum by React:
             expect.stringContaining(
               'The above error occurred in the <Foo> component',
             ),
-            expect.stringContaining('ErrorBoundary'),
-            // The component stack is not added without the polyfill/devtools.
-            // expect.stringContaining('Foo'),
           ],
         ]);
       } else {
+        // The top-level error was caught with try/catch, and there's no guarded callback,
+        // so in production we don't see an error event.
+        expect(windowOnError.mock.calls).toEqual([]);
         expect(console.error.mock.calls).toEqual([
           [
             // Reported by React with no extra message:
@@ -258,28 +283,21 @@ describe('ReactDOMConsoleErrorReporting', () => {
       // Check next render doesn't throw.
       windowOnError.mockReset();
       console.error.mockReset();
-      console.warn.mockReset();
       await act(() => {
         ReactDOM.render(<NoError />, container);
       });
       expect(container.textContent).toBe('OK');
-      expect(windowOnError).not.toBeCalled();
-      expect(console.warn).not.toBeCalled();
+      expect(windowOnError.mock.calls).toEqual([]);
       if (__DEV__) {
         expect(console.error.mock.calls).toEqual([
-          [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
         ]);
-      } else {
-        expect(console.error).not.toBeCalled();
       }
     });
 
-    // @gate !disableLegacyMode
     it('logs layout effect errors without an error boundary', async () => {
+      spyOnDevAndProd(console, 'error');
+
       function Foo() {
         React.useLayoutEffect(() => {
           throw Error('Boom');
@@ -287,73 +305,69 @@ describe('ReactDOMConsoleErrorReporting', () => {
         return null;
       }
 
-      await expect(async () => {
-        await act(() => {
-          ReactDOM.render(<Foo />, container);
-        });
-      }).rejects.toThrow('Boom');
-
-      // Reported because errors without a boundary are reported to window.
-      expect(windowOnError.mock.calls).toEqual([
-        [
-          expect.objectContaining({
-            message: 'Boom',
-          }),
-        ],
-      ]);
+      expect(() => {
+        ReactDOM.render(<Foo />, container);
+      }).toThrow('Boom');
 
       if (__DEV__) {
-        expect(console.warn.mock.calls).toEqual([
+        expect(windowOnError.mock.calls).toEqual([
           [
-            // Formatting
-            expect.stringContaining('%s'),
-
-            // Addendum by React:
-            expect.stringContaining('An error occurred in the <Foo> component'),
-            expect.stringContaining('Consider adding an error boundary'),
-            // The component stack is not added without the polyfill/devtools.
-            // expect.stringContaining('Foo'),
+            // Reported due to guarded callback:
+            expect.objectContaining({
+              message: 'Boom',
+            }),
           ],
         ]);
-
         expect(console.error.mock.calls).toEqual([
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
           [
+            // Reported due to the guarded callback:
+            expect.objectContaining({
+              detail: expect.objectContaining({
+                message: 'Boom',
+              }),
+              type: 'unhandled exception',
+            }),
+          ],
+          [
+            // Addendum by React:
             expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
+              'The above error occurred in the <Foo> component',
             ),
           ],
         ]);
       } else {
-        expect(console.warn).not.toBeCalled();
-        expect(console.error).not.toBeCalled();
+        // The top-level error was caught with try/catch, and there's no guarded callback,
+        // so in production we don't see an error event.
+        expect(windowOnError.mock.calls).toEqual([]);
+        expect(console.error.mock.calls).toEqual([
+          [
+            // Reported by React with no extra message:
+            expect.objectContaining({
+              message: 'Boom',
+            }),
+          ],
+        ]);
       }
 
       // Check next render doesn't throw.
       windowOnError.mockReset();
-      console.warn.mockReset();
       console.error.mockReset();
       await act(() => {
         ReactDOM.render(<NoError />, container);
       });
       expect(container.textContent).toBe('OK');
-      expect(console.warn).not.toBeCalled();
-      expect(windowOnError).not.toBeCalled();
-
+      expect(windowOnError.mock.calls).toEqual([]);
       if (__DEV__) {
         expect(console.error.mock.calls).toEqual([
-          [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
         ]);
-      } else {
-        expect(console.error).not.toBeCalled();
       }
     });
 
-    // @gate !disableLegacyMode
     it('logs layout effect errors with an error boundary', async () => {
+      spyOnDevAndProd(console, 'error');
+
       function Foo() {
         React.useLayoutEffect(() => {
           throw Error('Boom');
@@ -370,34 +384,37 @@ describe('ReactDOMConsoleErrorReporting', () => {
         );
       });
 
-      // The top-level error was caught with try/catch,
-      // so we don't see an error event.
-      expect(windowOnError).not.toBeCalled();
-      expect(console.warn).not.toBeCalled();
-
       if (__DEV__) {
-        expect(console.error.mock.calls).toEqual([
+        expect(windowOnError.mock.calls).toEqual([
           [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
-          [
-            // Formatting
-            expect.stringContaining('%o'),
+            // Reported due to guarded callback:
             expect.objectContaining({
               message: 'Boom',
             }),
+          ],
+        ]);
+        expect(console.error.mock.calls).toEqual([
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
+          [
+            // Reported by jsdom due to the guarded callback:
+            expect.objectContaining({
+              detail: expect.objectContaining({
+                message: 'Boom',
+              }),
+              type: 'unhandled exception',
+            }),
+          ],
+          [
             // Addendum by React:
             expect.stringContaining(
               'The above error occurred in the <Foo> component',
             ),
-            expect.stringContaining('ErrorBoundary'),
-            // The component stack is not added without the polyfill/devtools.
-            // expect.stringContaining('Foo'),
           ],
         ]);
       } else {
+        // The top-level error was caught with try/catch, and there's no guarded callback,
+        // so in production we don't see an error event.
+        expect(windowOnError.mock.calls).toEqual([]);
         expect(console.error.mock.calls).toEqual([
           [
             // Reported by React with no extra message:
@@ -410,29 +427,22 @@ describe('ReactDOMConsoleErrorReporting', () => {
 
       // Check next render doesn't throw.
       windowOnError.mockReset();
-      console.warn.mockReset();
       console.error.mockReset();
       await act(() => {
         ReactDOM.render(<NoError />, container);
       });
       expect(container.textContent).toBe('OK');
-      expect(windowOnError).not.toBeCalled();
-      expect(console.warn).not.toBeCalled();
+      expect(windowOnError.mock.calls).toEqual([]);
       if (__DEV__) {
         expect(console.error.mock.calls).toEqual([
-          [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
         ]);
-      } else {
-        expect(console.error).not.toBeCalled();
       }
     });
 
-    // @gate !disableLegacyMode
     it('logs passive effect errors without an error boundary', async () => {
+      spyOnDevAndProd(console, 'error');
+
       function Foo() {
         React.useEffect(() => {
           throw Error('Boom');
@@ -445,67 +455,65 @@ describe('ReactDOMConsoleErrorReporting', () => {
         await waitForThrow('Boom');
       });
 
-      // The top-level error was caught with try/catch,
-      // so we don't see an error event.
-      expect(windowOnError.mock.calls).toEqual([
-        [
-          expect.objectContaining({
-            message: 'Boom',
-          }),
-        ],
-      ]);
-
       if (__DEV__) {
-        expect(console.warn.mock.calls).toEqual([
+        expect(windowOnError.mock.calls).toEqual([
           [
-            // Formatting
-            expect.stringContaining('%s'),
-
-            // Addendum by React:
-            expect.stringContaining('An error occurred in the <Foo> component'),
-            expect.stringContaining('Consider adding an error boundary'),
-            // The component stack is not added without the polyfill/devtools.
-            // expect.stringContaining('Foo'),
+            // Reported due to guarded callback:
+            expect.objectContaining({
+              message: 'Boom',
+            }),
           ],
         ]);
-
         expect(console.error.mock.calls).toEqual([
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
           [
+            // Reported due to the guarded callback:
+            expect.objectContaining({
+              detail: expect.objectContaining({
+                message: 'Boom',
+              }),
+              type: 'unhandled exception',
+            }),
+          ],
+          [
+            // Addendum by React:
             expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
+              'The above error occurred in the <Foo> component',
             ),
           ],
         ]);
       } else {
-        expect(console.warn).not.toBeCalled();
-        expect(console.error).not.toBeCalled();
+        // The top-level error was caught with try/catch, and there's no guarded callback,
+        // so in production we don't see an error event.
+        expect(windowOnError.mock.calls).toEqual([]);
+        expect(console.error.mock.calls).toEqual([
+          [
+            // Reported by React with no extra message:
+            expect.objectContaining({
+              message: 'Boom',
+            }),
+          ],
+        ]);
       }
 
       // Check next render doesn't throw.
       windowOnError.mockReset();
-      console.warn.mockReset();
       console.error.mockReset();
       await act(() => {
         ReactDOM.render(<NoError />, container);
       });
       expect(container.textContent).toBe('OK');
-      expect(windowOnError).not.toBeCalled();
-      expect(console.warn).not.toBeCalled();
+      expect(windowOnError.mock.calls).toEqual([]);
       if (__DEV__) {
         expect(console.error.mock.calls).toEqual([
-          [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
         ]);
-      } else {
-        expect(console.error).not.toBeCalled();
       }
     });
 
-    // @gate !disableLegacyMode
     it('logs passive effect errors with an error boundary', async () => {
+      spyOnDevAndProd(console, 'error');
+
       function Foo() {
         React.useEffect(() => {
           throw Error('Boom');
@@ -522,34 +530,37 @@ describe('ReactDOMConsoleErrorReporting', () => {
         );
       });
 
-      // The top-level error was caught with try/catch,
-      // so we don't see an error event.
-      expect(windowOnError).not.toBeCalled();
-      expect(console.warn).not.toBeCalled();
-
       if (__DEV__) {
-        expect(console.error.mock.calls).toEqual([
+        // Reported due to guarded callback:
+        expect(windowOnError.mock.calls).toEqual([
           [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
-          [
-            // Formatting
-            expect.stringContaining('%o'),
             expect.objectContaining({
               message: 'Boom',
             }),
+          ],
+        ]);
+        expect(console.error.mock.calls).toEqual([
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
+          [
+            // Reported by jsdom due to the guarded callback:
+            expect.objectContaining({
+              detail: expect.objectContaining({
+                message: 'Boom',
+              }),
+              type: 'unhandled exception',
+            }),
+          ],
+          [
             // Addendum by React:
             expect.stringContaining(
               'The above error occurred in the <Foo> component',
             ),
-            expect.stringContaining('ErrorBoundary'),
-            // The component stack is not added without the polyfill/devtools.
-            // expect.stringContaining('Foo'),
           ],
         ]);
       } else {
+        // The top-level error was caught with try/catch, and there's no guarded callback,
+        // so in production we don't see an error event.
+        expect(windowOnError.mock.calls).toEqual([]);
         expect(console.error.mock.calls).toEqual([
           [
             // Reported by React with no extra message:
@@ -562,24 +573,16 @@ describe('ReactDOMConsoleErrorReporting', () => {
 
       // Check next render doesn't throw.
       windowOnError.mockReset();
-      console.warn.mockReset();
       console.error.mockReset();
       await act(() => {
         ReactDOM.render(<NoError />, container);
       });
       expect(container.textContent).toBe('OK');
-      expect(windowOnError).not.toBeCalled();
-      expect(console.warn).not.toBeCalled();
+      expect(windowOnError.mock.calls).toEqual([]);
       if (__DEV__) {
         expect(console.error.mock.calls).toEqual([
-          [
-            expect.stringContaining(
-              'ReactDOM.render has not been supported since React 18',
-            ),
-          ],
+          [expect.stringContaining('ReactDOM.render is no longer supported')],
         ]);
-      } else {
-        expect(console.warn).not.toBeCalled();
       }
     });
   });

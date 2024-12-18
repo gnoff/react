@@ -156,11 +156,23 @@ describe('ReactIncrementalUpdates', () => {
     }
 
     // Schedule some async updates
-    React.startTransition(() => {
+    if (
+      gate(
+        flags =>
+          !flags.forceConcurrentByDefaultForTesting ||
+          flags.enableUnifiedSyncLane,
+      )
+    ) {
+      React.startTransition(() => {
+        instance.setState(createUpdate('a'));
+        instance.setState(createUpdate('b'));
+        instance.setState(createUpdate('c'));
+      });
+    } else {
       instance.setState(createUpdate('a'));
       instance.setState(createUpdate('b'));
       instance.setState(createUpdate('c'));
-    });
+    }
 
     // Begin the updates but don't flush them yet
     await waitFor(['a', 'b', 'c']);
@@ -177,22 +189,58 @@ describe('ReactIncrementalUpdates', () => {
     });
 
     // The sync updates should have flushed, but not the async ones.
-    assertLog(['d', 'e', 'f']);
-    expect(ReactNoop).toMatchRenderedOutput(<span prop="def" />);
+    if (
+      gate(
+        flags =>
+          !flags.forceConcurrentByDefaultForTesting &&
+          flags.enableUnifiedSyncLane,
+      )
+    ) {
+      assertLog(['d', 'e', 'f']);
+      expect(ReactNoop).toMatchRenderedOutput(<span prop="def" />);
+    } else {
+      // Update d was dropped and replaced by e.
+      assertLog(['e', 'f']);
+      expect(ReactNoop).toMatchRenderedOutput(<span prop="ef" />);
+    }
 
     // Now flush the remaining work. Even though e and f were already processed,
     // they should be processed again, to ensure that the terminal state
     // is deterministic.
-    await waitForAll([
-      // Then we'll re-process everything for 'g'.
-      'a',
-      'b',
-      'c',
-      'd',
-      'e',
-      'f',
-      'g',
-    ]);
+    if (
+      gate(
+        flags =>
+          !flags.forceConcurrentByDefaultForTesting &&
+          !flags.enableUnifiedSyncLane,
+      )
+    ) {
+      await waitForAll([
+        // Since 'g' is in a transition, we'll process 'd' separately first.
+        // That causes us to process 'd' with 'e' and 'f' rebased.
+        'd',
+        'e',
+        'f',
+        // Then we'll re-process everything for 'g'.
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+      ]);
+    } else {
+      await waitForAll([
+        // Then we'll re-process everything for 'g'.
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+      ]);
+    }
     expect(ReactNoop).toMatchRenderedOutput(<span prop="abcdefg" />);
   });
 
@@ -219,11 +267,23 @@ describe('ReactIncrementalUpdates', () => {
     }
 
     // Schedule some async updates
-    React.startTransition(() => {
+    if (
+      gate(
+        flags =>
+          !flags.forceConcurrentByDefaultForTesting ||
+          flags.enableUnifiedSyncLane,
+      )
+    ) {
+      React.startTransition(() => {
+        instance.setState(createUpdate('a'));
+        instance.setState(createUpdate('b'));
+        instance.setState(createUpdate('c'));
+      });
+    } else {
       instance.setState(createUpdate('a'));
       instance.setState(createUpdate('b'));
       instance.setState(createUpdate('c'));
-    });
+    }
 
     // Begin the updates but don't flush them yet
     await waitFor(['a', 'b', 'c']);
@@ -243,22 +303,57 @@ describe('ReactIncrementalUpdates', () => {
     });
 
     // The sync updates should have flushed, but not the async ones.
-    assertLog(['d', 'e', 'f']);
+    if (
+      gate(
+        flags =>
+          !flags.forceConcurrentByDefaultForTesting &&
+          flags.enableUnifiedSyncLane,
+      )
+    ) {
+      assertLog(['d', 'e', 'f']);
+    } else {
+      // Update d was dropped and replaced by e.
+      assertLog(['e', 'f']);
+    }
     expect(ReactNoop).toMatchRenderedOutput(<span prop="f" />);
 
     // Now flush the remaining work. Even though e and f were already processed,
     // they should be processed again, to ensure that the terminal state
     // is deterministic.
-    await waitForAll([
-      // Then we'll re-process everything for 'g'.
-      'a',
-      'b',
-      'c',
-      'd',
-      'e',
-      'f',
-      'g',
-    ]);
+    if (
+      gate(
+        flags =>
+          !flags.forceConcurrentByDefaultForTesting &&
+          !flags.enableUnifiedSyncLane,
+      )
+    ) {
+      await waitForAll([
+        // Since 'g' is in a transition, we'll process 'd' separately first.
+        // That causes us to process 'd' with 'e' and 'f' rebased.
+        'd',
+        'e',
+        'f',
+        // Then we'll re-process everything for 'g'.
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+      ]);
+    } else {
+      await waitForAll([
+        // Then we'll re-process everything for 'g'.
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+      ]);
+    }
     expect(ReactNoop).toMatchRenderedOutput(<span prop="fg" />);
   });
 
@@ -589,7 +684,25 @@ describe('ReactIncrementalUpdates', () => {
         pushToLog('B'),
       );
     });
-    assertLog(['Committed: B', 'Committed: BCD', 'Committed: ABCD']);
+    if (gate(flags => flags.enableUnifiedSyncLane)) {
+      assertLog(['Committed: B', 'Committed: BCD', 'Committed: ABCD']);
+    } else {
+      assertLog([
+        // A and B are pending. B is higher priority, so we'll render that first.
+        'Committed: B',
+        // Because A comes first in the queue, we're now in rebase mode. B must
+        // be rebased on top of A. Also, in a layout effect, we received two new
+        // updates: C and D. C is user-blocking and D is synchronous.
+        //
+        // First render the synchronous update. What we're testing here is that
+        // B *is not dropped* even though it has lower than sync priority. That's
+        // because we already committed it. However, this render should not
+        // include C, because that update wasn't already committed.
+        'Committed: BD',
+        'Committed: BCD',
+        'Committed: ABCD',
+      ]);
+    }
     expect(root).toMatchRenderedOutput('ABCD');
   });
 
@@ -631,7 +744,25 @@ describe('ReactIncrementalUpdates', () => {
         pushToLog('B'),
       );
     });
-    assertLog(['Committed: B', 'Committed: BCD', 'Committed: ABCD']);
+    if (gate(flags => flags.enableUnifiedSyncLane)) {
+      assertLog(['Committed: B', 'Committed: BCD', 'Committed: ABCD']);
+    } else {
+      assertLog([
+        // A and B are pending. B is higher priority, so we'll render that first.
+        'Committed: B',
+        // Because A comes first in the queue, we're now in rebase mode. B must
+        // be rebased on top of A. Also, in a layout effect, we received two new
+        // updates: C and D. C is user-blocking and D is synchronous.
+        //
+        // First render the synchronous update. What we're testing here is that
+        // B *is not dropped* even though it has lower than sync priority. That's
+        // because we already committed it. However, this render should not
+        // include C, because that update wasn't already committed.
+        'Committed: BD',
+        'Committed: BCD',
+        'Committed: ABCD',
+      ]);
+    }
     expect(root).toMatchRenderedOutput('ABCD');
   });
 

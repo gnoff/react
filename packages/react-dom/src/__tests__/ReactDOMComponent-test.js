@@ -17,8 +17,6 @@ describe('ReactDOMComponent', () => {
   const ReactFeatureFlags = require('shared/ReactFeatureFlags');
 
   let act;
-  let assertLog;
-  let Scheduler;
 
   beforeEach(() => {
     jest.resetModules();
@@ -26,9 +24,7 @@ describe('ReactDOMComponent', () => {
     ReactDOM = require('react-dom');
     ReactDOMClient = require('react-dom/client');
     ReactDOMServer = require('react-dom/server');
-    Scheduler = require('scheduler');
     act = require('internal-test-utils').act;
-    assertLog = require('internal-test-utils').assertLog;
   });
 
   afterEach(() => {
@@ -194,9 +190,9 @@ describe('ReactDOMComponent', () => {
           root.render(<div foo={() => {}} />);
         });
       }).toErrorDev(
-        'Invalid value for prop `foo` on <div> tag. Either remove it ' +
+        'Warning: Invalid value for prop `foo` on <div> tag. Either remove it ' +
           'from the element, or pass a string or number value to keep ' +
-          'it in the DOM. For details, see https://react.dev/link/attribute-behavior ' +
+          'it in the DOM. For details, see https://reactjs.org/link/attribute-behavior ' +
           '\n    in div (at **)',
       );
     });
@@ -209,9 +205,9 @@ describe('ReactDOMComponent', () => {
           root.render(<div foo={() => {}} baz={() => {}} />);
         });
       }).toErrorDev(
-        'Invalid values for props `foo`, `baz` on <div> tag. Either remove ' +
+        'Warning: Invalid values for props `foo`, `baz` on <div> tag. Either remove ' +
           'them from the element, or pass a string or number value to keep ' +
-          'them in the DOM. For details, see https://react.dev/link/attribute-behavior ' +
+          'them in the DOM. For details, see https://reactjs.org/link/attribute-behavior ' +
           '\n    in div (at **)',
       );
     });
@@ -224,7 +220,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div onDblClick={() => {}} />);
         });
       }).toErrorDev(
-        'Invalid event handler property `onDblClick`. Did you mean `onDoubleClick`?\n    in div (at **)',
+        'Warning: Invalid event handler property `onDblClick`. Did you mean `onDoubleClick`?\n    in div (at **)',
       );
     });
 
@@ -236,7 +232,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div onUnknown='alert("hack")' />);
         });
       }).toErrorDev(
-        'Unknown event handler property `onUnknown`. It will be ignored.\n    in div (at **)',
+        'Warning: Unknown event handler property `onUnknown`. It will be ignored.\n    in div (at **)',
       );
       expect(container.firstChild.hasAttribute('onUnknown')).toBe(false);
       expect(container.firstChild.onUnknown).toBe(undefined);
@@ -245,7 +241,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div onunknown='alert("hack")' />);
         });
       }).toErrorDev(
-        'Unknown event handler property `onunknown`. It will be ignored.\n    in div (at **)',
+        'Warning: Unknown event handler property `onunknown`. It will be ignored.\n    in div (at **)',
       );
       expect(container.firstChild.hasAttribute('onunknown')).toBe(false);
       expect(container.firstChild.onunknown).toBe(undefined);
@@ -254,7 +250,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div on-unknown='alert("hack")' />);
         });
       }).toErrorDev(
-        'Unknown event handler property `on-unknown`. It will be ignored.\n    in div (at **)',
+        'Warning: Unknown event handler property `on-unknown`. It will be ignored.\n    in div (at **)',
       );
       expect(container.firstChild.hasAttribute('on-unknown')).toBe(false);
       expect(container.firstChild['on-unknown']).toBe(undefined);
@@ -268,7 +264,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div onUnknown={function () {}} />);
         });
       }).toErrorDev(
-        'Unknown event handler property `onUnknown`. It will be ignored.\n    in div (at **)',
+        'Warning: Unknown event handler property `onUnknown`. It will be ignored.\n    in div (at **)',
       );
       expect(container.firstChild.hasAttribute('onUnknown')).toBe(false);
       expect(container.firstChild.onUnknown).toBe(undefined);
@@ -277,7 +273,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div onunknown={function () {}} />);
         });
       }).toErrorDev(
-        'Unknown event handler property `onunknown`. It will be ignored.\n    in div (at **)',
+        'Warning: Unknown event handler property `onunknown`. It will be ignored.\n    in div (at **)',
       );
       expect(container.firstChild.hasAttribute('onunknown')).toBe(false);
       expect(container.firstChild.onunknown).toBe(undefined);
@@ -286,7 +282,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div on-unknown={function () {}} />);
         });
       }).toErrorDev(
-        'Unknown event handler property `on-unknown`. It will be ignored.\n    in div (at **)',
+        'Warning: Unknown event handler property `on-unknown`. It will be ignored.\n    in div (at **)',
       );
       expect(container.firstChild.hasAttribute('on-unknown')).toBe(false);
       expect(container.firstChild['on-unknown']).toBe(undefined);
@@ -300,7 +296,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div CHILDREN="5" />);
         });
       }).toErrorDev(
-        'Invalid DOM property `CHILDREN`. Did you mean `children`?\n    in div (at **)',
+        'Warning: Invalid DOM property `CHILDREN`. Did you mean `children`?\n    in div (at **)',
       );
       expect(container.firstChild.getAttribute('CHILDREN')).toBe('5');
     });
@@ -328,7 +324,7 @@ describe('ReactDOMComponent', () => {
           root.render(<span style={style} />);
         });
       }).toErrorDev(
-        '`NaN` is an invalid value for the `fontSize` css style property.' +
+        'Warning: `NaN` is an invalid value for the `fontSize` css style property.' +
           '\n    in span (at **)',
       );
       await act(() => {
@@ -336,7 +332,7 @@ describe('ReactDOMComponent', () => {
       });
     });
 
-    it('throws with Temporal-like objects as style values', async () => {
+    it('throws with Temporal-like objects as style values', () => {
       class TemporalLike {
         valueOf() {
           // Throwing here is the behavior of ECMAScript "Temporal" date/time API.
@@ -348,17 +344,14 @@ describe('ReactDOMComponent', () => {
         }
       }
       const style = {fontSize: new TemporalLike()};
-      const root = ReactDOMClient.createRoot(document.createElement('div'));
-      await expect(async () => {
-        await expect(async () => {
-          await act(() => {
-            root.render(<span style={style} />);
-          });
-        }).toErrorDev(
-          'The provided `fontSize` CSS property is an unsupported type TemporalLike.' +
-            ' This value must be coerced to a string before using it here.',
-        );
-      }).rejects.toThrowError(new TypeError('prod message'));
+      const div = document.createElement('div');
+      const test = () => ReactDOM.render(<span style={style} />, div);
+      expect(() =>
+        expect(test).toThrowError(new TypeError('prod message')),
+      ).toErrorDev(
+        'Warning: The provided `fontSize` CSS property is an unsupported type TemporalLike.' +
+          ' This value must be coerced to a string before using it here.',
+      );
     });
 
     it('should update styles if initially null', async () => {
@@ -587,131 +580,133 @@ describe('ReactDOMComponent', () => {
       expect(node.hasAttribute('data-foo')).toBe(false);
     });
 
-    it('should not add an empty src attribute', async () => {
-      const container = document.createElement('div');
-      const root = ReactDOMClient.createRoot(container);
-      await expect(async () => {
-        await act(() => {
-          root.render(<img src="" />);
-        });
-      }).toErrorDev(
-        'An empty string ("") was passed to the src attribute. ' +
-          'This may cause the browser to download the whole page again over the network. ' +
-          'To fix this, either do not render the element at all ' +
-          'or pass null to src instead of an empty string.',
-      );
-      const node = container.firstChild;
-      expect(node.hasAttribute('src')).toBe(false);
-
-      await act(() => {
-        root.render(<img src="abc" />);
-      });
-      expect(node.hasAttribute('src')).toBe(true);
-
-      await expect(async () => {
-        await act(() => {
-          root.render(<img src="" />);
-        });
-      }).toErrorDev(
-        'An empty string ("") was passed to the src attribute. ' +
-          'This may cause the browser to download the whole page again over the network. ' +
-          'To fix this, either do not render the element at all ' +
-          'or pass null to src instead of an empty string.',
-      );
-      expect(node.hasAttribute('src')).toBe(false);
-    });
-
-    it('should not add an empty href attribute', async () => {
-      const container = document.createElement('div');
-      const root = ReactDOMClient.createRoot(container);
-      await expect(async () => {
-        await act(() => {
-          root.render(<link href="" />);
-        });
-      }).toErrorDev(
-        'An empty string ("") was passed to the href attribute. ' +
-          'To fix this, either do not render the element at all ' +
-          'or pass null to href instead of an empty string.',
-      );
-      const node = container.firstChild;
-      expect(node.hasAttribute('href')).toBe(false);
-
-      await act(() => {
-        root.render(<link href="abc" />);
-      });
-      expect(node.hasAttribute('href')).toBe(true);
-
-      await expect(async () => {
-        await act(() => {
-          root.render(<link href="" />);
-        });
-      }).toErrorDev(
-        'An empty string ("") was passed to the href attribute. ' +
-          'To fix this, either do not render the element at all ' +
-          'or pass null to href instead of an empty string.',
-      );
-      expect(node.hasAttribute('href')).toBe(false);
-    });
-
-    it('should allow an empty href attribute on anchors', async () => {
-      const container = document.createElement('div');
-      const root = ReactDOMClient.createRoot(container);
-      await act(() => {
-        root.render(<a href="" />);
-      });
-      const node = container.firstChild;
-      expect(node.getAttribute('href')).toBe('');
-    });
-
-    it('should allow an empty action attribute', async () => {
-      const container = document.createElement('div');
-      const root = ReactDOMClient.createRoot(container);
-      await act(() => {
-        root.render(<form action="" />);
-      });
-      const node = container.firstChild;
-      expect(node.getAttribute('action')).toBe('');
-
-      await act(() => {
-        root.render(<form action="abc" />);
-      });
-      expect(node.hasAttribute('action')).toBe(true);
-
-      await act(() => {
-        root.render(<form action="" />);
-      });
-      expect(node.getAttribute('action')).toBe('');
-    });
-
-    it('allows empty string of a formAction to override the default of a parent', async () => {
-      const container = document.createElement('div');
-      const root = ReactDOMClient.createRoot(container);
-      await act(() => {
-        root.render(
-          <form action="hello">
-            <button formAction="" />,
-          </form>,
+    if (ReactFeatureFlags.enableFilterEmptyStringAttributesDOM) {
+      it('should not add an empty src attribute', async () => {
+        const container = document.createElement('div');
+        const root = ReactDOMClient.createRoot(container);
+        await expect(async () => {
+          await act(() => {
+            root.render(<img src="" />);
+          });
+        }).toErrorDev(
+          'An empty string ("") was passed to the src attribute. ' +
+            'This may cause the browser to download the whole page again over the network. ' +
+            'To fix this, either do not render the element at all ' +
+            'or pass null to src instead of an empty string.',
         );
-      });
-      const node = container.firstChild.firstChild;
-      expect(node.hasAttribute('formaction')).toBe(true);
-      expect(node.getAttribute('formaction')).toBe('');
-    });
+        const node = container.firstChild;
+        expect(node.hasAttribute('src')).toBe(false);
 
-    it('should not filter attributes for custom elements', async () => {
-      const container = document.createElement('div');
-      const root = ReactDOMClient.createRoot(container);
-      await act(() => {
-        root.render(
-          <some-custom-element action="" formAction="" href="" src="" />,
+        await act(() => {
+          root.render(<img src="abc" />);
+        });
+        expect(node.hasAttribute('src')).toBe(true);
+
+        await expect(async () => {
+          await act(() => {
+            root.render(<img src="" />);
+          });
+        }).toErrorDev(
+          'An empty string ("") was passed to the src attribute. ' +
+            'This may cause the browser to download the whole page again over the network. ' +
+            'To fix this, either do not render the element at all ' +
+            'or pass null to src instead of an empty string.',
         );
+        expect(node.hasAttribute('src')).toBe(false);
       });
-      const node = container.firstChild;
-      expect(node.hasAttribute('action')).toBe(true);
-      expect(node.hasAttribute('formAction')).toBe(true);
-      expect(node.hasAttribute('href')).toBe(true);
-      expect(node.hasAttribute('src')).toBe(true);
-    });
+
+      it('should not add an empty href attribute', async () => {
+        const container = document.createElement('div');
+        const root = ReactDOMClient.createRoot(container);
+        await expect(async () => {
+          await act(() => {
+            root.render(<link href="" />);
+          });
+        }).toErrorDev(
+          'An empty string ("") was passed to the href attribute. ' +
+            'To fix this, either do not render the element at all ' +
+            'or pass null to href instead of an empty string.',
+        );
+        const node = container.firstChild;
+        expect(node.hasAttribute('href')).toBe(false);
+
+        await act(() => {
+          root.render(<link href="abc" />);
+        });
+        expect(node.hasAttribute('href')).toBe(true);
+
+        await expect(async () => {
+          await act(() => {
+            root.render(<link href="" />);
+          });
+        }).toErrorDev(
+          'An empty string ("") was passed to the href attribute. ' +
+            'To fix this, either do not render the element at all ' +
+            'or pass null to href instead of an empty string.',
+        );
+        expect(node.hasAttribute('href')).toBe(false);
+      });
+
+      it('should allow an empty href attribute on anchors', async () => {
+        const container = document.createElement('div');
+        const root = ReactDOMClient.createRoot(container);
+        await act(() => {
+          root.render(<a href="" />);
+        });
+        const node = container.firstChild;
+        expect(node.getAttribute('href')).toBe('');
+      });
+
+      it('should allow an empty action attribute', async () => {
+        const container = document.createElement('div');
+        const root = ReactDOMClient.createRoot(container);
+        await act(() => {
+          root.render(<form action="" />);
+        });
+        const node = container.firstChild;
+        expect(node.getAttribute('action')).toBe('');
+
+        await act(() => {
+          root.render(<form action="abc" />);
+        });
+        expect(node.hasAttribute('action')).toBe(true);
+
+        await act(() => {
+          root.render(<form action="" />);
+        });
+        expect(node.getAttribute('action')).toBe('');
+      });
+
+      it('allows empty string of a formAction to override the default of a parent', async () => {
+        const container = document.createElement('div');
+        const root = ReactDOMClient.createRoot(container);
+        await act(() => {
+          root.render(
+            <form action="hello">
+              <button formAction="" />,
+            </form>,
+          );
+        });
+        const node = container.firstChild.firstChild;
+        expect(node.hasAttribute('formaction')).toBe(true);
+        expect(node.getAttribute('formaction')).toBe('');
+      });
+
+      it('should not filter attributes for custom elements', async () => {
+        const container = document.createElement('div');
+        const root = ReactDOMClient.createRoot(container);
+        await act(() => {
+          root.render(
+            <some-custom-element action="" formAction="" href="" src="" />,
+          );
+        });
+        const node = container.firstChild;
+        expect(node.hasAttribute('action')).toBe(true);
+        expect(node.hasAttribute('formAction')).toBe(true);
+        expect(node.hasAttribute('href')).toBe(true);
+        expect(node.hasAttribute('src')).toBe(true);
+      });
+    }
 
     it('should apply React-specific aliases to HTML elements', async () => {
       const container = document.createElement('div');
@@ -889,8 +884,8 @@ describe('ReactDOMComponent', () => {
           expect(result2.toLowerCase()).not.toContain('script');
         }
       }).toErrorDev([
-        'Invalid attribute name: `blah" onclick="beevil" noise="hi`',
-        'Invalid attribute name: `></div><script>alert("hi")</script>`',
+        'Warning: Invalid attribute name: `blah" onclick="beevil" noise="hi`',
+        'Warning: Invalid attribute name: `></div><script>alert("hi")</script>`',
       ]);
     });
 
@@ -913,8 +908,8 @@ describe('ReactDOMComponent', () => {
           expect(result2.toLowerCase()).not.toContain('script');
         }
       }).toErrorDev([
-        'Invalid attribute name: `blah" onclick="beevil" noise="hi`',
-        'Invalid attribute name: `></x-foo-component><script>alert("hi")</script>`',
+        'Warning: Invalid attribute name: `blah" onclick="beevil" noise="hi`',
+        'Warning: Invalid attribute name: `></x-foo-component><script>alert("hi")</script>`',
       ]);
     });
 
@@ -951,8 +946,8 @@ describe('ReactDOMComponent', () => {
           expect(container.firstChild.attributes.length).toBe(0);
         }
       }).toErrorDev([
-        'Invalid attribute name: `blah" onclick="beevil" noise="hi`',
-        'Invalid attribute name: `></div><script>alert("hi")</script>`',
+        'Warning: Invalid attribute name: `blah" onclick="beevil" noise="hi`',
+        'Warning: Invalid attribute name: `></div><script>alert("hi")</script>`',
       ]);
     });
 
@@ -990,8 +985,8 @@ describe('ReactDOMComponent', () => {
           expect(container.firstChild.attributes.length).toBe(0);
         }
       }).toErrorDev([
-        'Invalid attribute name: `blah" onclick="beevil" noise="hi`',
-        'Invalid attribute name: `></x-foo-component><script>alert("hi")</script>`',
+        'Warning: Invalid attribute name: `blah" onclick="beevil" noise="hi`',
+        'Warning: Invalid attribute name: `></x-foo-component><script>alert("hi")</script>`',
       ]);
     });
 
@@ -1028,8 +1023,8 @@ describe('ReactDOMComponent', () => {
           expect(container.firstChild.attributes.length).toBe(0);
         }
       }).toErrorDev([
-        'Invalid attribute name: `blah" onclick="beevil" noise="hi`',
-        'Invalid attribute name: `></div><script>alert("hi")</script>`',
+        'Warning: Invalid attribute name: `blah" onclick="beevil" noise="hi`',
+        'Warning: Invalid attribute name: `></div><script>alert("hi")</script>`',
       ]);
     });
 
@@ -1066,8 +1061,8 @@ describe('ReactDOMComponent', () => {
           expect(container.firstChild.attributes.length).toBe(0);
         }
       }).toErrorDev([
-        'Invalid attribute name: `blah" onclick="beevil" noise="hi`',
-        'Invalid attribute name: `></x-foo-component><script>alert("hi")</script>`',
+        'Warning: Invalid attribute name: `blah" onclick="beevil" noise="hi`',
+        'Warning: Invalid attribute name: `></x-foo-component><script>alert("hi")</script>`',
       ]);
     });
 
@@ -1408,7 +1403,7 @@ describe('ReactDOMComponent', () => {
           root.render(<input value="" onChange={onChange} />);
         });
       }).toErrorDev(
-        'A component is changing an uncontrolled input to be controlled. This is likely caused by ' +
+        ' A component is changing an uncontrolled input to be controlled. This is likely caused by ' +
           'the value changing from undefined to a defined value, which should not happen. Decide between ' +
           'using a controlled or uncontrolled input element for the lifetime of the component.',
       );
@@ -1613,6 +1608,7 @@ describe('ReactDOMComponent', () => {
     });
 
     it('should work error event on <source> element', async () => {
+      spyOnDevAndProd(console, 'log');
       const container = document.createElement('div');
       const root = ReactDOMClient.createRoot(container);
       await act(() => {
@@ -1621,7 +1617,7 @@ describe('ReactDOMComponent', () => {
             <source
               src="http://example.org/video"
               type="video/mp4"
-              onError={e => Scheduler.log('onError called')}
+              onError={e => console.log('onError called')}
             />
           </video>,
         );
@@ -1632,7 +1628,8 @@ describe('ReactDOMComponent', () => {
       container.getElementsByTagName('source')[0].dispatchEvent(errorEvent);
 
       if (__DEV__) {
-        assertLog(['onError called']);
+        expect(console.log).toHaveBeenCalledTimes(1);
+        expect(console.log.mock.calls[0][0]).toContain('onError called');
       }
     });
 
@@ -1820,7 +1817,7 @@ describe('ReactDOMComponent', () => {
         await mountComponent({children: '', dangerouslySetInnerHTML: ''});
       }).rejects.toThrowError(
         '`props.dangerouslySetInnerHTML` must be in the form `{__html: ...}`. ' +
-          'Please visit https://react.dev/link/dangerously-set-inner-html for more information.',
+          'Please visit https://reactjs.org/link/dangerously-set-inner-html for more information.',
       );
     });
 
@@ -1836,21 +1833,21 @@ describe('ReactDOMComponent', () => {
       }).toErrorDev('Directly setting property `innerHTML` is not permitted. ');
     });
 
-    it('should validate use of dangerouslySetInnerHTM with JSX', async () => {
+    it('should validate use of dangerouslySetInnerHTML', async () => {
       await expect(async () => {
         await mountComponent({dangerouslySetInnerHTML: '<span>Hi Jim!</span>'});
       }).rejects.toThrowError(
         '`props.dangerouslySetInnerHTML` must be in the form `{__html: ...}`. ' +
-          'Please visit https://react.dev/link/dangerously-set-inner-html for more information.',
+          'Please visit https://reactjs.org/link/dangerously-set-inner-html for more information.',
       );
     });
 
-    it('should validate use of dangerouslySetInnerHTML with object', async () => {
+    it('should validate use of dangerouslySetInnerHTML', async () => {
       await expect(async () => {
         await mountComponent({dangerouslySetInnerHTML: {foo: 'bar'}});
       }).rejects.toThrowError(
         '`props.dangerouslySetInnerHTML` must be in the form `{__html: ...}`. ' +
-          'Please visit https://react.dev/link/dangerously-set-inner-html for more information.',
+          'Please visit https://reactjs.org/link/dangerously-set-inner-html for more information.',
       );
     });
 
@@ -1864,7 +1861,7 @@ describe('ReactDOMComponent', () => {
       await expect(async () => {
         await mountComponent({contentEditable: true, children: ''});
       }).toErrorDev(
-        'A component is `contentEditable` and contains `children` ' +
+        'Warning: A component is `contentEditable` and contains `children` ' +
           'managed by React. It is now your responsibility to guarantee that ' +
           'none of those nodes are unexpectedly modified or duplicated. This ' +
           'is probably not intentional.\n    in div (at **)',
@@ -1921,6 +1918,7 @@ describe('ReactDOMComponent', () => {
     });
 
     it('should work load and error events on <image> element in SVG', async () => {
+      spyOnDevAndProd(console, 'log');
       const container = document.createElement('div');
       const root = ReactDOMClient.createRoot(container);
       await act(() => {
@@ -1928,8 +1926,8 @@ describe('ReactDOMComponent', () => {
           <svg>
             <image
               xlinkHref="http://example.org/image"
-              onError={e => Scheduler.log('onError called')}
-              onLoad={e => Scheduler.log('onLoad called')}
+              onError={e => console.log('onError called')}
+              onLoad={e => console.log('onLoad called')}
             />
           </svg>,
         );
@@ -1945,7 +1943,9 @@ describe('ReactDOMComponent', () => {
       container.getElementsByTagName('image')[0].dispatchEvent(loadEvent);
 
       if (__DEV__) {
-        assertLog(['onError called', 'onLoad called']);
+        expect(console.log).toHaveBeenCalledTimes(2);
+        expect(console.log.mock.calls[0][0]).toContain('onError called');
+        expect(console.log.mock.calls[1][0]).toContain('onLoad called');
       }
     });
 
@@ -2118,11 +2118,7 @@ describe('ReactDOMComponent', () => {
 
         componentWillUnmount() {
           // Should not throw
-          expect(
-            ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.findDOMNode(
-              this,
-            ).nodeName,
-          ).toBe('SPAN');
+          expect(ReactDOM.findDOMNode(this).nodeName).toBe('SPAN');
         }
       }
 
@@ -2191,18 +2187,13 @@ describe('ReactDOMComponent', () => {
             </div>,
           );
         });
-      }).toErrorDev(
-        'In HTML, <tr> cannot be a child of <div>.\n' +
-          'This will cause a hydration error.\n' +
-          '\n' +
-          '> <div>\n' +
-          '>   <tr>\n' +
-          '    ...\n' +
+      }).toErrorDev([
+        'Warning: In HTML, <tr> cannot be a child of ' +
+          '<div>.\n' +
+          'This will cause a hydration error.' +
           '\n    in tr (at **)' +
-          (gate(flags => flags.enableOwnerStacks)
-            ? ''
-            : '\n    in div (at **)'),
-      );
+          '\n    in div (at **)',
+      ]);
     });
 
     it('warns on invalid nesting at root', async () => {
@@ -2218,13 +2209,12 @@ describe('ReactDOMComponent', () => {
           );
         });
       }).toErrorDev(
-        'In HTML, <p> cannot be a descendant of <p>.\n' +
+        'Warning: In HTML, <p> cannot be a descendant ' +
+          'of <p>.\n' +
           'This will cause a hydration error.' +
           // There is no outer `p` here because root container is not part of the stack.
           '\n    in p (at **)' +
-          (gate(flags => flags.enableOwnerStacks)
-            ? ''
-            : '\n    in span (at **)'),
+          '\n    in span (at **)',
       );
     });
 
@@ -2252,90 +2242,29 @@ describe('ReactDOMComponent', () => {
         await act(() => {
           root.render(<Foo />);
         });
-      }).toErrorDev(
-        gate(flags => flags.enableOwnerStacks)
-          ? [
-              'In HTML, <tr> cannot be a child of ' +
-                '<table>. Add a <tbody>, <thead> or <tfoot> to your code to match the DOM tree generated ' +
-                'by the browser.\n' +
-                'This will cause a hydration error.\n' +
-                '\n' +
-                '  <Foo>\n' +
-                '>   <table>\n' +
-                '      <Row>\n' +
-                '>       <tr>\n' +
-                '      ...\n' +
-                '\n    in tr (at **)' +
-                '\n    in Row (at **)',
-              '<table> cannot contain a nested <tr>.\nSee this log for the ancestor stack trace.' +
-                '\n    in table (at **)' +
-                '\n    in Foo (at **)',
-              'In HTML, text nodes cannot be a ' +
-                'child of <tr>.\n' +
-                'This will cause a hydration error.\n' +
-                '\n' +
-                '  <Foo>\n' +
-                '    <table>\n' +
-                '      <Row>\n' +
-                '        <tr>\n' +
-                '>         x\n' +
-                '      ...\n' +
-                '\n    in tr (at **)' +
-                '\n    in Row (at **)',
-              'In HTML, whitespace text nodes cannot ' +
-                "be a child of <table>. Make sure you don't have any extra " +
-                'whitespace between tags on each line of your source code.\n' +
-                'This will cause a hydration error.\n' +
-                '\n' +
-                '  <Foo>\n' +
-                '>   <table>\n' +
-                '      <Row>\n' +
-                '>     {" "}\n' +
-                '\n    in table (at **)' +
-                '\n    in Foo (at **)',
-            ]
-          : [
-              'In HTML, <tr> cannot be a child of ' +
-                '<table>. Add a <tbody>, <thead> or <tfoot> to your code to match the DOM tree generated ' +
-                'by the browser.\n' +
-                'This will cause a hydration error.\n' +
-                '\n' +
-                '  <Foo>\n' +
-                '>   <table>\n' +
-                '      <Row>\n' +
-                '>       <tr>\n' +
-                '      ...\n' +
-                '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in table (at **)' +
-                '\n    in Foo (at **)',
-              'In HTML, text nodes cannot be a ' +
-                'child of <tr>.\n' +
-                'This will cause a hydration error.\n' +
-                '\n' +
-                '  <Foo>\n' +
-                '    <table>\n' +
-                '      <Row>\n' +
-                '        <tr>\n' +
-                '>         x\n' +
-                '      ...\n' +
-                '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in table (at **)' +
-                '\n    in Foo (at **)',
-              'In HTML, whitespace text nodes cannot ' +
-                "be a child of <table>. Make sure you don't have any extra " +
-                'whitespace between tags on each line of your source code.\n' +
-                'This will cause a hydration error.\n' +
-                '\n' +
-                '  <Foo>\n' +
-                '>   <table>\n' +
-                '      <Row>\n' +
-                '>     {" "}\n' +
-                '\n    in table (at **)' +
-                '\n    in Foo (at **)',
-            ],
-      );
+      }).toErrorDev([
+        'Warning: In HTML, <tr> cannot be a child of ' +
+          '<table>. Add a <tbody>, <thead> or <tfoot> to your code to match the DOM tree generated ' +
+          'by the browser.\n' +
+          'This will cause a hydration error.' +
+          '\n    in tr (at **)' +
+          '\n    in Row (at **)' +
+          '\n    in table (at **)' +
+          '\n    in Foo (at **)',
+        'Warning: In HTML, text nodes cannot be a ' +
+          'child of <tr>.\n' +
+          'This will cause a hydration error.' +
+          '\n    in tr (at **)' +
+          '\n    in Row (at **)' +
+          '\n    in table (at **)' +
+          '\n    in Foo (at **)',
+        'Warning: In HTML, whitespace text nodes cannot ' +
+          "be a child of <table>. Make sure you don't have any extra " +
+          'whitespace between tags on each line of your source code.\n' +
+          'This will cause a hydration error.' +
+          '\n    in table (at **)' +
+          '\n    in Foo (at **)',
+      ]);
     });
 
     it('warns nicely for updating table rows to use text', async () => {
@@ -2359,14 +2288,10 @@ describe('ReactDOMComponent', () => {
           root.render(<Foo> </Foo>);
         });
       }).toErrorDev([
-        'In HTML, whitespace text nodes cannot ' +
+        'Warning: In HTML, whitespace text nodes cannot ' +
           "be a child of <table>. Make sure you don't have any extra " +
           'whitespace between tags on each line of your source code.\n' +
-          'This will cause a hydration error.\n' +
-          '\n' +
-          '  <Foo>\n' +
-          '    <table>\n' +
-          '>     {" "}\n' +
+          'This will cause a hydration error.' +
           '\n    in table (at **)' +
           '\n    in Foo (at **)',
       ]);
@@ -2392,23 +2317,14 @@ describe('ReactDOMComponent', () => {
           );
         });
       }).toErrorDev([
-        'In HTML, text nodes cannot be a ' +
+        'Warning: In HTML, text nodes cannot be a ' +
           'child of <tr>.\n' +
-          'This will cause a hydration error.\n' +
-          '\n' +
-          '  <Foo>\n' +
-          '    <table>\n' +
-          '      <tbody>\n' +
-          '        <Row>\n' +
-          '          <tr>\n' +
-          '>           text\n' +
+          'This will cause a hydration error.' +
           '\n    in tr (at **)' +
           '\n    in Row (at **)' +
-          (gate(flags => flags.enableOwnerStacks)
-            ? ''
-            : '\n    in tbody (at **)' +
-              '\n    in table (at **)' +
-              '\n    in Foo (at **)'),
+          '\n    in tbody (at **)' +
+          '\n    in table (at **)' +
+          '\n    in Foo (at **)',
       ]);
     });
 
@@ -2437,21 +2353,11 @@ describe('ReactDOMComponent', () => {
           root.render(<App1 />);
         });
       }).toErrorDev(
-        gate(flags => flags.enableOwnerStacks)
-          ? [
-              '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in FancyRow (at **)' +
-                '\n    in Viz1 (at **)',
-              '\n    in table (at **)' + '\n    in Viz1 (at **)',
-            ]
-          : [
-              '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in FancyRow (at **)' +
-                '\n    in table (at **)' +
-                '\n    in Viz1 (at **)',
-            ],
+        '\n    in tr (at **)' +
+          '\n    in Row (at **)' +
+          '\n    in FancyRow (at **)' +
+          '\n    in table (at **)' +
+          '\n    in Viz1 (at **)',
       );
     });
 
@@ -2493,26 +2399,13 @@ describe('ReactDOMComponent', () => {
           root.render(<App2 />);
         });
       }).toErrorDev(
-        gate(flags => flags.enableOwnerStacks)
-          ? [
-              '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in FancyRow (at **)' +
-                '\n    in Viz2 (at **)',
-              '\n    in table (at **)' +
-                '\n    in Table (at **)' +
-                '\n    in FancyTable (at **)' +
-                '\n    in Viz2 (at **)',
-            ]
-          : [
-              '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in FancyRow (at **)' +
-                '\n    in table (at **)' +
-                '\n    in Table (at **)' +
-                '\n    in FancyTable (at **)' +
-                '\n    in Viz2 (at **)',
-            ],
+        '\n    in tr (at **)' +
+          '\n    in Row (at **)' +
+          '\n    in FancyRow (at **)' +
+          '\n    in table (at **)' +
+          '\n    in Table (at **)' +
+          '\n    in FancyTable (at **)' +
+          '\n    in Viz2 (at **)',
       );
     });
 
@@ -2547,23 +2440,12 @@ describe('ReactDOMComponent', () => {
           );
         });
       }).toErrorDev(
-        gate(flags => flags.enableOwnerStacks)
-          ? [
-              '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in FancyRow (at **)',
-              '\n    in table (at **)' +
-                '\n    in Table (at **)' +
-                '\n    in FancyTable (at **)',
-            ]
-          : [
-              '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in FancyRow (at **)' +
-                '\n    in table (at **)' +
-                '\n    in Table (at **)' +
-                '\n    in FancyTable (at **)',
-            ],
+        '\n    in tr (at **)' +
+          '\n    in Row (at **)' +
+          '\n    in FancyRow (at **)' +
+          '\n    in table (at **)' +
+          '\n    in Table (at **)' +
+          '\n    in FancyTable (at **)',
       );
     });
 
@@ -2587,19 +2469,10 @@ describe('ReactDOMComponent', () => {
           );
         });
       }).toErrorDev(
-        gate(flags => flags.enableOwnerStacks)
-          ? [
-              '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in FancyRow (at **)',
-              '\n    in table (at **)',
-            ]
-          : [
-              '\n    in tr (at **)' +
-                '\n    in Row (at **)' +
-                '\n    in FancyRow (at **)' +
-                '\n    in table (at **)',
-            ],
+        '\n    in tr (at **)' +
+          '\n    in Row (at **)' +
+          '\n    in FancyRow (at **)' +
+          '\n    in table (at **)',
       );
     });
 
@@ -2627,19 +2500,10 @@ describe('ReactDOMComponent', () => {
           );
         });
       }).toErrorDev(
-        gate(flags => flags.enableOwnerStacks)
-          ? [
-              '\n    in tr (at **)',
-              '\n    in table (at **)' +
-                '\n    in Table (at **)' +
-                '\n    in FancyTable (at **)',
-            ]
-          : [
-              '\n    in tr (at **)' +
-                '\n    in table (at **)' +
-                '\n    in Table (at **)' +
-                '\n    in FancyTable (at **)',
-            ],
+        '\n    in tr (at **)' +
+          '\n    in table (at **)' +
+          '\n    in Table (at **)' +
+          '\n    in FancyTable (at **)',
       );
 
       class Link extends React.Component {
@@ -2661,18 +2525,11 @@ describe('ReactDOMComponent', () => {
           );
         });
       }).toErrorDev(
-        gate(flags => flags.enableOwnerStacks)
-          ? [
-              '\n    in a (at **)' + '\n    in Link (at **)',
-              '\n    in a (at **)' + '\n    in Link (at **)',
-            ]
-          : [
-              '\n    in a (at **)' +
-                '\n    in Link (at **)' +
-                '\n    in div (at **)' +
-                '\n    in a (at **)' +
-                '\n    in Link (at **)',
-            ],
+        '\n    in a (at **)' +
+          '\n    in Link (at **)' +
+          '\n    in div (at **)' +
+          '\n    in a (at **)' +
+          '\n    in Link (at **)',
       );
     });
 
@@ -2850,7 +2707,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div class="paladin" />);
         });
       }).toErrorDev(
-        'Invalid DOM property `class`. Did you mean `className`?\n    in div (at **)',
+        'Warning: Invalid DOM property `class`. Did you mean `className`?\n    in div (at **)',
       );
       await expect(async () => {
         const container = document.createElement('div');
@@ -2859,7 +2716,7 @@ describe('ReactDOMComponent', () => {
           root.render(<input type="text" onclick="1" />);
         });
       }).toErrorDev(
-        'Invalid event handler property `onclick`. Did you mean ' +
+        'Warning: Invalid event handler property `onclick`. Did you mean ' +
           '`onClick`?\n    in input (at **)',
       );
     });
@@ -2868,12 +2725,12 @@ describe('ReactDOMComponent', () => {
       expect(() =>
         ReactDOMServer.renderToString(<div class="paladin" />),
       ).toErrorDev(
-        'Invalid DOM property `class`. Did you mean `className`?\n    in div (at **)',
+        'Warning: Invalid DOM property `class`. Did you mean `className`?\n    in div (at **)',
       );
       expect(() =>
         ReactDOMServer.renderToString(<input type="text" oninput="1" />),
       ).toErrorDev(
-        'Invalid event handler property `oninput`. ' +
+        'Warning: Invalid event handler property `oninput`. ' +
           // Note: we don't know the right event name so we
           // use a generic one (onClick) as a suggestion.
           // This is because we don't bundle the event system
@@ -2897,7 +2754,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div class="paladin" />);
         });
       }).toErrorDev(
-        'Invalid DOM property `class`. Did you mean `className`?\n    in div (at **)',
+        'Warning: Invalid DOM property `class`. Did you mean `className`?\n    in div (at **)',
       );
     });
 
@@ -3049,7 +2906,7 @@ describe('ReactDOMComponent', () => {
           root.render(React.createElement('label', {for: 'test'}));
         });
       }).toErrorDev(
-        'Invalid DOM property `for`. Did you mean `htmlFor`?\n    in label',
+        'Warning: Invalid DOM property `for`. Did you mean `htmlFor`?\n    in label',
       );
 
       await expect(async () => {
@@ -3061,7 +2918,7 @@ describe('ReactDOMComponent', () => {
           );
         });
       }).toErrorDev(
-        'Invalid DOM property `autofocus`. Did you mean `autoFocus`?\n    in input',
+        'Warning: Invalid DOM property `autofocus`. Did you mean `autoFocus`?\n    in input',
       );
     });
 
@@ -3071,14 +2928,14 @@ describe('ReactDOMComponent', () => {
           React.createElement('label', {for: 'test'}),
         ),
       ).toErrorDev(
-        'Invalid DOM property `for`. Did you mean `htmlFor`?\n    in label',
+        'Warning: Invalid DOM property `for`. Did you mean `htmlFor`?\n    in label',
       );
       expect(() =>
         ReactDOMServer.renderToString(
           React.createElement('input', {type: 'text', autofocus: true}),
         ),
       ).toErrorDev(
-        'Invalid DOM property `autofocus`. Did you mean `autoFocus`?\n    in input',
+        'Warning: Invalid DOM property `autofocus`. Did you mean `autoFocus`?\n    in input',
       );
     });
   });
@@ -3126,7 +2983,9 @@ describe('ReactDOMComponent', () => {
         await act(() => {
           root.render(<div class="test" ref={current => (el = current)} />);
         });
-      }).toErrorDev('Invalid DOM property `class`. Did you mean `className`?');
+      }).toErrorDev(
+        'Warning: Invalid DOM property `class`. Did you mean `className`?',
+      );
 
       expect(el.className).toBe('test');
     });
@@ -3140,7 +2999,9 @@ describe('ReactDOMComponent', () => {
         await act(() => {
           root.render(<div cLASS="test" ref={current => (el = current)} />);
         });
-      }).toErrorDev('Invalid DOM property `cLASS`. Did you mean `className`?');
+      }).toErrorDev(
+        'Warning: Invalid DOM property `cLASS`. Did you mean `className`?',
+      );
 
       expect(el.className).toBe('test');
     });
@@ -3159,7 +3020,7 @@ describe('ReactDOMComponent', () => {
           );
         });
       }).toErrorDev(
-        'Invalid DOM property `arabic-form`. Did you mean `arabicForm`?',
+        'Warning: Invalid DOM property `arabic-form`. Did you mean `arabicForm`?',
       );
       const text = el.querySelector('text');
 
@@ -3297,7 +3158,7 @@ describe('ReactDOMComponent', () => {
             <div whatever={() => {}} ref={current => (el = current)} />,
           );
         });
-      }).toErrorDev('Invalid value for prop `whatever` on <div> tag');
+      }).toErrorDev('Warning: Invalid value for prop `whatever` on <div> tag');
 
       expect(el.hasAttribute('whatever')).toBe(false);
     });
@@ -3390,7 +3251,7 @@ describe('ReactDOMComponent', () => {
           root.render(<div whatever={NaN} ref={current => (el = current)} />);
         });
       }).toErrorDev(
-        'Received NaN for the `whatever` attribute. If this is ' +
+        'Warning: Received NaN for the `whatever` attribute. If this is ' +
           'expected, cast the value to a string.\n    in div',
       );
 
@@ -3407,7 +3268,7 @@ describe('ReactDOMComponent', () => {
         await act(() => {
           root.render(<div whatever={() => {}} />);
         });
-      }).toErrorDev('Invalid value for prop `whatever` on <div> tag.');
+      }).toErrorDev('Warning: Invalid value for prop `whatever` on <div> tag.');
       const el = container.firstChild;
       expect(el.hasAttribute('whatever')).toBe(false);
     });
@@ -3421,7 +3282,9 @@ describe('ReactDOMComponent', () => {
         await act(() => {
           root.render(<div SiZe="30" ref={current => (el = current)} />);
         });
-      }).toErrorDev('Invalid DOM property `SiZe`. Did you mean `size`?');
+      }).toErrorDev(
+        'Warning: Invalid DOM property `SiZe`. Did you mean `size`?',
+      );
 
       expect(el.getAttribute('size')).toBe('30');
     });
@@ -3633,7 +3496,9 @@ describe('ReactDOMComponent', () => {
             </svg>,
           );
         });
-      }).toErrorDev('Invalid DOM property `x-height`. Did you mean `xHeight`');
+      }).toErrorDev(
+        'Warning: Invalid DOM property `x-height`. Did you mean `xHeight`',
+      );
 
       expect(el.querySelector('font-face').hasAttribute('x-height')).toBe(
         false,
@@ -3677,11 +3542,15 @@ describe('ReactDOMComponent', () => {
         root.render(<some-custom-element foo={true} />);
       });
       const node = container.firstChild;
-      expect(node.getAttribute('foo')).toBe('');
+      expect(node.getAttribute('foo')).toBe(
+        ReactFeatureFlags.enableCustomElementPropertySupport ? '' : 'true',
+      );
       await act(() => {
         root.render(<some-custom-element foo={false} />);
       });
-      expect(node.getAttribute('foo')).toBe(null);
+      expect(node.getAttribute('foo')).toBe(
+        ReactFeatureFlags.enableCustomElementPropertySupport ? null : 'false',
+      );
       await act(() => {
         root.render(<some-custom-element />);
       });
@@ -3819,7 +3688,6 @@ describe('ReactDOMComponent', () => {
       expect(typeof portalContainer.onclick).toBe('function');
     });
 
-    // @gate !disableLegacyMode
     it('does not add onclick handler to the React root in legacy mode', () => {
       const container = document.createElement('div');
 

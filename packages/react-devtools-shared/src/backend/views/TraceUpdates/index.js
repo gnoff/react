@@ -9,9 +9,9 @@
 
 import Agent from 'react-devtools-shared/src/backend/agent';
 import {destroy as destroyCanvas, draw} from './canvas';
-import {extractHOCNames, getNestedBoundingClientRect} from '../utils';
+import {getNestedBoundingClientRect} from '../utils';
 
-import type {HostInstance} from '../../types';
+import type {NativeType} from '../../types';
 import type {Rect} from '../utils';
 
 // How long the rect should be shown for?
@@ -23,12 +23,6 @@ const MAX_DISPLAY_DURATION = 3000;
 
 // How long should a rect be considered valid for?
 const REMEASUREMENT_AFTER_DURATION = 250;
-
-// Markers for different types of HOCs
-const HOC_MARKERS = new Map([
-  ['Forget', '✨'],
-  ['Memo', '🧠'],
-]);
 
 // Some environments (e.g. React Native / Hermes) don't support the performance API yet.
 const getCurrentTime =
@@ -42,28 +36,18 @@ export type Data = {
   expirationTime: number,
   lastMeasuredAt: number,
   rect: Rect | null,
-  displayName: string | null,
 };
 
-const nodeToData: Map<HostInstance, Data> = new Map();
+const nodeToData: Map<NativeType, Data> = new Map();
 
 let agent: Agent = ((null: any): Agent);
 let drawAnimationFrameID: AnimationFrameID | null = null;
 let isEnabled: boolean = false;
-let showNames: boolean = false;
 let redrawTimeoutID: TimeoutID | null = null;
 
 export function initialize(injectedAgent: Agent): void {
   agent = injectedAgent;
   agent.addListener('traceUpdates', traceUpdates);
-  agent.addListener('showNamesWhenTracing', (shouldShowNames: boolean) => {
-    showNames = shouldShowNames;
-    if (isEnabled) {
-      if (drawAnimationFrameID === null) {
-        drawAnimationFrameID = requestAnimationFrame(prepareToDraw);
-      }
-    }
-  });
 }
 
 export function toggleEnabled(value: boolean): void {
@@ -86,8 +70,10 @@ export function toggleEnabled(value: boolean): void {
   }
 }
 
-function traceUpdates(nodes: Set<HostInstance>): void {
-  if (!isEnabled) return;
+function traceUpdates(nodes: Set<NativeType>): void {
+  if (!isEnabled) {
+    return;
+  }
 
   nodes.forEach(node => {
     const data = nodeToData.get(node);
@@ -95,25 +81,9 @@ function traceUpdates(nodes: Set<HostInstance>): void {
 
     let lastMeasuredAt = data != null ? data.lastMeasuredAt : 0;
     let rect = data != null ? data.rect : null;
-
     if (rect === null || lastMeasuredAt + REMEASUREMENT_AFTER_DURATION < now) {
       lastMeasuredAt = now;
       rect = measureNode(node);
-    }
-
-    let displayName = showNames
-      ? agent.getComponentNameForHostInstance(node)
-      : null;
-    if (displayName) {
-      const {baseComponentName, hocNames} = extractHOCNames(displayName);
-
-      const markers = hocNames.map(hoc => HOC_MARKERS.get(hoc) || '').join('');
-
-      const enhancedDisplayName = markers
-        ? `${markers}${baseComponentName}`
-        : baseComponentName;
-
-      displayName = enhancedDisplayName;
     }
 
     nodeToData.set(node, {
@@ -127,7 +97,6 @@ function traceUpdates(nodes: Set<HostInstance>): void {
           : now + DISPLAY_DURATION,
       lastMeasuredAt,
       rect,
-      displayName: showNames ? displayName : null,
     });
   });
 

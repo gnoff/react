@@ -58,7 +58,7 @@ type Options = {
   clientReferences?: ClientReferencePath | $ReadOnlyArray<ClientReferencePath>,
   chunkName?: string,
   clientManifestFilename?: string,
-  serverConsumerManifestFilename?: string,
+  ssrManifestFilename?: string,
 };
 
 const PLUGIN_NAME = 'React Server Plugin';
@@ -67,7 +67,7 @@ export default class ReactFlightWebpackPlugin {
   clientReferences: $ReadOnlyArray<ClientReferencePath>;
   chunkName: string;
   clientManifestFilename: string;
-  serverConsumerManifestFilename: string;
+  ssrManifestFilename: string;
 
   constructor(options: Options) {
     if (!options || typeof options.isServer !== 'boolean') {
@@ -105,8 +105,8 @@ export default class ReactFlightWebpackPlugin {
     }
     this.clientManifestFilename =
       options.clientManifestFilename || 'react-client-manifest.json';
-    this.serverConsumerManifestFilename =
-      options.serverConsumerManifestFilename || 'react-ssr-manifest.json';
+    this.ssrManifestFilename =
+      options.ssrManifestFilename || 'react-ssr-manifest.json';
   }
 
   apply(compiler: any) {
@@ -239,18 +239,18 @@ export default class ReactFlightWebpackPlugin {
           const clientManifest: {
             [string]: ImportManifestEntry,
           } = {};
-          type ServerConsumerModuleMap = {
+          type SSRModuleMap = {
             [string]: {
               [string]: {specifier: string, name: string},
             },
           };
-          const moduleMap: ServerConsumerModuleMap = {};
+          const moduleMap: SSRModuleMap = {};
           const ssrBundleConfig: {
             moduleLoading: {
               prefix: string,
               crossOrigin: string | null,
             },
-            moduleMap: ServerConsumerModuleMap,
+            moduleMap: SSRModuleMap,
           } = {
             moduleLoading: {
               prefix: compilation.outputOptions.publicPath || '',
@@ -374,7 +374,7 @@ export default class ReactFlightWebpackPlugin {
           );
           const ssrOutput = JSON.stringify(ssrBundleConfig, null, 2);
           compilation.emitAsset(
-            _this.serverConsumerManifestFilename,
+            _this.ssrManifestFilename,
             new sources.RawSource(ssrOutput, false),
           );
         },

@@ -9,8 +9,7 @@
 
 import * as React from 'react';
 import {useContext} from 'react';
-
-import {ProfilerContext} from './ProfilerContext';
+import {ProfilerContext} from '../Profiler/ProfilerContext';
 import {StoreContext} from '../context';
 
 import styles from './WhatChanged.css';
@@ -153,7 +152,7 @@ export default function WhatChanged({fiberID}: Props): React.Node {
   }
 
   return (
-    <div>
+    <div className={styles.Component}>
       <label className={styles.Label}>Why did this render?</label>
       {changes}
     </div>

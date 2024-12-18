@@ -8,7 +8,10 @@
  */
 
 import isAttributeNameSafe from '../shared/isAttributeNameSafe';
-import {enableTrustedTypesIntegration} from 'shared/ReactFeatureFlags';
+import {
+  enableTrustedTypesIntegration,
+  enableCustomElementPropertySupport,
+} from 'shared/ReactFeatureFlags';
 import {checkAttributeStringCoercion} from 'shared/CheckStringCoercion';
 import {getFiberCurrentPropsFromNode} from './ReactDOMComponentTree';
 
@@ -30,7 +33,7 @@ export function getValueForAttribute(
       // shouldRemoveAttribute
       switch (typeof expected) {
         case 'function':
-        case 'symbol':
+        case 'symbol': // eslint-disable-line
           return expected;
         case 'boolean': {
           const prefix = name.toLowerCase().slice(0, 5);
@@ -70,18 +73,25 @@ export function getValueForAttributeOnCustomComponent(
           // it would be expected that they end up not having an attribute.
           return expected;
         case 'function':
-          return expected;
-        case 'boolean':
-          if (expected === false) {
+          if (enableCustomElementPropertySupport) {
             return expected;
+          }
+          break;
+        case 'boolean':
+          if (enableCustomElementPropertySupport) {
+            if (expected === false) {
+              return expected;
+            }
           }
       }
       return expected === undefined ? undefined : null;
     }
     const value = node.getAttribute(name);
 
-    if (value === '' && expected === true) {
-      return true;
+    if (enableCustomElementPropertySupport) {
+      if (value === '' && expected === true) {
+        return true;
+      }
     }
 
     if (__DEV__) {
@@ -109,7 +119,7 @@ export function setValueForAttribute(
     switch (typeof value) {
       case 'undefined':
       case 'function':
-      case 'symbol':
+      case 'symbol': // eslint-disable-line
         node.removeAttribute(name);
         return;
       case 'boolean': {
@@ -196,7 +206,6 @@ export function setValueForPropertyOnCustomComponent(
     const eventName = name.slice(2, useCapture ? name.length - 7 : undefined);
 
     const prevProps = getFiberCurrentPropsFromNode(node);
-    // $FlowFixMe[invalid-computed-prop]
     const prevValue = prevProps != null ? prevProps[name] : null;
     if (typeof prevValue === 'function') {
       node.removeEventListener(eventName, prevValue, useCapture);

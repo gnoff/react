@@ -6,10 +6,12 @@
  * @flow
  */
 
+import {rethrowCaughtError} from 'shared/ReactErrorUtils';
+
 import type {ReactSyntheticEvent} from './ReactSyntheticEventType';
 import accumulateInto from './accumulateInto';
 import forEachAccumulated from './forEachAccumulated';
-import {executeDispatchesInOrder, rethrowCaughtError} from './EventPluginUtils';
+import {executeDispatchesInOrder} from './EventPluginUtils';
 
 /**
  * Internal queue of events that have accumulated their dispatches and are

@@ -44,11 +44,12 @@ const Pending = 0;
 const Resolved = 1;
 const Rejected = 2;
 
-const SharedInternals =
-  React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+const ReactCurrentDispatcher =
+  React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+    .ReactCurrentDispatcher;
 
 function readContext(Context: ReactContext<mixed>) {
-  const dispatcher = SharedInternals.H;
+  const dispatcher = ReactCurrentDispatcher.current;
   if (dispatcher === null) {
     // This wasn't being minified but we're going to retire this package anyway.
     // eslint-disable-next-line react-internal/prod-error-codes

@@ -11,7 +11,7 @@
 
 let React;
 let ReactDOM;
-let findDOMNode;
+let ReactTestUtils;
 let act;
 let Scheduler;
 let assertLog;
@@ -23,9 +23,7 @@ describe('ReactLegacyUpdates', () => {
     jest.resetModules();
     React = require('react');
     ReactDOM = require('react-dom');
-    findDOMNode =
-      ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE
-        .findDOMNode;
+    ReactTestUtils = require('react-dom/test-utils');
     act = require('internal-test-utils').act;
     Scheduler = require('scheduler');
 
@@ -33,7 +31,6 @@ describe('ReactLegacyUpdates', () => {
     assertLog = InternalTestUtils.assertLog;
   });
 
-  // @gate !disableLegacyMode && classic
   it('should batch state when updating state twice', () => {
     let updateCount = 0;
 
@@ -49,8 +46,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const instance = ReactDOM.render(<Component />, container);
+    const instance = ReactTestUtils.renderIntoDocument(<Component />);
     expect(instance.state.x).toBe(0);
 
     ReactDOM.unstable_batchedUpdates(function () {
@@ -64,7 +60,6 @@ describe('ReactLegacyUpdates', () => {
     expect(updateCount).toBe(1);
   });
 
-  // @gate !disableLegacyMode && classic
   it('should batch state when updating two different state keys', () => {
     let updateCount = 0;
 
@@ -80,8 +75,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const instance = ReactDOM.render(<Component />, container);
+    const instance = ReactTestUtils.renderIntoDocument(<Component />);
     expect(instance.state.x).toBe(0);
     expect(instance.state.y).toBe(0);
 
@@ -98,7 +92,6 @@ describe('ReactLegacyUpdates', () => {
     expect(updateCount).toBe(1);
   });
 
-  // @gate !disableLegacyMode && classic
   it('should batch state and props together', () => {
     let updateCount = 0;
 
@@ -132,7 +125,6 @@ describe('ReactLegacyUpdates', () => {
     expect(updateCount).toBe(1);
   });
 
-  // @gate !disableLegacyMode && classic
   it('should batch parent/child state updates together', () => {
     let parentUpdateCount = 0;
 
@@ -167,8 +159,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const instance = ReactDOM.render(<Parent />, container);
+    const instance = ReactTestUtils.renderIntoDocument(<Parent />);
     const child = instance.childRef.current;
     expect(instance.state.x).toBe(0);
     expect(child.state.y).toBe(0);
@@ -188,7 +179,6 @@ describe('ReactLegacyUpdates', () => {
     expect(childUpdateCount).toBe(1);
   });
 
-  // @gate !disableLegacyMode && classic
   it('should batch child/parent state updates together', () => {
     let parentUpdateCount = 0;
 
@@ -223,8 +213,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const instance = ReactDOM.render(<Parent />, container);
+    const instance = ReactTestUtils.renderIntoDocument(<Parent />);
     const child = instance.childRef.current;
     expect(instance.state.x).toBe(0);
     expect(child.state.y).toBe(0);
@@ -246,7 +235,6 @@ describe('ReactLegacyUpdates', () => {
     expect(childUpdateCount).toBe(1);
   });
 
-  // @gate !disableLegacyMode && classic
   it('should support chained state updates', () => {
     let updateCount = 0;
 
@@ -262,8 +250,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const instance = ReactDOM.render(<Component />, container);
+    const instance = ReactTestUtils.renderIntoDocument(<Component />);
     expect(instance.state.x).toBe(0);
 
     let innerCallbackRun = false;
@@ -287,7 +274,6 @@ describe('ReactLegacyUpdates', () => {
     expect(updateCount).toBe(2);
   });
 
-  // @gate !disableLegacyMode && classic
   it('should batch forceUpdate together', () => {
     let shouldUpdateCount = 0;
     let updateCount = 0;
@@ -308,8 +294,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const instance = ReactDOM.render(<Component />, container);
+    const instance = ReactTestUtils.renderIntoDocument(<Component />);
     expect(instance.state.x).toBe(0);
 
     let callbacksRun = 0;
@@ -331,7 +316,6 @@ describe('ReactLegacyUpdates', () => {
     expect(updateCount).toBe(1);
   });
 
-  // @gate !disableLegacyMode
   it('should update children even if parent blocks updates', () => {
     let parentRenderCount = 0;
     let childRenderCount = 0;
@@ -359,8 +343,8 @@ describe('ReactLegacyUpdates', () => {
     expect(parentRenderCount).toBe(0);
     expect(childRenderCount).toBe(0);
 
-    const container = document.createElement('div');
-    const instance = ReactDOM.render(<Parent />, container);
+    let instance = <Parent />;
+    instance = ReactTestUtils.renderIntoDocument(instance);
 
     expect(parentRenderCount).toBe(1);
     expect(childRenderCount).toBe(1);
@@ -380,7 +364,6 @@ describe('ReactLegacyUpdates', () => {
     expect(childRenderCount).toBe(2);
   });
 
-  // @gate !disableLegacyMode
   it('should not reconcile children passed via props', () => {
     let numMiddleRenders = 0;
     let numBottomRenders = 0;
@@ -413,13 +396,11 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    ReactDOM.render(<Top />, container);
+    ReactTestUtils.renderIntoDocument(<Top />);
     expect(numMiddleRenders).toBe(2);
     expect(numBottomRenders).toBe(1);
   });
 
-  // @gate !disableLegacyMode
   it('should flow updates correctly', () => {
     let willUpdates = [];
     let didUpdates = [];
@@ -487,8 +468,8 @@ describe('ReactLegacyUpdates', () => {
     }
     Object.assign(App.prototype, UpdateLoggingMixin);
 
-    const container = document.createElement('div');
-    const root = ReactDOM.render(<App />, container);
+    let root = <App />;
+    root = ReactTestUtils.renderIntoDocument(root);
 
     function expectUpdates(desiredWillUpdates, desiredDidUpdates) {
       let i;
@@ -549,7 +530,6 @@ describe('ReactLegacyUpdates', () => {
     );
   });
 
-  // @gate !disableLegacyMode && classic
   it('should queue mount-ready handlers across different roots', () => {
     // We'll define two components A and B, then update both of them. When A's
     // componentDidUpdate handlers is called, B's DOM should already have been
@@ -565,7 +545,7 @@ describe('ReactLegacyUpdates', () => {
       state = {x: 0};
 
       componentDidUpdate() {
-        expect(findDOMNode(b).textContent).toBe('B1');
+        expect(ReactDOM.findDOMNode(b).textContent).toBe('B1');
         aUpdated = true;
       }
 
@@ -590,8 +570,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const a = ReactDOM.render(<A />, container);
+    const a = ReactTestUtils.renderIntoDocument(<A />);
     ReactDOM.unstable_batchedUpdates(function () {
       a.setState({x: 1});
       b.setState({x: 1});
@@ -600,7 +579,6 @@ describe('ReactLegacyUpdates', () => {
     expect(aUpdated).toBe(true);
   });
 
-  // @gate !disableLegacyMode
   it('should flush updates in the correct order', () => {
     const updates = [];
 
@@ -640,8 +618,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const instance = ReactDOM.render(<Outer />, container);
+    const instance = ReactTestUtils.renderIntoDocument(<Outer />);
 
     updates.push('Outer-setState-1');
     instance.setState({x: 1}, function () {
@@ -652,6 +629,7 @@ describe('ReactLegacyUpdates', () => {
       });
     });
 
+    /* eslint-disable indent */
     expect(updates).toEqual([
       'Outer-render-0',
       'Inner-render-0-0',
@@ -680,9 +658,9 @@ describe('ReactLegacyUpdates', () => {
       'Inner-didUpdate-2-2',
       'Inner-callback-2',
     ]);
+    /* eslint-enable indent */
   });
 
-  // @gate !disableLegacyMode
   it('should flush updates in the correct order across roots', () => {
     const instances = [];
     const updates = [];
@@ -701,14 +679,13 @@ describe('ReactLegacyUpdates', () => {
               depth={this.props.depth + 1}
               count={this.props.count}
             />,
-            findDOMNode(this),
+            ReactDOM.findDOMNode(this),
           );
         }
       }
     }
 
-    const container = document.createElement('div');
-    ReactDOM.render(<MockComponent depth={0} count={2} />, container);
+    ReactTestUtils.renderIntoDocument(<MockComponent depth={0} count={2} />);
 
     expect(updates).toEqual([0, 1, 2]);
 
@@ -722,7 +699,6 @@ describe('ReactLegacyUpdates', () => {
     expect(updates).toEqual([0, 1, 2, 0, 1, 2]);
   });
 
-  // @gate !disableLegacyMode
   it('should queue nested updates', () => {
     // See https://github.com/facebook/react/issues/1147
 
@@ -768,17 +744,14 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    let container = document.createElement('div');
-    const x = ReactDOM.render(<X />, container);
-    container = document.createElement('div');
-    const y = ReactDOM.render(<Y />, container);
-    expect(findDOMNode(x).textContent).toBe('0');
+    const x = ReactTestUtils.renderIntoDocument(<X />);
+    const y = ReactTestUtils.renderIntoDocument(<Y />);
+    expect(ReactDOM.findDOMNode(x).textContent).toBe('0');
 
     y.forceUpdate();
-    expect(findDOMNode(x).textContent).toBe('1');
+    expect(ReactDOM.findDOMNode(x).textContent).toBe('1');
   });
 
-  // @gate !disableLegacyMode
   it('should queue updates from during mount', () => {
     // See https://github.com/facebook/react/issues/1353
     let a;
@@ -806,22 +779,18 @@ describe('ReactLegacyUpdates', () => {
     }
 
     ReactDOM.unstable_batchedUpdates(function () {
-      const container = document.createElement('div');
-
-      ReactDOM.render(
+      ReactTestUtils.renderIntoDocument(
         <div>
           <A />
           <B />
         </div>,
-        container,
       );
     });
 
     expect(a.state.x).toBe(1);
-    expect(findDOMNode(a).textContent).toBe('A1');
+    expect(ReactDOM.findDOMNode(a).textContent).toBe('A1');
   });
 
-  // @gate !disableLegacyMode
   it('calls componentWillReceiveProps setState callback properly', () => {
     let callbackCount = 0;
 
@@ -848,7 +817,6 @@ describe('ReactLegacyUpdates', () => {
     expect(callbackCount).toBe(1);
   });
 
-  // @gate !disableLegacyMode && classic
   it('does not call render after a component as been deleted', () => {
     let renderCount = 0;
     let componentB = null;
@@ -874,8 +842,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const component = ReactDOM.render(<A />, container);
+    const component = ReactTestUtils.renderIntoDocument(<A />);
 
     ReactDOM.unstable_batchedUpdates(function () {
       // B will have scheduled an update but the batching should ensure that its
@@ -887,8 +854,7 @@ describe('ReactLegacyUpdates', () => {
     expect(renderCount).toBe(1);
   });
 
-  // @gate !disableLegacyMode
-  it('throws in setState if the update callback is not a function', async () => {
+  it('throws in setState if the update callback is not a function', () => {
     function Foo() {
       this.a = 1;
       this.b = 2;
@@ -902,55 +868,36 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    let container = document.createElement('div');
-    let component = ReactDOM.render(<A />, container);
+    let component = ReactTestUtils.renderIntoDocument(<A />);
 
-    await expect(async () => {
-      await expect(async () => {
-        await act(() => {
-          component.setState({}, 'no');
-        });
-      }).rejects.toThrowError(
-        'Invalid argument passed as callback. Expected a function. Instead ' +
-          'received: no',
+    expect(() => {
+      expect(() => component.setState({}, 'no')).toErrorDev(
+        'Expected the last optional `callback` argument to be ' +
+          'a function. Instead received: no.',
       );
-    }).toErrorDev(
-      'Expected the last optional `callback` argument to be ' +
-        'a function. Instead received: no.',
-      {withoutStack: 1},
+    }).toThrowError(
+      'Invalid argument passed as callback. Expected a function. Instead ' +
+        'received: no',
     );
-
-    container = document.createElement('div');
-    component = ReactDOM.render(<A />, container);
-    await expect(async () => {
-      await expect(async () => {
-        await act(() => {
-          component.setState({}, {foo: 'bar'});
-        });
-      }).rejects.toThrowError(
-        'Invalid argument passed as callback. Expected a function. Instead ' +
-          'received: [object Object]',
+    component = ReactTestUtils.renderIntoDocument(<A />);
+    expect(() => {
+      expect(() => component.setState({}, {foo: 'bar'})).toErrorDev(
+        'Expected the last optional `callback` argument to be ' +
+          'a function. Instead received: [object Object].',
       );
-    }).toErrorDev(
-      'Expected the last optional `callback` argument to be ' +
-        "a function. Instead received: { foo: 'bar' }.",
-      {withoutStack: 1},
+    }).toThrowError(
+      'Invalid argument passed as callback. Expected a function. Instead ' +
+        'received: [object Object]',
     );
     // Make sure the warning is deduplicated and doesn't fire again
-    container = document.createElement('div');
-    component = ReactDOM.render(<A />, container);
-    await expect(async () => {
-      await act(() => {
-        component.setState({}, new Foo());
-      });
-    }).rejects.toThrowError(
+    component = ReactTestUtils.renderIntoDocument(<A />);
+    expect(() => component.setState({}, new Foo())).toThrowError(
       'Invalid argument passed as callback. Expected a function. Instead ' +
         'received: [object Object]',
     );
   });
 
-  // @gate !disableLegacyMode
-  it('throws in forceUpdate if the update callback is not a function', async () => {
+  it('throws in forceUpdate if the update callback is not a function', () => {
     function Foo() {
       this.a = 1;
       this.b = 2;
@@ -964,53 +911,35 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    let container = document.createElement('div');
-    let component = ReactDOM.render(<A />, container);
+    let component = ReactTestUtils.renderIntoDocument(<A />);
 
-    await expect(async () => {
-      await expect(async () => {
-        await act(() => {
-          component.forceUpdate('no');
-        });
-      }).rejects.toThrowError(
-        'Invalid argument passed as callback. Expected a function. Instead ' +
-          'received: no',
+    expect(() => {
+      expect(() => component.forceUpdate('no')).toErrorDev(
+        'Expected the last optional `callback` argument to be ' +
+          'a function. Instead received: no.',
       );
-    }).toErrorDev(
-      'Expected the last optional `callback` argument to be ' +
-        'a function. Instead received: no.',
-      {withoutStack: 1},
+    }).toThrowError(
+      'Invalid argument passed as callback. Expected a function. Instead ' +
+        'received: no',
     );
-    container = document.createElement('div');
-    component = ReactDOM.render(<A />, container);
-    await expect(async () => {
-      await expect(async () => {
-        await act(() => {
-          component.forceUpdate({foo: 'bar'});
-        });
-      }).rejects.toThrowError(
-        'Invalid argument passed as callback. Expected a function. Instead ' +
-          'received: [object Object]',
+    component = ReactTestUtils.renderIntoDocument(<A />);
+    expect(() => {
+      expect(() => component.forceUpdate({foo: 'bar'})).toErrorDev(
+        'Expected the last optional `callback` argument to be ' +
+          'a function. Instead received: [object Object].',
       );
-    }).toErrorDev(
-      'Expected the last optional `callback` argument to be ' +
-        "a function. Instead received: { foo: 'bar' }.",
-      {withoutStack: 1},
+    }).toThrowError(
+      'Invalid argument passed as callback. Expected a function. Instead ' +
+        'received: [object Object]',
     );
     // Make sure the warning is deduplicated and doesn't fire again
-    container = document.createElement('div');
-    component = ReactDOM.render(<A />, container);
-    await expect(async () => {
-      await act(() => {
-        component.forceUpdate(new Foo());
-      });
-    }).rejects.toThrowError(
+    component = ReactTestUtils.renderIntoDocument(<A />);
+    expect(() => component.forceUpdate(new Foo())).toThrowError(
       'Invalid argument passed as callback. Expected a function. Instead ' +
         'received: [object Object]',
     );
   });
 
-  // @gate !disableLegacyMode
   it('does not update one component twice in a batch (#2410)', () => {
     class Parent extends React.Component {
       childRef = React.createRef();
@@ -1055,8 +984,7 @@ describe('ReactLegacyUpdates', () => {
       }
     }
 
-    const container = document.createElement('div');
-    const parent = ReactDOM.render(<Parent />, container);
+    const parent = ReactTestUtils.renderIntoDocument(<Parent />);
     const child = parent.getChild();
     ReactDOM.unstable_batchedUpdates(function () {
       parent.forceUpdate();
@@ -1064,7 +992,6 @@ describe('ReactLegacyUpdates', () => {
     });
   });
 
-  // @gate !disableLegacyMode
   it('does not update one component twice in a batch (#6371)', () => {
     let callbacks = [];
     function emitChange() {
@@ -1122,7 +1049,6 @@ describe('ReactLegacyUpdates', () => {
     expect(result).toEqual(42);
   });
 
-  // @gate !disableLegacyMode
   it('unmounts and remounts a root in the same batch', () => {
     const container = document.createElement('div');
     ReactDOM.render(<span>a</span>, container);
@@ -1133,7 +1059,6 @@ describe('ReactLegacyUpdates', () => {
     expect(container.textContent).toBe('b');
   });
 
-  // @gate !disableLegacyMode
   it('handles reentrant mounting in synchronous mode', () => {
     let mounts = 0;
     class Editor extends React.Component {
@@ -1171,7 +1096,6 @@ describe('ReactLegacyUpdates', () => {
     expect(mounts).toBe(1);
   });
 
-  // @gate !disableLegacyMode
   it('mounts and unmounts are sync even in a batch', () => {
     const ops = [];
     const container = document.createElement('div');
@@ -1184,7 +1108,6 @@ describe('ReactLegacyUpdates', () => {
     expect(ops).toEqual(['Hello', '']);
   });
 
-  // @gate !disableLegacyMode
   it(
     'in legacy mode, updates in componentWillUpdate and componentDidUpdate ' +
       'should both flush in the immediately subsequent commit',
@@ -1228,7 +1151,6 @@ describe('ReactLegacyUpdates', () => {
     },
   );
 
-  // @gate !disableLegacyMode
   it(
     'in legacy mode, updates in componentWillUpdate and componentDidUpdate ' +
       '(on a sibling) should both flush in the immediately subsequent commit',
@@ -1300,7 +1222,6 @@ describe('ReactLegacyUpdates', () => {
     },
   );
 
-  // @gate !disableLegacyMode
   it('uses correct base state for setState inside render phase', () => {
     const ops = [];
 
@@ -1324,7 +1245,6 @@ describe('ReactLegacyUpdates', () => {
     expect(ops).toEqual(['base: 0, memoized: 0', 'base: 1, memoized: 1']);
   });
 
-  // @gate !disableLegacyMode
   it('does not re-render if state update is null', () => {
     const container = document.createElement('div');
 
@@ -1345,7 +1265,6 @@ describe('ReactLegacyUpdates', () => {
   });
 
   // Will change once we switch to async by default
-  // @gate !disableLegacyMode
   it('synchronously renders hidden subtrees', () => {
     const container = document.createElement('div');
     let ops = [];
@@ -1382,7 +1301,6 @@ describe('ReactLegacyUpdates', () => {
     expect(ops).toEqual(['Foo', 'Bar', 'Baz']);
   });
 
-  // @gate !disableLegacyMode
   it('can render ridiculously large number of roots without triggering infinite update loop error', () => {
     class Foo extends React.Component {
       componentDidMount() {
@@ -1407,8 +1325,7 @@ describe('ReactLegacyUpdates', () => {
     ReactDOM.render(<Foo />, container);
   });
 
-  // @gate !disableLegacyMode
-  it('resets the update counter for unrelated updates', async () => {
+  it('resets the update counter for unrelated updates', () => {
     const container = document.createElement('div');
     const ref = React.createRef();
 
@@ -1428,11 +1345,9 @@ describe('ReactLegacyUpdates', () => {
     }
 
     let limit = 55;
-    await expect(async () => {
-      await act(() => {
-        ReactDOM.render(<EventuallyTerminating ref={ref} />, container);
-      });
-    }).rejects.toThrow('Maximum');
+    expect(() => {
+      ReactDOM.render(<EventuallyTerminating ref={ref} />, container);
+    }).toThrow('Maximum');
 
     // Verify that we don't go over the limit if these updates are unrelated.
     limit -= 10;
@@ -1444,16 +1359,13 @@ describe('ReactLegacyUpdates', () => {
     expect(container.textContent).toBe(limit.toString());
 
     limit += 10;
-    await expect(async () => {
-      await act(() => {
-        ref.current.setState({step: 0});
-      });
-    }).rejects.toThrow('Maximum');
+    expect(() => {
+      ref.current.setState({step: 0});
+    }).toThrow('Maximum');
     expect(ref.current).toBe(null);
   });
 
-  // @gate !disableLegacyMode
-  it('does not fall into an infinite update loop', async () => {
+  it('does not fall into an infinite update loop', () => {
     class NonTerminating extends React.Component {
       state = {step: 0};
       componentDidMount() {
@@ -1473,15 +1385,12 @@ describe('ReactLegacyUpdates', () => {
     }
 
     const container = document.createElement('div');
-    await expect(async () => {
-      await act(() => {
-        ReactDOM.render(<NonTerminating />, container);
-      });
-    }).rejects.toThrow('Maximum');
+    expect(() => {
+      ReactDOM.render(<NonTerminating />, container);
+    }).toThrow('Maximum');
   });
 
-  // @gate !disableLegacyMode
-  it('does not fall into an infinite update loop with useLayoutEffect', async () => {
+  it('does not fall into an infinite update loop with useLayoutEffect', () => {
     function NonTerminating() {
       const [step, setStep] = React.useState(0);
       React.useLayoutEffect(() => {
@@ -1491,15 +1400,12 @@ describe('ReactLegacyUpdates', () => {
     }
 
     const container = document.createElement('div');
-    await expect(async () => {
-      await act(() => {
-        ReactDOM.render(<NonTerminating />, container);
-      });
-    }).rejects.toThrow('Maximum');
+    expect(() => {
+      ReactDOM.render(<NonTerminating />, container);
+    }).toThrow('Maximum');
   });
 
-  // @gate !disableLegacyMode
-  it('can recover after falling into an infinite update loop', async () => {
+  it('can recover after falling into an infinite update loop', () => {
     class NonTerminating extends React.Component {
       state = {step: 0};
       componentDidMount() {
@@ -1524,27 +1430,22 @@ describe('ReactLegacyUpdates', () => {
     }
 
     const container = document.createElement('div');
-    await expect(async () => {
-      await act(() => {
-        ReactDOM.render(<NonTerminating />, container);
-      });
-    }).rejects.toThrow('Maximum');
+    expect(() => {
+      ReactDOM.render(<NonTerminating />, container);
+    }).toThrow('Maximum');
 
     ReactDOM.render(<Terminating />, container);
     expect(container.textContent).toBe('1');
 
-    await expect(async () => {
-      await act(() => {
-        ReactDOM.render(<NonTerminating />, container);
-      });
-    }).rejects.toThrow('Maximum');
+    expect(() => {
+      ReactDOM.render(<NonTerminating />, container);
+    }).toThrow('Maximum');
 
     ReactDOM.render(<Terminating />, container);
     expect(container.textContent).toBe('1');
   });
 
-  // @gate !disableLegacyMode
-  it('does not fall into mutually recursive infinite update loop with same container', async () => {
+  it('does not fall into mutually recursive infinite update loop with same container', () => {
     // Note: this test would fail if there were two or more different roots.
 
     class A extends React.Component {
@@ -1566,15 +1467,12 @@ describe('ReactLegacyUpdates', () => {
     }
 
     const container = document.createElement('div');
-    await expect(async () => {
-      await act(() => {
-        ReactDOM.render(<A />, container);
-      });
-    }).rejects.toThrow('Maximum');
+    expect(() => {
+      ReactDOM.render(<A />, container);
+    }).toThrow('Maximum');
   });
 
-  // @gate !disableLegacyMode
-  it('does not fall into an infinite error loop', async () => {
+  it('does not fall into an infinite error loop', () => {
     function BadRender() {
       throw new Error('error');
     }
@@ -1602,14 +1500,11 @@ describe('ReactLegacyUpdates', () => {
     }
 
     const container = document.createElement('div');
-    await expect(async () => {
-      await act(() => {
-        ReactDOM.render(<NonTerminating />, container);
-      });
-    }).rejects.toThrow('Maximum');
+    expect(() => {
+      ReactDOM.render(<NonTerminating />, container);
+    }).toThrow('Maximum');
   });
 
-  // @gate !disableLegacyMode
   it('can schedule ridiculously many updates within the same batch without triggering a maximum update error', () => {
     const subscribers = [];
 
@@ -1645,7 +1540,6 @@ describe('ReactLegacyUpdates', () => {
 
   // TODO: Replace this branch with @gate pragmas
   if (__DEV__) {
-    // @gate !disableLegacyMode
     it('can have nested updates if they do not cross the limit', async () => {
       let _setStep;
       const LIMIT = 50;
@@ -1666,7 +1560,6 @@ describe('ReactLegacyUpdates', () => {
       await act(() => {
         ReactDOM.render(<Terminating />, container);
       });
-      assertLog(Array.from({length: LIMIT + 1}, (_, k) => k));
       expect(container.textContent).toBe('50');
       await act(() => {
         _setStep(0);
@@ -1674,7 +1567,6 @@ describe('ReactLegacyUpdates', () => {
       expect(container.textContent).toBe('50');
     });
 
-    // @gate !disableLegacyMode
     it('can have many updates inside useEffect without triggering a warning', async () => {
       function Terminating() {
         const [step, setStep] = React.useState(0);

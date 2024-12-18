@@ -14,7 +14,7 @@ let MorphingComponent;
 let React;
 let ReactDOM;
 let ReactDOMClient;
-let ReactSharedInternals;
+let ReactCurrentOwner;
 let Scheduler;
 let assertLog;
 let act;
@@ -67,8 +67,9 @@ describe('ReactCompositeComponent', () => {
     React = require('react');
     ReactDOM = require('react-dom');
     ReactDOMClient = require('react-dom/client');
-    ReactSharedInternals =
-      require('react').__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+    ReactCurrentOwner =
+      require('react').__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+        .ReactCurrentOwner;
     Scheduler = require('scheduler');
     assertLog = require('internal-test-utils').assertLog;
     act = require('internal-test-utils').act;
@@ -210,27 +211,63 @@ describe('ReactCompositeComponent', () => {
     });
   });
 
-  it('should not support module pattern components', async () => {
-    function Child({test}) {
-      return {
-        render() {
-          return <div>{test}</div>;
-        },
-      };
-    }
+  if (require('shared/ReactFeatureFlags').disableModulePatternComponents) {
+    it('should not support module pattern components', async () => {
+      function Child({test}) {
+        return {
+          render() {
+            return <div>{test}</div>;
+          },
+        };
+      }
 
-    const el = document.createElement('div');
-    const root = ReactDOMClient.createRoot(el);
-    await expect(async () => {
-      await act(() => {
-        root.render(<Child test="test" />);
-      });
-    }).rejects.toThrow(
-      'Objects are not valid as a React child (found: object with keys {render}).',
-    );
+      const el = document.createElement('div');
+      const root = ReactDOMClient.createRoot(el);
+      expect(() => {
+        expect(() => {
+          ReactDOM.flushSync(() => {
+            root.render(<Child test="test" />);
+          });
+        }).toThrow(
+          'Objects are not valid as a React child (found: object with keys {render}).',
+        );
+      }).toErrorDev(
+        'Warning: The <Child /> component appears to be a function component that returns a class instance. ' +
+          'Change Child to a class that extends React.Component instead. ' +
+          "If you can't use a class try assigning the prototype on the function as a workaround. " +
+          '`Child.prototype = React.Component.prototype`. ' +
+          "Don't use an arrow function since it cannot be called with `new` by React.",
+      );
 
-    expect(el.textContent).toBe('');
-  });
+      expect(el.textContent).toBe('');
+    });
+  } else {
+    it('should support module pattern components', () => {
+      function Child({test}) {
+        return {
+          render() {
+            return <div>{test}</div>;
+          },
+        };
+      }
+
+      const el = document.createElement('div');
+      const root = ReactDOMClient.createRoot(el);
+      expect(() => {
+        ReactDOM.flushSync(() => {
+          root.render(<Child test="test" />);
+        });
+      }).toErrorDev(
+        'Warning: The <Child /> component appears to be a function component that returns a class instance. ' +
+          'Change Child to a class that extends React.Component instead. ' +
+          "If you can't use a class try assigning the prototype on the function as a workaround. " +
+          '`Child.prototype = React.Component.prototype`. ' +
+          "Don't use an arrow function since it cannot be called with `new` by React.",
+      );
+
+      expect(el.textContent).toBe('test');
+    });
+  }
 
   it('should use default values for undefined props', async () => {
     class Component extends React.Component {
@@ -260,17 +297,29 @@ describe('ReactCompositeComponent', () => {
     await act(() => {
       root.render(<Component ref={refFn1} />);
     });
-    expect(instance1.props).toEqual({prop: 'testKey'});
+    if (gate(flags => flags.enableRefAsProp)) {
+      expect(instance1.props).toEqual({prop: 'testKey', ref: refFn1});
+    } else {
+      expect(instance1.props).toEqual({prop: 'testKey'});
+    }
 
     await act(() => {
       root.render(<Component ref={refFn2} prop={undefined} />);
     });
-    expect(instance2.props).toEqual({prop: 'testKey'});
+    if (gate(flags => flags.enableRefAsProp)) {
+      expect(instance2.props).toEqual({prop: 'testKey', ref: refFn2});
+    } else {
+      expect(instance2.props).toEqual({prop: 'testKey'});
+    }
 
     await act(() => {
       root.render(<Component ref={refFn3} prop={null} />);
     });
-    expect(instance3.props).toEqual({prop: null});
+    if (gate(flags => flags.enableRefAsProp)) {
+      expect(instance3.props).toEqual({prop: null, ref: refFn3});
+    } else {
+      expect(instance3.props).toEqual({prop: null});
+    }
   });
 
   it('should not mutate passed-in props object', async () => {
@@ -313,7 +362,7 @@ describe('ReactCompositeComponent', () => {
         root.render(<MyComponent />);
       });
     }).toErrorDev(
-      "Can't call forceUpdate on a component that is not yet mounted. " +
+      "Warning: Can't call forceUpdate on a component that is not yet mounted. " +
         'This is a no-op, but it might indicate a bug in your application. ' +
         'Instead, assign to `this.state` directly or define a `state = {};` ' +
         'class property with the desired state in the MyComponent component.',
@@ -347,7 +396,7 @@ describe('ReactCompositeComponent', () => {
         root.render(<MyComponent />);
       });
     }).toErrorDev(
-      "Can't call setState on a component that is not yet mounted. " +
+      "Warning: Can't call setState on a component that is not yet mounted. " +
         'This is a no-op, but it might indicate a bug in your application. ' +
         'Instead, assign to `this.state` directly or define a `state = {};` ' +
         'class property with the desired state in the MyComponent component.',
@@ -477,24 +526,24 @@ describe('ReactCompositeComponent', () => {
       }
     }
     const root = ReactDOMClient.createRoot(container);
-    await expect(async () => {
-      await expect(async () => {
-        await act(() => {
+    expect(() => {
+      expect(() => {
+        ReactDOM.flushSync(() => {
           root.render(<ClassWithRenderNotExtended />);
         });
-      }).rejects.toThrow(TypeError);
+      }).toThrow(TypeError);
     }).toErrorDev(
-      'The <ClassWithRenderNotExtended /> component appears to have a render method, ' +
+      'Warning: The <ClassWithRenderNotExtended /> component appears to have a render method, ' +
         "but doesn't extend React.Component. This is likely to cause errors. " +
         'Change ClassWithRenderNotExtended to extend React.Component instead.',
     );
 
     // Test deduplication
-    await expect(async () => {
-      await act(() => {
+    expect(() => {
+      ReactDOM.flushSync(() => {
         root.render(<ClassWithRenderNotExtended />);
       });
-    }).rejects.toThrow(TypeError);
+    }).toThrow(TypeError);
   });
 
   it('should warn about `setState` in render', async () => {
@@ -537,34 +586,23 @@ describe('ReactCompositeComponent', () => {
   });
 
   it('should cleanup even if render() fatals', async () => {
-    const ownerEnabled = __DEV__;
-
-    let stashedDispatcher;
     class BadComponent extends React.Component {
       render() {
-        // Stash the dispatcher that was available in render so we can check
-        // that its internals also reset.
-        stashedDispatcher = ReactSharedInternals.A;
         throw new Error();
       }
     }
 
     const instance = <BadComponent />;
-    expect(ReactSharedInternals.A).toBe(null);
+    expect(ReactCurrentOwner.current).toBe(null);
 
     const root = ReactDOMClient.createRoot(document.createElement('div'));
-    await expect(async () => {
-      await act(() => {
+    expect(() => {
+      ReactDOM.flushSync(() => {
         root.render(instance);
       });
-    }).rejects.toThrow();
+    }).toThrow();
 
-    expect(ReactSharedInternals.A).toBe(null);
-    if (ownerEnabled) {
-      expect(stashedDispatcher.getOwner()).toBe(null);
-    } else {
-      expect(stashedDispatcher.getOwner).toBe(undefined);
-    }
+    expect(ReactCurrentOwner.current).toBe(null);
   });
 
   it('should call componentWillUnmount before unmounting', async () => {
@@ -623,7 +661,7 @@ describe('ReactCompositeComponent', () => {
         instance.setState({bogus: true});
       });
     }).toErrorDev(
-      'ClassComponent.shouldComponentUpdate(): Returned undefined instead of a ' +
+      'Warning: ClassComponent.shouldComponentUpdate(): Returned undefined instead of a ' +
         'boolean value. Make sure to return true or false.',
     );
   });
@@ -643,7 +681,7 @@ describe('ReactCompositeComponent', () => {
         root.render(<Component />);
       });
     }).toErrorDev(
-      'Component has a method called ' +
+      'Warning: Component has a method called ' +
         'componentDidUnmount(). But there is no such lifecycle method. ' +
         'Did you mean componentWillUnmount()?',
     );
@@ -665,7 +703,7 @@ describe('ReactCompositeComponent', () => {
         root.render(<Component />);
       });
     }).toErrorDev(
-      'Component has a method called ' +
+      'Warning: Component has a method called ' +
         'componentDidReceiveProps(). But there is no such lifecycle method. ' +
         'If you meant to update the state in response to changing props, ' +
         'use componentWillReceiveProps(). If you meant to fetch data or ' +
@@ -691,7 +729,7 @@ describe('ReactCompositeComponent', () => {
         root.render(<Component />);
       });
     }).toErrorDev(
-      'Setting defaultProps as an instance property on Component is not supported ' +
+      'Warning: Setting defaultProps as an instance property on Component is not supported ' +
         'and will be ignored. Instead, define defaultProps as a static property on Component.',
     );
   });
@@ -846,7 +884,7 @@ describe('ReactCompositeComponent', () => {
     );
   });
 
-  it('should only call componentWillUnmount once', async () => {
+  it('should only call componentWillUnmount once', () => {
     let app;
     let count = 0;
 
@@ -881,14 +919,14 @@ describe('ReactCompositeComponent', () => {
     };
 
     const root = ReactDOMClient.createRoot(container);
-    await expect(async () => {
-      await act(() => {
+    expect(() => {
+      ReactDOM.flushSync(() => {
         root.render(<App ref={setRef} stage={1} />);
       });
-      await act(() => {
+      ReactDOM.flushSync(() => {
         root.render(<App ref={setRef} stage={2} />);
       });
-    }).rejects.toThrow();
+    }).toThrow();
     expect(count).toBe(1);
   });
 
@@ -920,13 +958,15 @@ describe('ReactCompositeComponent', () => {
     await act(() => {
       root.render(<Wrapper name="A" />);
     });
-
-    assertLog(['A componentWillMount', 'A render', 'A componentDidMount']);
     await act(() => {
       root.render(<Wrapper name="B" />);
     });
 
     assertLog([
+      'A componentWillMount',
+      'A render',
+      'A componentDidMount',
+
       'B componentWillMount',
       'B render',
       'A componentWillUnmount',
@@ -1171,7 +1211,7 @@ describe('ReactCompositeComponent', () => {
     assertLog(['setState callback called']);
   });
 
-  it('should return a meaningful warning when constructor is returned', async () => {
+  it('should return a meaningful warning when constructor is returned', () => {
     class RenderTextInvalidConstructor extends React.Component {
       constructor(props) {
         super(props);
@@ -1184,16 +1224,23 @@ describe('ReactCompositeComponent', () => {
     }
 
     const root = ReactDOMClient.createRoot(document.createElement('div'));
-    await expect(async () => {
-      await expect(async () => {
-        await act(() => {
+    expect(() => {
+      expect(() => {
+        ReactDOM.flushSync(() => {
           root.render(<RenderTextInvalidConstructor />);
         });
-      }).rejects.toThrow();
+      }).toThrow();
     }).toErrorDev([
-      'No `render` method found on the RenderTextInvalidConstructor instance: ' +
+      // Expect two errors because invokeGuardedCallback will dispatch an error event,
+      // Causing the warning to be logged again.
+      'Warning: No `render` method found on the RenderTextInvalidConstructor instance: ' +
         'did you accidentally return an object from the constructor?',
-      'No `render` method found on the RenderTextInvalidConstructor instance: ' +
+      'Warning: No `render` method found on the RenderTextInvalidConstructor instance: ' +
+        'did you accidentally return an object from the constructor?',
+      // And then two more because we retry errors.
+      'Warning: No `render` method found on the RenderTextInvalidConstructor instance: ' +
+        'did you accidentally return an object from the constructor?',
+      'Warning: No `render` method found on the RenderTextInvalidConstructor instance: ' +
         'did you accidentally return an object from the constructor?',
     ]);
   });
@@ -1220,20 +1267,28 @@ describe('ReactCompositeComponent', () => {
     );
   });
 
-  it('should return error if render is not defined', async () => {
+  it('should return error if render is not defined', () => {
     class RenderTestUndefinedRender extends React.Component {}
 
     const root = ReactDOMClient.createRoot(document.createElement('div'));
-    await expect(async () => {
-      await expect(async () => {
-        await act(() => {
+    expect(() => {
+      expect(() => {
+        ReactDOM.flushSync(() => {
           root.render(<RenderTestUndefinedRender />);
         });
-      }).rejects.toThrow();
+      }).toThrow();
     }).toErrorDev([
-      'No `render` method found on the RenderTestUndefinedRender instance: ' +
+      // Expect two errors because invokeGuardedCallback will dispatch an error event,
+      // Causing the warning to be logged again.
+      'Warning: No `render` method found on the RenderTestUndefinedRender instance: ' +
         'you may have forgotten to define `render`.',
-      'No `render` method found on the RenderTestUndefinedRender instance: ' +
+      'Warning: No `render` method found on the RenderTestUndefinedRender instance: ' +
+        'you may have forgotten to define `render`.',
+
+      // And then two more because we retry errors.
+      'Warning: No `render` method found on the RenderTestUndefinedRender instance: ' +
+        'you may have forgotten to define `render`.',
+      'Warning: No `render` method found on the RenderTestUndefinedRender instance: ' +
         'you may have forgotten to define `render`.',
     ]);
   });

@@ -4,12 +4,11 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @noformat
- * @nolint
+ * @format
  * @flow strict
  */
 
-import type {ElementRef, ElementType, MixedElement} from 'react';
+import type {ElementRef, ElementType, Element, AbstractComponent} from 'react';
 
 export type MeasureOnSuccessCallback = (
   x: number,
@@ -85,7 +84,6 @@ export type ViewConfig = $ReadOnly<{
     }>,
     ...
   }>,
-  supportsRawText?: boolean,
   uiViewClassName: string,
   validAttributes: AttributeConfiguration,
 }>;
@@ -93,7 +91,6 @@ export type ViewConfig = $ReadOnly<{
 export type PartialViewConfig = $ReadOnly<{
   bubblingEventTypes?: $PropertyType<ViewConfig, 'bubblingEventTypes'>,
   directEventTypes?: $PropertyType<ViewConfig, 'directEventTypes'>,
-  supportsRawText?: boolean,
   uiViewClassName: string,
   validAttributes?: PartialAttributeConfiguration,
 }>;
@@ -107,35 +104,38 @@ export interface INativeMethods {
   measure(callback: MeasureOnSuccessCallback): void;
   measureInWindow(callback: MeasureInWindowOnSuccessCallback): void;
   measureLayout(
-    relativeToNativeNode: number | HostInstance,
+    relativeToNativeNode: number | ElementRef<HostComponent<mixed>>,
     onSuccess: MeasureLayoutOnSuccessCallback,
     onFail?: () => void,
   ): void;
   setNativeProps(nativeProps: {...}): void;
 }
 
-export type NativeMethods = $ReadOnly<{
+export type NativeMethods = $ReadOnly<{|
   blur(): void,
   focus(): void,
   measure(callback: MeasureOnSuccessCallback): void,
   measureInWindow(callback: MeasureInWindowOnSuccessCallback): void,
   measureLayout(
-    relativeToNativeNode: number | HostInstance,
+    relativeToNativeNode: number | ElementRef<HostComponent<mixed>>,
     onSuccess: MeasureLayoutOnSuccessCallback,
     onFail?: () => void,
   ): void,
   setNativeProps(nativeProps: {...}): void,
-}>;
+|}>;
 
 // This validates that INativeMethods and NativeMethods stay in sync using Flow!
-declare const ensureNativeMethodsAreSynced: NativeMethods;
+declare var ensureNativeMethodsAreSynced: NativeMethods;
 (ensureNativeMethodsAreSynced: INativeMethods);
 
-export type HostInstance = NativeMethods;
-export type HostComponent<Config: {...}> = component(
-  ref: React$RefSetter<HostInstance>,
-  ...Config
-);
+export type HostComponent<T> = AbstractComponent<T, $ReadOnly<NativeMethods>>;
+
+type SecretInternalsType = {
+  computeComponentStackForErrorReporting(tag: number): string,
+  // TODO (bvaughn) Decide which additional types to expose here?
+  // And how much information to fill in for the above types.
+  ...
+};
 
 type InspectorDataProps = $ReadOnly<{
   [propName: string]: string,
@@ -171,28 +171,8 @@ export type TouchedViewDataAtPoint = $ReadOnly<{
     width: number,
     height: number,
   }>,
-  closestPublicInstance?: PublicInstance,
   ...InspectorData,
 }>;
-
-export type RenderRootOptions = {
-  onUncaughtError?: (
-    error: mixed,
-    errorInfo: {+componentStack?: ?string},
-  ) => void,
-  onCaughtError?: (
-    error: mixed,
-    errorInfo: {
-      +componentStack?: ?string,
-      // $FlowFixMe[unclear-type] unknown props and state.
-      +errorBoundary?: ?React$Component<any, any>,
-    },
-  ) => void,
-  onRecoverableError?: (
-    error: mixed,
-    errorInfo: {+componentStack?: ?string},
-  ) => void,
-};
 
 /**
  * Flat ReactNative renderer bundles are too big for Flow to parse efficiently.
@@ -201,29 +181,32 @@ export type RenderRootOptions = {
 export type ReactNativeType = {
   findHostInstance_DEPRECATED<TElementType: ElementType>(
     componentOrHandle: ?(ElementRef<TElementType> | number),
-  ): ?HostInstance,
+  ): ?ElementRef<HostComponent<mixed>>,
   findNodeHandle<TElementType: ElementType>(
     componentOrHandle: ?(ElementRef<TElementType> | number),
   ): ?number,
   isChildPublicInstance(
-    parent: PublicInstance | HostComponent<empty>,
-    child: PublicInstance | HostComponent<empty>,
+    parent: PublicInstance | HostComponent<mixed>,
+    child: PublicInstance | HostComponent<mixed>,
   ): boolean,
   dispatchCommand(
-    handle: HostInstance,
+    handle: ElementRef<HostComponent<mixed>>,
     command: string,
     args: Array<mixed>,
   ): void,
-  sendAccessibilityEvent(handle: HostInstance, eventType: string): void,
+  sendAccessibilityEvent(
+    handle: ElementRef<HostComponent<mixed>>,
+    eventType: string,
+  ): void,
   render(
-    element: MixedElement,
+    element: Element<ElementType>,
     containerTag: number,
     callback: ?() => void,
-    options: ?RenderRootOptions,
   ): ?ElementRef<ElementType>,
   unmountComponentAtNode(containerTag: number): void,
   unmountComponentAtNodeAndRemoveContainer(containerTag: number): void,
-  +unstable_batchedUpdates: <T>(fn: (T) => void, bookkeeping: T) => void,
+  unstable_batchedUpdates: <T>(fn: (T) => void, bookkeeping: T) => void,
+  __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: SecretInternalsType,
   ...
 };
 
@@ -235,23 +218,25 @@ type PublicTextInstance = mixed;
 export type ReactFabricType = {
   findHostInstance_DEPRECATED<TElementType: ElementType>(
     componentOrHandle: ?(ElementRef<TElementType> | number),
-  ): ?HostInstance,
+  ): ?ElementRef<HostComponent<mixed>>,
   findNodeHandle<TElementType: ElementType>(
     componentOrHandle: ?(ElementRef<TElementType> | number),
   ): ?number,
   dispatchCommand(
-    handle: HostInstance,
+    handle: ElementRef<HostComponent<mixed>>,
     command: string,
     args: Array<mixed>,
   ): void,
   isChildPublicInstance(parent: PublicInstance, child: PublicInstance): boolean,
-  sendAccessibilityEvent(handle: HostInstance, eventType: string): void,
+  sendAccessibilityEvent(
+    handle: ElementRef<HostComponent<mixed>>,
+    eventType: string,
+  ): void,
   render(
-    element: MixedElement,
+    element: Element<ElementType>,
     containerTag: number,
     callback: ?() => void,
     concurrentRoot: ?boolean,
-    options: ?RenderRootOptions,
   ): ?ElementRef<ElementType>,
   unmountComponentAtNode(containerTag: number): void,
   getNodeFromInternalInstanceHandle(

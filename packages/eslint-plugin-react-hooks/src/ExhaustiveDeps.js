@@ -67,29 +67,6 @@ export default {
       context.report(problem);
     }
 
-    /**
-     * SourceCode#getText that also works down to ESLint 3.0.0
-     */
-    const getSource =
-      typeof context.getSource === 'function'
-        ? node => {
-            return context.getSource(node);
-          }
-        : node => {
-            return context.sourceCode.getText(node);
-          };
-    /**
-     * SourceCode#getScope that also works down to ESLint 3.0.0
-     */
-    const getScope =
-      typeof context.getScope === 'function'
-        ? () => {
-            return context.getScope();
-          }
-        : node => {
-            return context.sourceCode.getScope(node);
-          };
-
     const scopeManager = context.getSourceCode().scopeManager;
 
     // Should be shared between visitors.
@@ -134,7 +111,7 @@ export default {
             '  }\n' +
             '  fetchData();\n' +
             `}, [someId]); // Or [] if effect doesn't need props or state\n\n` +
-            'Learn more about data fetching with Hooks: https://react.dev/link/hooks-data-fetching',
+            'Learn more about data fetching with Hooks: https://reactjs.org/link/hooks-data-fetching',
         });
       }
 
@@ -178,8 +155,6 @@ export default {
       // const [state, setState] = useState() / React.useState()
       //               ^^^ true for this reference
       // const [state, dispatch] = useReducer() / React.useReducer()
-      //               ^^^ true for this reference
-      // const [state, dispatch] = useActionState() / React.useActionState()
       //               ^^^ true for this reference
       // const ref = useRef()
       //       ^^^ true for this reference
@@ -262,11 +237,7 @@ export default {
           }
           // useEffectEvent() return value is always unstable.
           return true;
-        } else if (
-          name === 'useState' ||
-          name === 'useReducer' ||
-          name === 'useActionState'
-        ) {
+        } else if (name === 'useState' || name === 'useReducer') {
           // Only consider second value in initializing tuple stable.
           if (
             id.type === 'ArrayPattern' &&
@@ -555,11 +526,11 @@ export default {
           node: writeExpr,
           message:
             `Assignments to the '${key}' variable from inside React Hook ` +
-            `${getSource(reactiveHook)} will be lost after each ` +
+            `${context.getSource(reactiveHook)} will be lost after each ` +
             `render. To preserve the value over time, store it in a useRef ` +
             `Hook and keep the mutable value in the '.current' property. ` +
             `Otherwise, you can move this variable directly inside ` +
-            `${getSource(reactiveHook)}.`,
+            `${context.getSource(reactiveHook)}.`,
         });
       }
 
@@ -652,7 +623,6 @@ export default {
       const isTSAsArrayExpression =
         declaredDependenciesNode.type === 'TSAsExpression' &&
         declaredDependenciesNode.expression.type === 'ArrayExpression';
-
       if (!isArrayExpression && !isTSAsArrayExpression) {
         // If the declared dependencies are not an array expression then we
         // can't verify that the user provided the correct dependencies. Tell
@@ -660,7 +630,7 @@ export default {
         reportProblem({
           node: declaredDependenciesNode,
           message:
-            `React Hook ${getSource(reactiveHook)} was passed a ` +
+            `React Hook ${context.getSource(reactiveHook)} was passed a ` +
             'dependency list that is not an array literal. This means we ' +
             "can't statically verify whether you've passed the correct " +
             'dependencies.',
@@ -680,7 +650,7 @@ export default {
             reportProblem({
               node: declaredDependencyNode,
               message:
-                `React Hook ${getSource(reactiveHook)} has a spread ` +
+                `React Hook ${context.getSource(reactiveHook)} has a spread ` +
                 "element in its dependency array. This means we can't " +
                 "statically verify whether you've passed the " +
                 'correct dependencies.',
@@ -692,12 +662,12 @@ export default {
               node: declaredDependencyNode,
               message:
                 'Functions returned from `useEffectEvent` must not be included in the dependency array. ' +
-                `Remove \`${getSource(
+                `Remove \`${context.getSource(
                   declaredDependencyNode,
                 )}\` from the list.`,
               suggest: [
                 {
-                  desc: `Remove the dependency \`${getSource(
+                  desc: `Remove the dependency \`${context.getSource(
                     declaredDependencyNode,
                   )}\``,
                   fix(fixer) {
@@ -738,7 +708,7 @@ export default {
                 reportProblem({
                   node: declaredDependencyNode,
                   message:
-                    `React Hook ${getSource(reactiveHook)} has a ` +
+                    `React Hook ${context.getSource(reactiveHook)} has a ` +
                     `complex expression in the dependency array. ` +
                     'Extract it to a separate variable so it can be statically checked.',
                 });
@@ -1008,7 +978,7 @@ export default {
             ` However, 'props' will change when *any* prop changes, so the ` +
             `preferred fix is to destructure the 'props' object outside of ` +
             `the ${reactiveHookName} call and refer to those specific props ` +
-            `inside ${getSource(reactiveHook)}.`;
+            `inside ${context.getSource(reactiveHook)}.`;
         }
       }
 
@@ -1158,7 +1128,7 @@ export default {
       reportProblem({
         node: declaredDependenciesNode,
         message:
-          `React Hook ${getSource(reactiveHook)} has ` +
+          `React Hook ${context.getSource(reactiveHook)} has ` +
           // To avoid a long message, show the next actionable item.
           (getWarningMessage(missingDependencies, 'a', 'missing', 'include') ||
             getWarningMessage(
@@ -1197,7 +1167,7 @@ export default {
         // Not a React Hook call that needs deps.
         return;
       }
-      let callback = node.arguments[callbackIndex];
+      const callback = node.arguments[callbackIndex];
       const reactiveHook = node.callee;
       const reactiveHookName = getNodeWithoutReactNamespace(reactiveHook).name;
       const maybeNode = node.arguments[callbackIndex + 1];
@@ -1242,18 +1212,20 @@ export default {
         return;
       }
 
-      while (
-        callback.type === 'TSAsExpression' ||
-        callback.type === 'AsExpression'
-      ) {
-        callback = callback.expression;
-      }
-
       switch (callback.type) {
         case 'FunctionExpression':
         case 'ArrowFunctionExpression':
           visitFunctionWithDependencies(
             callback,
+            declaredDependenciesNode,
+            reactiveHook,
+            reactiveHookName,
+            isEffect,
+          );
+          return; // Handled
+        case 'TSAsExpression':
+          visitFunctionWithDependencies(
+            callback.expression,
             declaredDependenciesNode,
             reactiveHook,
             reactiveHookName,
@@ -1278,7 +1250,7 @@ export default {
             return; // Handled
           }
           // We'll do our best effort to find it, complain otherwise.
-          const variable = getScope(callback).set.get(callback.name);
+          const variable = context.getScope().set.get(callback.name);
           if (variable == null || variable.defs == null) {
             // If it's not in scope, we don't care.
             return; // Handled
@@ -1289,13 +1261,6 @@ export default {
           const def = variable.defs[0];
           if (!def || !def.node) {
             break; // Unhandled
-          }
-          if (def.type === 'Parameter') {
-            reportProblem({
-              node: reactiveHook,
-              message: getUnknownDependenciesMessage(reactiveHookName),
-            });
-            return;
           }
           if (def.type !== 'Variable' && def.type !== 'FunctionName') {
             // Parameter or an unusual pattern. Bail out.
@@ -1339,7 +1304,9 @@ export default {
           // useEffect(generateEffectBody(), []);
           reportProblem({
             node: reactiveHook,
-            message: getUnknownDependenciesMessage(reactiveHookName),
+            message:
+              `React Hook ${reactiveHookName} received a function whose dependencies ` +
+              `are unknown. Pass an inline function instead.`,
           });
           return; // Handled
       }
@@ -1915,11 +1882,4 @@ function isUseEffectEventIdentifier(node) {
     return node.type === 'Identifier' && node.name === 'useEffectEvent';
   }
   return false;
-}
-
-function getUnknownDependenciesMessage(reactiveHookName) {
-  return (
-    `React Hook ${reactiveHookName} received a function whose dependencies ` +
-    `are unknown. Pass an inline function instead.`
-  );
 }

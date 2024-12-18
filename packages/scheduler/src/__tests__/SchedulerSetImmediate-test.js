@@ -8,6 +8,8 @@
  * @jest-environment node
  */
 
+/* eslint-disable no-for-of-loops/no-for-of-loops */
+
 'use strict';
 
 let Scheduler;
@@ -171,7 +173,7 @@ describe('SchedulerDOMSetImmediate', () => {
     runtime.assertLog([
       'setImmediate Callback',
       'Task',
-      gate(flags => (flags.www ? 'Yield at 10ms' : 'Yield at 5ms')),
+      'Yield at 5ms',
       'Set Immediate',
     ]);
 
@@ -188,13 +190,7 @@ describe('SchedulerDOMSetImmediate', () => {
     });
     runtime.assertLog(['Set Immediate']);
     runtime.fireSetImmediate();
-    if (gate(flags => flags.enableAlwaysYieldScheduler)) {
-      runtime.assertLog(['setImmediate Callback', 'A', 'Set Immediate']);
-      runtime.fireSetImmediate();
-      runtime.assertLog(['setImmediate Callback', 'B']);
-    } else {
-      runtime.assertLog(['setImmediate Callback', 'A', 'B']);
-    }
+    runtime.assertLog(['setImmediate Callback', 'A', 'B']);
   });
 
   it('multiple tasks at different priority', () => {
@@ -206,13 +202,7 @@ describe('SchedulerDOMSetImmediate', () => {
     });
     runtime.assertLog(['Set Immediate']);
     runtime.fireSetImmediate();
-    if (gate(flags => flags.enableAlwaysYieldScheduler)) {
-      runtime.assertLog(['setImmediate Callback', 'B', 'Set Immediate']);
-      runtime.fireSetImmediate();
-      runtime.assertLog(['setImmediate Callback', 'A']);
-    } else {
-      runtime.assertLog(['setImmediate Callback', 'B', 'A']);
-    }
+    runtime.assertLog(['setImmediate Callback', 'B', 'A']);
   });
 
   it('multiple tasks with a yield in between', () => {
@@ -258,13 +248,7 @@ describe('SchedulerDOMSetImmediate', () => {
     runtime.assertLog(['setImmediate Callback', 'Oops!', 'Set Immediate']);
 
     runtime.fireSetImmediate();
-    if (gate(flags => flags.enableAlwaysYieldScheduler)) {
-      runtime.assertLog(['setImmediate Callback', 'Set Immediate']);
-      runtime.fireSetImmediate();
-      runtime.assertLog(['setImmediate Callback', 'Yay']);
-    } else {
-      runtime.assertLog(['setImmediate Callback', 'Yay']);
-    }
+    runtime.assertLog(['setImmediate Callback', 'Yay']);
   });
 
   it('schedule new task after queue has emptied', () => {
@@ -304,7 +288,7 @@ describe('SchedulerDOMSetImmediate', () => {
   });
 });
 
-test('does not crash if setImmediate is undefined', () => {
+it('does not crash if setImmediate is undefined', () => {
   jest.resetModules();
   const originalSetImmediate = global.setImmediate;
   try {

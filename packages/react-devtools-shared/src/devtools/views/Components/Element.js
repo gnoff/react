@@ -12,6 +12,7 @@ import {Fragment, useContext, useMemo, useState} from 'react';
 import Store from 'react-devtools-shared/src/devtools/store';
 import ButtonIcon from '../ButtonIcon';
 import {TreeDispatcherContext, TreeStateContext} from './TreeContext';
+import {SettingsContext} from '../Settings/SettingsContext';
 import {StoreContext} from '../context';
 import {useSubscription} from '../hooks';
 import {logEvent} from 'react-devtools-shared/src/Logger';
@@ -36,6 +37,7 @@ export default function Element({data, index, style}: Props): React.Node {
   const {ownerFlatTree, ownerID, selectedElementID} =
     useContext(TreeStateContext);
   const dispatch = useContext(TreeDispatcherContext);
+  const {showInlineWarningsAndErrors} = React.useContext(SettingsContext);
 
   const element =
     ownerFlatTree !== null
@@ -140,7 +142,7 @@ export default function Element({data, index, style}: Props): React.Node {
       className={className}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onMouseDown={handleClick}
+      onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       style={style}
       data-testname="ComponentTreeListItem"
@@ -166,7 +168,7 @@ export default function Element({data, index, style}: Props): React.Node {
               className={styles.KeyValue}
               title={key}
               onDoubleClick={handleKeyDoubleClick}>
-              <pre>{key}</pre>
+              {key}
             </span>
             "
           </Fragment>
@@ -179,7 +181,7 @@ export default function Element({data, index, style}: Props): React.Node {
           className={styles.BadgesBlock}
         />
 
-        {errorCount > 0 && (
+        {showInlineWarningsAndErrors && errorCount > 0 && (
           <Icon
             type="error"
             className={
@@ -189,7 +191,7 @@ export default function Element({data, index, style}: Props): React.Node {
             }
           />
         )}
-        {warningCount > 0 && (
+        {showInlineWarningsAndErrors && warningCount > 0 && (
           <Icon
             type="warning"
             className={

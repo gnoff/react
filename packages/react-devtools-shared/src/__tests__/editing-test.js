@@ -934,7 +934,6 @@ describe('editing interface', () => {
     }
 
     // @reactVersion >= 16.9
-    // @gate !disableLegacyContext
     it('should have editable values', async () => {
       await mountTestApp();
 
@@ -984,7 +983,6 @@ describe('editing interface', () => {
     });
 
     // @reactVersion >= 16.9
-    // @gate !disableLegacyContext
     // Tests the combination of older frontend (DevTools UI) with newer backend (embedded within a renderer).
     it('should still support overriding context values with legacy backend methods', async () => {
       await mountTestApp();
@@ -1016,7 +1014,6 @@ describe('editing interface', () => {
     });
 
     // @reactVersion >= 16.9
-    // @gate !disableLegacyContext
     it('should have editable paths', async () => {
       await mountTestApp();
 
@@ -1058,7 +1055,6 @@ describe('editing interface', () => {
     });
 
     // @reactVersion >= 16.9
-    // @gate !disableLegacyContext
     it('should enable adding new object properties and array values', async () => {
       await mountTestApp();
 
@@ -1113,7 +1109,6 @@ describe('editing interface', () => {
     });
 
     // @reactVersion >= 16.9
-    // @gate !disableLegacyContext
     it('should have deletable keys', async () => {
       await mountTestApp();
 

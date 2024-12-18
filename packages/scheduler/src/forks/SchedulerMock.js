@@ -12,7 +12,10 @@
 
 import type {PriorityLevel} from '../SchedulerPriorities';
 
-import {enableProfiling} from '../SchedulerFeatureFlags';
+import {
+  enableSchedulerDebugging,
+  enableProfiling,
+} from '../SchedulerFeatureFlags';
 import {push, pop, peek} from '../SchedulerMinHeap';
 
 // TODO: Use symbols?
@@ -68,6 +71,9 @@ var timerQueue: Array<Task> = [];
 
 // Incrementing id counter. Used to maintain insertion order.
 var taskIdCounter = 1;
+
+// Pausing the scheduler is useful for debugging.
+var isSchedulerPaused = false;
 
 var currentTask = null;
 var currentPriorityLevel = NormalPriority;
@@ -189,7 +195,10 @@ function workLoop(hasTimeRemaining: boolean, initialTime: number): boolean {
   let currentTime = initialTime;
   advanceTimers(currentTime);
   currentTask = peek(taskQueue);
-  while (currentTask !== null) {
+  while (
+    currentTask !== null &&
+    !(enableSchedulerDebugging && isSchedulerPaused)
+  ) {
     if (
       currentTask.expirationTime > currentTime &&
       (!hasTimeRemaining || shouldYieldToHost())
@@ -411,6 +420,22 @@ function unstable_scheduleCallback(
   }
 
   return newTask;
+}
+
+function unstable_pauseExecution() {
+  isSchedulerPaused = true;
+}
+
+function unstable_continueExecution() {
+  isSchedulerPaused = false;
+  if (!isHostCallbackScheduled && !isPerformingWork) {
+    isHostCallbackScheduled = true;
+    requestHostCallback(flushWork);
+  }
+}
+
+function unstable_getFirstCallbackNode(): Task | null {
+  return peek(taskQueue);
 }
 
 function unstable_cancelCallback(task: Task) {
@@ -654,6 +679,9 @@ export {
   unstable_getCurrentPriorityLevel,
   shouldYieldToHost as unstable_shouldYield,
   requestPaint as unstable_requestPaint,
+  unstable_continueExecution,
+  unstable_pauseExecution,
+  unstable_getFirstCallbackNode,
   getCurrentTime as unstable_now,
   forceFrameRate as unstable_forceFrameRate,
   unstable_flushAllWithoutAsserting,

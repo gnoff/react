@@ -8,7 +8,8 @@
  */
 
 import * as React from 'react';
-import * as ReactDOMClient from 'react-dom/client';
+import * as ReactDOM from 'react-dom';
+import {createRoot} from 'react-dom/client';
 import {
   activate as activateBackend,
   initialize as initializeBackend,
@@ -40,7 +41,7 @@ function init(appIframe, devtoolsContainer, appSource) {
   const DevTools = createDevTools(contentWindow);
 
   inject(contentDocument, appSource, () => {
-    ReactDOMClient.createRoot(devtoolsContainer).render(
+    createRoot(devtoolsContainer).render(
       <DevTools
         hookNamesModuleLoaderFunction={hookNamesModuleLoaderFunction}
         showTabBar={true}
@@ -57,4 +58,4 @@ const devtoolsContainer = document.getElementById('devtools');
 init(iframe, devtoolsContainer, 'dist/e2e-app.js');
 
 // ReactDOM Test Selector APIs used by Playwright e2e tests
-window.parent.REACT_DOM_DEVTOOLS = ReactDOMClient;
+window.parent.REACT_DOM_DEVTOOLS = ReactDOM;

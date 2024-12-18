@@ -16,8 +16,6 @@ describe('StoreStressConcurrent', () => {
   let store;
   let print;
 
-  jest.setTimeout(15000);
-
   beforeEach(() => {
     global.IS_REACT_ACT_ENVIRONMENT = true;
 

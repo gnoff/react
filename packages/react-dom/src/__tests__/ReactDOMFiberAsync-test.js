@@ -50,7 +50,6 @@ describe('ReactDOMFiberAsync', () => {
     document.body.removeChild(container);
   });
 
-  // @gate !disableLegacyMode
   it('renders synchronously by default in legacy mode', () => {
     const ops = [];
     ReactDOM.render(<div>Hi</div>, container, () => {
@@ -313,12 +312,21 @@ describe('ReactDOMFiberAsync', () => {
         assertLog([]);
       });
       // Only the active updates have flushed
-      expect(container.textContent).toEqual('ABC');
-      assertLog(['ABC']);
+      if (gate(flags => flags.enableUnifiedSyncLane)) {
+        expect(container.textContent).toEqual('ABC');
+        assertLog(['ABC']);
+      } else {
+        expect(container.textContent).toEqual('BC');
+        assertLog(['BC']);
+      }
 
       await act(() => {
         instance.push('D');
-        expect(container.textContent).toEqual('ABC');
+        if (gate(flags => flags.enableUnifiedSyncLane)) {
+          expect(container.textContent).toEqual('ABC');
+        } else {
+          expect(container.textContent).toEqual('BC');
+        }
         assertLog([]);
       });
       assertLog(['ABCD']);
@@ -744,7 +752,7 @@ describe('ReactDOMFiberAsync', () => {
       // Because it suspended, it remains on the current path
       expect(div.textContent).toBe('/path/a');
     });
-    assertLog(gate('enableSiblingPrerendering') ? ['Suspend! [/path/b]'] : []);
+    assertLog(['Suspend! [/path/b]']);
 
     await act(async () => {
       resolvePromise();

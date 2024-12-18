@@ -129,11 +129,8 @@ describe('ReactChildReconciler', () => {
         'duplicated and/or omitted — the behavior is unsupported and ' +
         'could change in a future version.\n' +
         '    in div (at **)\n' +
-        (gate(flags => flags.enableOwnerStacks) ? '' : '    in div (at **)\n') +
         '    in Component (at **)\n' +
-        (gate(flags => flags.enableOwnerStacks)
-          ? ''
-          : '    in Parent (at **)\n') +
+        '    in Parent (at **)\n' +
         '    in GrandParent (at **)',
     );
   });
@@ -191,11 +188,8 @@ describe('ReactChildReconciler', () => {
         'duplicated and/or omitted — the behavior is unsupported and ' +
         'could change in a future version.\n' +
         '    in div (at **)\n' +
-        (gate(flags => flags.enableOwnerStacks) ? '' : '    in div (at **)\n') +
         '    in Component (at **)\n' +
-        (gate(flags => flags.enableOwnerStacks)
-          ? ''
-          : '    in Parent (at **)\n') +
+        '    in Parent (at **)\n' +
         '    in GrandParent (at **)',
     );
   });

@@ -135,16 +135,11 @@ describe('ReactSuspenseFallback', () => {
   it('suspends and shows fallback', async () => {
     ReactNoop.render(
       <Suspense fallback={<Text text="Loading..." />}>
-        <AsyncText text="A" />
+        <AsyncText text="A" ms={100} />
       </Suspense>,
     );
 
-    await waitForAll([
-      'Suspend! [A]',
-      'Loading...',
-
-      ...(gate('enableSiblingPrerendering') ? ['Suspend! [A]'] : []),
-    ]);
+    await waitForAll(['Suspend! [A]', 'Loading...']);
     expect(ReactNoop).toMatchRenderedOutput(<span prop="Loading..." />);
   });
 
@@ -152,15 +147,13 @@ describe('ReactSuspenseFallback', () => {
   it('suspends and shows null fallback', async () => {
     ReactNoop.render(
       <Suspense fallback={null}>
-        <AsyncText text="A" />
+        <AsyncText text="A" ms={100} />
       </Suspense>,
     );
 
     await waitForAll([
       'Suspend! [A]',
       // null
-
-      ...(gate('enableSiblingPrerendering') ? ['Suspend! [A]'] : []),
     ]);
     expect(ReactNoop).toMatchRenderedOutput(null);
   });
@@ -169,15 +162,13 @@ describe('ReactSuspenseFallback', () => {
   it('suspends and shows undefined fallback', async () => {
     ReactNoop.render(
       <Suspense>
-        <AsyncText text="A" />
+        <AsyncText text="A" ms={100} />
       </Suspense>,
     );
 
     await waitForAll([
       'Suspend! [A]',
       // null
-
-      ...(gate('enableSiblingPrerendering') ? ['Suspend! [A]'] : []),
     ]);
     expect(ReactNoop).toMatchRenderedOutput(null);
   });
@@ -187,17 +178,12 @@ describe('ReactSuspenseFallback', () => {
     ReactNoop.render(
       <Suspense fallback={<Text text="Should not show..." />}>
         <Suspense fallback={<Text text="Loading..." />}>
-          <AsyncText text="A" />
+          <AsyncText text="A" ms={100} />
         </Suspense>
       </Suspense>,
     );
 
-    await waitForAll([
-      'Suspend! [A]',
-      'Loading...',
-
-      ...(gate('enableSiblingPrerendering') ? ['Suspend! [A]'] : []),
-    ]);
+    await waitForAll(['Suspend! [A]', 'Loading...']);
     expect(ReactNoop).toMatchRenderedOutput(<span prop="Loading..." />);
   });
 
@@ -206,7 +192,7 @@ describe('ReactSuspenseFallback', () => {
     ReactNoop.render(
       <Suspense fallback={<Text text="Should not show..." />}>
         <Suspense>
-          <AsyncText text="A" />
+          <AsyncText text="A" ms={100} />
         </Suspense>
       </Suspense>,
     );
@@ -214,8 +200,6 @@ describe('ReactSuspenseFallback', () => {
     await waitForAll([
       'Suspend! [A]',
       // null
-
-      ...(gate('enableSiblingPrerendering') ? ['Suspend! [A]'] : []),
     ]);
     expect(ReactNoop).toMatchRenderedOutput(null);
   });
@@ -225,7 +209,7 @@ describe('ReactSuspenseFallback', () => {
     ReactNoop.render(
       <Suspense fallback={<Text text="Should not show..." />}>
         <Suspense fallback={null}>
-          <AsyncText text="A" />
+          <AsyncText text="A" ms={100} />
         </Suspense>
       </Suspense>,
     );
@@ -233,8 +217,6 @@ describe('ReactSuspenseFallback', () => {
     await waitForAll([
       'Suspend! [A]',
       // null
-
-      ...(gate('enableSiblingPrerendering') ? ['Suspend! [A]'] : []),
     ]);
     expect(ReactNoop).toMatchRenderedOutput(null);
   });

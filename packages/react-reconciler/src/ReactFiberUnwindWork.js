@@ -33,6 +33,7 @@ import {DidCapture, NoFlags, ShouldCapture} from './ReactFiberFlags';
 import {NoMode, ProfileMode} from './ReactTypeOfMode';
 import {
   enableProfilerTimer,
+  enableCache,
   enableTransitionTracing,
   enableRenderableContext,
 } from 'shared/ReactFeatureFlags';
@@ -90,8 +91,10 @@ function unwindWork(
     }
     case HostRoot: {
       const root: FiberRoot = workInProgress.stateNode;
-      const cache: Cache = workInProgress.memoizedState.cache;
-      popCacheProvider(workInProgress, cache);
+      if (enableCache) {
+        const cache: Cache = workInProgress.memoizedState.cache;
+        popCacheProvider(workInProgress, cache);
+      }
 
       if (enableTransitionTracing) {
         popRootMarkerInstance(workInProgress);
@@ -186,8 +189,10 @@ function unwindWork(
       return null;
     }
     case CacheComponent:
-      const cache: Cache = workInProgress.memoizedState.cache;
-      popCacheProvider(workInProgress, cache);
+      if (enableCache) {
+        const cache: Cache = workInProgress.memoizedState.cache;
+        popCacheProvider(workInProgress, cache);
+      }
       return null;
     case TracingMarkerComponent:
       if (enableTransitionTracing) {
@@ -221,8 +226,10 @@ function unwindInterruptedWork(
     }
     case HostRoot: {
       const root: FiberRoot = interruptedWork.stateNode;
-      const cache: Cache = interruptedWork.memoizedState.cache;
-      popCacheProvider(interruptedWork, cache);
+      if (enableCache) {
+        const cache: Cache = interruptedWork.memoizedState.cache;
+        popCacheProvider(interruptedWork, cache);
+      }
 
       if (enableTransitionTracing) {
         popRootMarkerInstance(interruptedWork);
@@ -264,8 +271,10 @@ function unwindInterruptedWork(
       popTransition(interruptedWork, current);
       break;
     case CacheComponent:
-      const cache: Cache = interruptedWork.memoizedState.cache;
-      popCacheProvider(interruptedWork, cache);
+      if (enableCache) {
+        const cache: Cache = interruptedWork.memoizedState.cache;
+        popCacheProvider(interruptedWork, cache);
+      }
       break;
     case TracingMarkerComponent:
       if (enableTransitionTracing) {

@@ -12,13 +12,13 @@
 let ReactCache;
 let createResource;
 let React;
+let ReactFeatureFlags;
 let ReactNoop;
 let Scheduler;
 let Suspense;
 let TextResource;
 let textResourceShouldFail;
 let waitForAll;
-let waitForPaint;
 let assertLog;
 let waitForThrow;
 let act;
@@ -27,6 +27,9 @@ describe('ReactCache', () => {
   beforeEach(() => {
     jest.resetModules();
 
+    ReactFeatureFlags = require('shared/ReactFeatureFlags');
+
+    ReactFeatureFlags.replayFailedUnitOfWorkWithInvokeGuardedCallback = false;
     React = require('react');
     Suspense = React.Suspense;
     ReactCache = require('react-cache');
@@ -38,7 +41,6 @@ describe('ReactCache', () => {
     waitForAll = InternalTestUtils.waitForAll;
     assertLog = InternalTestUtils.assertLog;
     waitForThrow = InternalTestUtils.waitForThrow;
-    waitForPaint = InternalTestUtils.waitForPaint;
     act = InternalTestUtils.act;
 
     TextResource = createResource(
@@ -121,12 +123,7 @@ describe('ReactCache', () => {
     const root = ReactNoop.createRoot();
     root.render(<App />);
 
-    await waitForAll([
-      'Suspend! [Hi]',
-      'Loading...',
-
-      ...(gate('enableSiblingPrerendering') ? ['Suspend! [Hi]'] : []),
-    ]);
+    await waitForAll(['Suspend! [Hi]', 'Loading...']);
 
     jest.advanceTimersByTime(100);
     assertLog(['Promise resolved [Hi]']);
@@ -145,12 +142,7 @@ describe('ReactCache', () => {
     const root = ReactNoop.createRoot();
     root.render(<App />);
 
-    await waitForAll([
-      'Suspend! [Hi]',
-      'Loading...',
-
-      ...(gate('enableSiblingPrerendering') ? ['Suspend! [Hi]'] : []),
-    ]);
+    await waitForAll(['Suspend! [Hi]', 'Loading...']);
 
     textResourceShouldFail = true;
     let error;
@@ -191,31 +183,18 @@ describe('ReactCache', () => {
 
     if (__DEV__) {
       await expect(async () => {
-        await waitForAll([
-          'App',
-          'Loading...',
-
-          ...(gate('enableSiblingPrerendering') ? ['App'] : []),
-        ]);
+        await waitForAll(['App', 'Loading...']);
       }).toErrorDev([
         'Invalid key type. Expected a string, number, symbol, or ' +
-          "boolean, but instead received: [ 'Hi', 100 ]\n\n" +
+          'boolean, but instead received: Hi,100\n\n' +
           'To use non-primitive values as keys, you must pass a hash ' +
           'function as the second argument to createResource().',
-
-        ...(gate('enableSiblingPrerendering') ? ['Invalid key type'] : []),
       ]);
     } else {
-      await waitForAll([
-        'App',
-        'Loading...',
-
-        ...(gate('enableSiblingPrerendering') ? ['App'] : []),
-      ]);
+      await waitForAll(['App', 'Loading...']);
     }
   });
 
-  // @gate enableSiblingPrerendering
   it('evicts least recently used values', async () => {
     ReactCache.unstable_setGlobalCacheLimit(3);
 
@@ -228,7 +207,7 @@ describe('ReactCache', () => {
         <AsyncText ms={100} text={3} />
       </Suspense>,
     );
-    await waitForPaint(['Suspend! [1]', 'Loading...']);
+    await waitForAll(['Suspend! [1]', 'Loading...']);
     jest.advanceTimersByTime(100);
     assertLog(['Promise resolved [1]']);
     await waitForAll([1, 'Suspend! [2]']);
@@ -237,11 +216,9 @@ describe('ReactCache', () => {
     assertLog(['Promise resolved [2]']);
     await waitForAll([1, 2, 'Suspend! [3]']);
 
-    jest.advanceTimersByTime(100);
-    assertLog(['Promise resolved [3]']);
-    await waitForAll([1, 2, 3]);
-
     await act(() => jest.advanceTimersByTime(100));
+    assertLog(['Promise resolved [3]', 1, 2, 3]);
+
     expect(root).toMatchRenderedOutput('123');
 
     // Render 1, 4, 5
@@ -253,17 +230,19 @@ describe('ReactCache', () => {
       </Suspense>,
     );
 
-    await waitForAll([
-      1,
-      'Suspend! [4]',
-      'Loading...',
-      1,
-      'Suspend! [4]',
-      'Suspend! [5]',
-    ]);
+    await waitForAll([1, 'Suspend! [4]', 'Loading...']);
 
     await act(() => jest.advanceTimersByTime(100));
-    assertLog(['Promise resolved [4]', 'Promise resolved [5]', 1, 4, 5]);
+    assertLog([
+      'Promise resolved [4]',
+      1,
+      4,
+      'Suspend! [5]',
+      'Promise resolved [5]',
+      1,
+      4,
+      5,
+    ]);
 
     expect(root).toMatchRenderedOutput('145');
 
@@ -284,14 +263,19 @@ describe('ReactCache', () => {
       // 2 and 3 suspend because they were evicted from the cache
       'Suspend! [2]',
       'Loading...',
-
-      1,
-      'Suspend! [2]',
-      'Suspend! [3]',
     ]);
 
     await act(() => jest.advanceTimersByTime(100));
-    assertLog(['Promise resolved [2]', 'Promise resolved [3]', 1, 2, 3]);
+    assertLog([
+      'Promise resolved [2]',
+      1,
+      2,
+      'Suspend! [3]',
+      'Promise resolved [3]',
+      1,
+      2,
+      3,
+    ]);
     expect(root).toMatchRenderedOutput('123');
   });
 
@@ -366,12 +350,7 @@ describe('ReactCache', () => {
       </Suspense>,
     );
 
-    await waitForAll([
-      'Suspend! [Hi]',
-      'Loading...',
-
-      ...(gate('enableSiblingPrerendering') ? ['Suspend! [Hi]'] : []),
-    ]);
+    await waitForAll(['Suspend! [Hi]', 'Loading...']);
 
     resolveThenable('Hi');
     // This thenable improperly resolves twice. We should not update the

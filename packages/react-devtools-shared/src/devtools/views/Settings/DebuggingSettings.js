@@ -8,53 +8,22 @@
  */
 
 import * as React from 'react';
-import {use, useState, useEffect} from 'react';
-
-import type {DevToolsHookSettings} from 'react-devtools-shared/src/backend/types';
-import type Store from 'react-devtools-shared/src/devtools/store';
+import {useContext} from 'react';
+import {SettingsContext} from './SettingsContext';
 
 import styles from './SettingsShared.css';
 
-type Props = {
-  hookSettings: Promise<$ReadOnly<DevToolsHookSettings>>,
-  store: Store,
-};
-
-export default function DebuggingSettings({
-  hookSettings,
-  store,
-}: Props): React.Node {
-  const usedHookSettings = use(hookSettings);
-
-  const [appendComponentStack, setAppendComponentStack] = useState(
-    usedHookSettings.appendComponentStack,
-  );
-  const [breakOnConsoleErrors, setBreakOnConsoleErrors] = useState(
-    usedHookSettings.breakOnConsoleErrors,
-  );
-  const [hideConsoleLogsInStrictMode, setHideConsoleLogsInStrictMode] =
-    useState(usedHookSettings.hideConsoleLogsInStrictMode);
-  const [showInlineWarningsAndErrors, setShowInlineWarningsAndErrors] =
-    useState(usedHookSettings.showInlineWarningsAndErrors);
-
-  useEffect(() => {
-    store.setShouldShowWarningsAndErrors(showInlineWarningsAndErrors);
-  }, [showInlineWarningsAndErrors]);
-
-  useEffect(() => {
-    store.updateHookSettings({
-      appendComponentStack,
-      breakOnConsoleErrors,
-      showInlineWarningsAndErrors,
-      hideConsoleLogsInStrictMode,
-    });
-  }, [
-    store,
+export default function DebuggingSettings(_: {}): React.Node {
+  const {
     appendComponentStack,
     breakOnConsoleErrors,
-    showInlineWarningsAndErrors,
     hideConsoleLogsInStrictMode,
-  ]);
+    setAppendComponentStack,
+    setBreakOnConsoleErrors,
+    setShowInlineWarningsAndErrors,
+    showInlineWarningsAndErrors,
+    setHideConsoleLogsInStrictMode,
+  } = useContext(SettingsContext);
 
   return (
     <div className={styles.Settings}>
@@ -106,14 +75,7 @@ export default function DebuggingSettings({
               setHideConsoleLogsInStrictMode(currentTarget.checked)
             }
           />{' '}
-          Hide logs during additional invocations in{' '}
-          <a
-            className={styles.StrictModeLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            href="https://react.dev/reference/react/StrictMode">
-            Strict Mode
-          </a>
+          Hide logs during second render in Strict Mode
         </label>
       </div>
     </div>

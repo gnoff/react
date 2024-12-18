@@ -12,7 +12,6 @@ import {checkFormFieldValueStringCoercion} from 'shared/CheckStringCoercion';
 export opaque type ToStringValue =
   | boolean
   | number
-  | bigint
   | Object
   | string
   | null
@@ -29,7 +28,6 @@ export function toString(value: ToStringValue): string {
 
 export function getToStringValue(value: mixed): ToStringValue {
   switch (typeof value) {
-    case 'bigint':
     case 'boolean':
     case 'number':
     case 'string':

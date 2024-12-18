@@ -1,12 +1,12 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "React Developer Tools",
   "description": "Adds React debugging tools to the Firefox Developer Tools.",
-  "version": "6.0.1",
-  "browser_specific_settings": {
+  "version": "5.0.1",
+  "applications": {
     "gecko": {
       "id": "@react-devtools",
-      "strict_min_version": "128.0"
+      "strict_min_version": "102.0"
     }
   },
   "icons": {
@@ -15,32 +15,22 @@
     "48": "icons/48-production.png",
     "128": "icons/128-production.png"
   },
-  "action": {
+  "browser_action": {
     "default_icon": {
       "16": "icons/16-disabled.png",
       "32": "icons/32-disabled.png",
       "48": "icons/48-disabled.png",
       "128": "icons/128-disabled.png"
     },
-    "default_popup": "popups/disabled.html"
+    "default_popup": "popups/disabled.html",
+    "browser_style": true
   },
   "devtools_page": "main.html",
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
-  },
+  "content_security_policy": "script-src 'self' 'unsafe-eval' blob:; object-src 'self'",
   "web_accessible_resources": [
-    {
-      "resources": [
-        "main.html",
-        "panel.html",
-        "build/*.js",
-        "build/*.js.map"
-      ],
-      "matches": [
-        "<all_urls>"
-      ],
-      "extension_ids": []
-    }
+    "main.html",
+    "panel.html",
+    "build/*.js"
   ],
   "background": {
     "scripts": [
@@ -48,12 +38,12 @@
     ]
   },
   "permissions": [
+    "file:///*",
+    "http://*/*",
+    "https://*/*",
+    "clipboardWrite",
     "scripting",
-    "storage",
-    "tabs"
-  ],
-  "host_permissions": [
-    "<all_urls>"
+    "devtools"
   ],
   "content_scripts": [
     {

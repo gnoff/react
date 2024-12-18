@@ -40,10 +40,7 @@ export function useSyncExternalStore<T>(
     if (!didWarnOld18Alpha) {
       if (React.startTransition !== undefined) {
         didWarnOld18Alpha = true;
-        // Avoid transforming the `console.error` call as it would cause the built artifact
-        // to access React internals, which exist under different paths depending on the
-        // React version.
-        console['error'](
+        console.error(
           'You are using an outdated, pre-release alpha of React 18 that ' +
             'does not support useSyncExternalStore. The ' +
             'use-sync-external-store shim will not work correctly. Upgrade ' +
@@ -62,10 +59,7 @@ export function useSyncExternalStore<T>(
     if (!didWarnUncachedGetSnapshot) {
       const cachedValue = getSnapshot();
       if (!is(value, cachedValue)) {
-        // Avoid transforming the `console.error` call as it would cause the built artifact
-        // to access React internals, which exist under different paths depending on the
-        // React version.
-        console['error'](
+        console.error(
           'The result of getSnapshot should be cached to avoid an infinite loop',
         );
         didWarnUncachedGetSnapshot = true;

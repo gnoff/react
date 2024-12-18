@@ -13,15 +13,8 @@ import type {
 } from 'react-devtools-shared/src/backend/types';
 import {hasAssignedBackend} from 'react-devtools-shared/src/backend/utils';
 import {COMPACT_VERSION_NAME} from 'react-devtools-extensions/src/utils';
-import {getIsReloadAndProfileSupported} from 'react-devtools-shared/src/utils';
-import {
-  getIfReloadedAndProfiling,
-  onReloadAndProfile,
-  onReloadAndProfileFlagsReset,
-} from 'react-devtools-shared/src/utils';
 
 let welcomeHasInitialized = false;
-const requiredBackends = new Set<string>();
 
 function welcome(event: $FlowFixMe) {
   if (
@@ -55,6 +48,8 @@ function welcome(event: $FlowFixMe) {
   setup(window.__REACT_DEVTOOLS_GLOBAL_HOOK__);
 }
 
+window.addEventListener('message', welcome);
+
 function setup(hook: ?DevToolsHook) {
   // this should not happen, but Chrome can be weird sometimes
   if (hook == null) {
@@ -75,26 +70,19 @@ function setup(hook: ?DevToolsHook) {
   updateRequiredBackends();
 
   // register renderers that inject themselves later.
-  const unsubscribeRendererListener = hook.sub('renderer', ({renderer}) => {
+  hook.sub('renderer', ({renderer}) => {
     registerRenderer(renderer, hook);
     updateRequiredBackends();
   });
 
   // listen for backend installations.
-  const unsubscribeBackendInstallationListener = hook.sub(
-    'devtools-backend-installed',
-    version => {
-      activateBackend(version, hook);
-      updateRequiredBackends();
-    },
-  );
-
-  const unsubscribeShutdownListener: () => void = hook.sub('shutdown', () => {
-    unsubscribeRendererListener();
-    unsubscribeBackendInstallationListener();
-    unsubscribeShutdownListener();
+  hook.sub('devtools-backend-installed', version => {
+    activateBackend(version, hook);
+    updateRequiredBackends();
   });
 }
+
+const requiredBackends = new Set<string>();
 
 function registerRenderer(renderer: ReactRenderer, hook: DevToolsHook) {
   let version = renderer.reconcilerVersion || renderer.version;
@@ -145,23 +133,14 @@ function activateBackend(version: string, hook: DevToolsHook) {
     },
   });
 
-  const agent = new Agent(
-    bridge,
-    getIfReloadedAndProfiling(),
-    onReloadAndProfile,
-  );
-  // Agent read flags successfully, we can count it as successful launch
-  // Clean up flags, so that next reload won't start profiling
-  onReloadAndProfileFlagsReset();
-
+  const agent = new Agent(bridge);
   agent.addListener('shutdown', () => {
     // If we received 'shutdown' from `agent`, we assume the `bridge` is already shutting down,
     // and that caused the 'shutdown' event on the `agent`, so we don't need to call `bridge.shutdown()` here.
     hook.emit('shutdown');
-    delete window.__REACT_DEVTOOLS_BACKEND_MANAGER_INJECTED__;
   });
 
-  initBackend(hook, agent, window, getIsReloadAndProfileSupported());
+  initBackend(hook, agent, window);
 
   // Setup React Native style editor if a renderer like react-native-web has injected it.
   if (typeof setupNativeStyleEditor === 'function' && hook.resolveRNStyle) {
@@ -197,14 +176,4 @@ function updateRequiredBackends() {
     },
     '*',
   );
-}
-
-/*
- * Make sure this is executed only once in case Frontend is reloaded multiple times while Backend is initializing
- * We can't use `reactDevToolsAgent` field on a global Hook object, because it only cleaned up after both Frontend and Backend initialized
- */
-if (!window.__REACT_DEVTOOLS_BACKEND_MANAGER_INJECTED__) {
-  window.__REACT_DEVTOOLS_BACKEND_MANAGER_INJECTED__ = true;
-
-  window.addEventListener('message', welcome);
 }

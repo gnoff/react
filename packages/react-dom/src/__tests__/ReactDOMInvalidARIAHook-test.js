@@ -36,8 +36,8 @@ describe('ReactDOMInvalidARIAHook', () => {
     });
     it('should warn for one invalid aria-* prop', async () => {
       await expect(() => mountComponent({'aria-badprop': 'maybe'})).toErrorDev(
-        'Invalid aria prop `aria-badprop` on <div> tag. ' +
-          'For details, see https://react.dev/link/invalid-aria-props',
+        'Warning: Invalid aria prop `aria-badprop` on <div> tag. ' +
+          'For details, see https://reactjs.org/link/invalid-aria-props',
       );
     });
     it('should warn for many invalid aria-* props', async () => {
@@ -47,14 +47,14 @@ describe('ReactDOMInvalidARIAHook', () => {
           'aria-malprop': 'Turbulent seas',
         }),
       ).toErrorDev(
-        'Invalid aria props `aria-badprop`, `aria-malprop` on <div> ' +
-          'tag. For details, see https://react.dev/link/invalid-aria-props',
+        'Warning: Invalid aria props `aria-badprop`, `aria-malprop` on <div> ' +
+          'tag. For details, see https://reactjs.org/link/invalid-aria-props',
       );
     });
     it('should warn for an improperly cased aria-* prop', async () => {
       // The valid attribute name is aria-haspopup.
       await expect(() => mountComponent({'aria-hasPopup': 'true'})).toErrorDev(
-        'Unknown ARIA attribute `aria-hasPopup`. ' +
+        'Warning: Unknown ARIA attribute `aria-hasPopup`. ' +
           'Did you mean `aria-haspopup`?',
       );
     });
@@ -62,7 +62,7 @@ describe('ReactDOMInvalidARIAHook', () => {
     it('should warn for use of recognized camel case aria attributes', async () => {
       // The valid attribute name is aria-haspopup.
       await expect(() => mountComponent({ariaHasPopup: 'true'})).toErrorDev(
-        'Invalid ARIA attribute `ariaHasPopup`. ' +
+        'Warning: Invalid ARIA attribute `ariaHasPopup`. ' +
           'Did you mean `aria-haspopup`?',
       );
     });
@@ -72,7 +72,7 @@ describe('ReactDOMInvalidARIAHook', () => {
       await expect(() =>
         mountComponent({ariaSomethingInvalid: 'true'}),
       ).toErrorDev(
-        'Invalid ARIA attribute `ariaSomethingInvalid`. ARIA ' +
+        'Warning: Invalid ARIA attribute `ariaSomethingInvalid`. ARIA ' +
           'attributes follow the pattern aria-* and must be lowercase.',
       );
     });

@@ -40,6 +40,7 @@ ReactIs.isValidElementType(FunctionComponent); // true
 ReactIs.isValidElementType(ForwardRefComponent); // true
 ReactIs.isValidElementType(Context.Provider); // true
 ReactIs.isValidElementType(Context.Consumer); // true
+ReactIs.isValidElementType(React.createFactory("div")); // true
 ```
 
 ### Determining an Element's Type

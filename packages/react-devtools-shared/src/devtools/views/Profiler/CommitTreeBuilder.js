@@ -17,10 +17,7 @@ import {
   TREE_OPERATION_UPDATE_TREE_BASE_DURATION,
   TREE_OPERATION_UPDATE_ERRORS_OR_WARNINGS,
 } from 'react-devtools-shared/src/constants';
-import {
-  parseElementDisplayNameFromBackend,
-  utfDecodeStringWithRanges,
-} from 'react-devtools-shared/src/utils';
+import {utfDecodeStringWithRanges} from 'react-devtools-shared/src/utils';
 import {ElementTypeRoot} from 'react-devtools-shared/src/frontend/types';
 import ProfilerStore from 'react-devtools-shared/src/devtools/ProfilerStore';
 
@@ -136,7 +133,6 @@ function recursivelyInitializeTree(
         id,
       ): any): number),
       type: node.type,
-      compiledWithForget: node.compiledWithForget,
     });
 
     node.children.forEach(childID =>
@@ -218,7 +214,6 @@ function updateTree(
             parentID: 0,
             treeBaseDuration: 0, // This will be updated by a subsequent operation
             type,
-            compiledWithForget: false,
           };
 
           nodes.set(id, node);
@@ -246,19 +241,15 @@ function updateTree(
           const parentNode = getClonedNode(parentID);
           parentNode.children = parentNode.children.concat(id);
 
-          const {formattedDisplayName, hocDisplayNames, compiledWithForget} =
-            parseElementDisplayNameFromBackend(displayName, type);
-
           const node: CommitTreeNode = {
             children: [],
-            displayName: formattedDisplayName,
-            hocDisplayNames: hocDisplayNames,
+            displayName,
+            hocDisplayNames: null,
             id,
             key,
             parentID,
             treeBaseDuration: 0, // This will be updated by a subsequent operation
             type,
-            compiledWithForget,
           };
 
           nodes.set(id, node);
@@ -391,22 +382,18 @@ const __printTree = (commitTree: CommitTree) => {
       const id = queue.shift();
       const depth = queue.shift();
 
-      // $FlowFixMe[incompatible-call]
       const node = nodes.get(id);
       if (node == null) {
-        // $FlowFixMe[incompatible-type]
         throw Error(`Could not find node with id "${id}" in commit tree`);
       }
 
       console.log(
-        // $FlowFixMe[incompatible-call]
         `${'•'.repeat(depth)}${node.id}:${node.displayName || ''} ${
           node.key ? `key:"${node.key}"` : ''
         } (${node.treeBaseDuration})`,
       );
 
       node.children.forEach(childID => {
-        // $FlowFixMe[unsafe-addition]
         queue.push(childID, depth + 1);
       });
     }

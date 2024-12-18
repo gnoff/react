@@ -123,7 +123,7 @@ describe('Profiler change descriptions', () => {
     expect(commitData.changeDescriptions.get(element.id))
       .toMatchInlineSnapshot(`
       {
-        "context": false,
+        "context": null,
         "didHooksChange": false,
         "hooks": null,
         "isFirstMount": false,

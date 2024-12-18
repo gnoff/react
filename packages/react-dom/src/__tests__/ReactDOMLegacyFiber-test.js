@@ -12,12 +12,11 @@
 const React = require('react');
 const ReactDOM = require('react-dom');
 const PropTypes = require('prop-types');
-let act;
+
 describe('ReactDOMLegacyFiber', () => {
   let container;
 
   beforeEach(() => {
-    act = require('internal-test-utils').act;
     container = document.createElement('div');
     document.body.appendChild(container);
   });
@@ -28,7 +27,6 @@ describe('ReactDOMLegacyFiber', () => {
     jest.restoreAllMocks();
   });
 
-  // @gate !disableLegacyMode
   it('should render strings as children', () => {
     const Box = ({value}) => <div>{value}</div>;
 
@@ -36,7 +34,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.textContent).toEqual('foo');
   });
 
-  // @gate !disableLegacyMode
   it('should render numbers as children', () => {
     const Box = ({value}) => <div>{value}</div>;
 
@@ -45,7 +42,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.textContent).toEqual('10');
   });
 
-  // @gate !disableLegacyMode
   it('should be called a callback argument', () => {
     // mounting phase
     let called = false;
@@ -58,7 +54,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(called).toEqual(true);
   });
 
-  // @gate !disableLegacyMode
   it('should call a callback argument when the same element is re-rendered', () => {
     class Foo extends React.Component {
       render() {
@@ -80,7 +75,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(called).toEqual(true);
   });
 
-  // @gate !disableLegacyMode
   it('should render a component returning strings directly from render', () => {
     const Text = ({value}) => value;
 
@@ -88,7 +82,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.textContent).toEqual('foo');
   });
 
-  // @gate !disableLegacyMode
   it('should render a component returning numbers directly from render', () => {
     const Text = ({value}) => value;
 
@@ -97,7 +90,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.textContent).toEqual('10');
   });
 
-  // @gate !disableLegacyMode
   it('finds the DOM Text node of a string child', () => {
     class Text extends React.Component {
       render() {
@@ -111,16 +103,12 @@ describe('ReactDOMLegacyFiber', () => {
       container,
     );
 
-    const textNode =
-      ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.findDOMNode(
-        instance,
-      );
+    const textNode = ReactDOM.findDOMNode(instance);
     expect(textNode).toBe(container.firstChild);
     expect(textNode.nodeType).toBe(3);
     expect(textNode.nodeValue).toBe('foo');
   });
 
-  // @gate !disableLegacyMode
   it('finds the first child when a component returns a fragment', () => {
     class Fragment extends React.Component {
       render() {
@@ -133,15 +121,11 @@ describe('ReactDOMLegacyFiber', () => {
 
     expect(container.childNodes.length).toBe(2);
 
-    const firstNode =
-      ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.findDOMNode(
-        instance,
-      );
+    const firstNode = ReactDOM.findDOMNode(instance);
     expect(firstNode).toBe(container.firstChild);
     expect(firstNode.tagName).toBe('DIV');
   });
 
-  // @gate !disableLegacyMode
   it('finds the first child even when fragment is nested', () => {
     class Wrapper extends React.Component {
       render() {
@@ -165,15 +149,11 @@ describe('ReactDOMLegacyFiber', () => {
 
     expect(container.childNodes.length).toBe(2);
 
-    const firstNode =
-      ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.findDOMNode(
-        instance,
-      );
+    const firstNode = ReactDOM.findDOMNode(instance);
     expect(firstNode).toBe(container.firstChild);
     expect(firstNode.tagName).toBe('DIV');
   });
 
-  // @gate !disableLegacyMode
   it('finds the first child even when first child renders null', () => {
     class NullComponent extends React.Component {
       render() {
@@ -192,15 +172,11 @@ describe('ReactDOMLegacyFiber', () => {
 
     expect(container.childNodes.length).toBe(2);
 
-    const firstNode =
-      ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.findDOMNode(
-        instance,
-      );
+    const firstNode = ReactDOM.findDOMNode(instance);
     expect(firstNode).toBe(container.firstChild);
     expect(firstNode.tagName).toBe('DIV');
   });
 
-  // @gate !disableLegacyMode
   it('renders an empty fragment', () => {
     const Div = () => <div />;
     const EmptyFragment = () => <></>;
@@ -256,7 +232,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(testContainer.innerHTML).toBe('');
   };
 
-  // @gate !disableLegacyMode
   it('should render one portal', () => {
     const portalContainer = document.createElement('div');
 
@@ -272,7 +247,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  // @gate !disableLegacyMode
   it('should render many portals', () => {
     const portalContainer1 = document.createElement('div');
     const portalContainer2 = document.createElement('div');
@@ -373,7 +347,6 @@ describe('ReactDOMLegacyFiber', () => {
     ]);
   });
 
-  // @gate !disableLegacyMode
   it('should render nested portals', () => {
     const portalContainer1 = document.createElement('div');
     const portalContainer2 = document.createElement('div');
@@ -417,7 +390,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  // @gate !disableLegacyMode
   it('should reconcile portal children', () => {
     const portalContainer = document.createElement('div');
 
@@ -464,7 +436,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.innerHTML).toBe('<div></div>');
   });
 
-  // @gate !disableLegacyMode
   it('should unmount empty portal component wherever it appears', () => {
     const portalContainer = document.createElement('div');
 
@@ -499,7 +470,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.innerHTML).toBe('<div><div>parent</div></div>');
   });
 
-  // @gate !disableLegacyMode
   it('should keep track of namespace across portals (simple)', () => {
     assertNamespacesMatch(
       <svg {...expectSVG}>
@@ -528,7 +498,6 @@ describe('ReactDOMLegacyFiber', () => {
     );
   });
 
-  // @gate !disableLegacyMode
   it('should keep track of namespace across portals (medium)', () => {
     assertNamespacesMatch(
       <svg {...expectSVG}>
@@ -593,7 +562,6 @@ describe('ReactDOMLegacyFiber', () => {
     );
   });
 
-  // @gate !disableLegacyMode
   it('should keep track of namespace across portals (complex)', () => {
     assertNamespacesMatch(
       <div {...expectHTML}>
@@ -668,25 +636,21 @@ describe('ReactDOMLegacyFiber', () => {
     );
   });
 
-  // @gate !disableLegacyMode
-  it('should unwind namespaces on uncaught errors', async () => {
+  it('should unwind namespaces on uncaught errors', () => {
     function BrokenRender() {
       throw new Error('Hello');
     }
 
-    await expect(async () => {
-      await act(() => {
-        assertNamespacesMatch(
-          <svg {...expectSVG}>
-            <BrokenRender />
-          </svg>,
-        );
-      });
-    }).rejects.toThrow('Hello');
+    expect(() => {
+      assertNamespacesMatch(
+        <svg {...expectSVG}>
+          <BrokenRender />
+        </svg>,
+      );
+    }).toThrow('Hello');
     assertNamespacesMatch(<div {...expectHTML} />);
   });
 
-  // @gate !disableLegacyMode
   it('should unwind namespaces on caught errors', () => {
     function BrokenRender() {
       throw new Error('Hello');
@@ -720,7 +684,6 @@ describe('ReactDOMLegacyFiber', () => {
     assertNamespacesMatch(<div {...expectHTML} />);
   });
 
-  // @gate !disableLegacyMode
   it('should unwind namespaces on caught errors in a portal', () => {
     function BrokenRender() {
       throw new Error('Hello');
@@ -756,7 +719,6 @@ describe('ReactDOMLegacyFiber', () => {
   });
 
   // @gate !disableLegacyContext
-  // @gate !disableLegacyMode
   it('should pass portal context when rendering subtree elsewhere', () => {
     const portalContainer = document.createElement('div');
 
@@ -786,18 +748,12 @@ describe('ReactDOMLegacyFiber', () => {
       }
     }
 
-    expect(() => {
-      ReactDOM.render(<Parent />, container);
-    }).toErrorDev([
-      'Parent uses the legacy childContextTypes API which will soon be removed. Use React.createContext() instead.',
-      'Component uses the legacy contextTypes API which will soon be removed. Use React.createContext() with static contextType instead.',
-    ]);
+    ReactDOM.render(<Parent />, container);
     expect(container.innerHTML).toBe('');
     expect(portalContainer.innerHTML).toBe('<div>bar</div>');
   });
 
   // @gate !disableLegacyContext
-  // @gate !disableLegacyMode
   it('should update portal context if it changes due to setState', () => {
     const portalContainer = document.createElement('div');
 
@@ -834,13 +790,7 @@ describe('ReactDOMLegacyFiber', () => {
       }
     }
 
-    let instance;
-    expect(() => {
-      instance = ReactDOM.render(<Parent />, container);
-    }).toErrorDev([
-      'Parent uses the legacy childContextTypes API which will soon be removed. Use React.createContext() instead.',
-      'Component uses the legacy contextTypes API which will soon be removed. Use React.createContext() with static contextType instead.',
-    ]);
+    const instance = ReactDOM.render(<Parent />, container);
     expect(portalContainer.innerHTML).toBe('<div>initial-initial</div>');
     expect(container.innerHTML).toBe('');
     instance.setState({bar: 'changed'});
@@ -849,7 +799,6 @@ describe('ReactDOMLegacyFiber', () => {
   });
 
   // @gate !disableLegacyContext
-  // @gate !disableLegacyMode
   it('should update portal context if it changes due to re-render', () => {
     const portalContainer = document.createElement('div');
 
@@ -882,12 +831,7 @@ describe('ReactDOMLegacyFiber', () => {
       }
     }
 
-    expect(() => {
-      ReactDOM.render(<Parent bar="initial" />, container);
-    }).toErrorDev([
-      'Parent uses the legacy childContextTypes API which will soon be removed. Use React.createContext() instead.',
-      'Component uses the legacy contextTypes API which will soon be removed. Use React.createContext() with static contextType instead.',
-    ]);
+    ReactDOM.render(<Parent bar="initial" />, container);
     expect(portalContainer.innerHTML).toBe('<div>initial-initial</div>');
     expect(container.innerHTML).toBe('');
     ReactDOM.render(<Parent bar="changed" />, container);
@@ -895,7 +839,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  // @gate !disableLegacyMode
   it('findDOMNode should find dom element after expanding a fragment', () => {
     class MyNode extends React.Component {
       render() {
@@ -906,23 +849,16 @@ describe('ReactDOMLegacyFiber', () => {
     }
 
     const myNodeA = ReactDOM.render(<MyNode />, container);
-    const a =
-      ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.findDOMNode(
-        myNodeA,
-      );
+    const a = ReactDOM.findDOMNode(myNodeA);
     expect(a.tagName).toBe('DIV');
 
     const myNodeB = ReactDOM.render(<MyNode flag={true} />, container);
     expect(myNodeA === myNodeB).toBe(true);
 
-    const b =
-      ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.findDOMNode(
-        myNodeB,
-      );
+    const b = ReactDOM.findDOMNode(myNodeB);
     expect(b.tagName).toBe('SPAN');
   });
 
-  // @gate !disableLegacyMode
   it('should bubble events from the portal to the parent', () => {
     const portalContainer = document.createElement('div');
     document.body.appendChild(portalContainer);
@@ -954,7 +890,6 @@ describe('ReactDOMLegacyFiber', () => {
     }
   });
 
-  // @gate !disableLegacyMode
   it('should not onMouseLeave when staying in the portal', () => {
     const portalContainer = document.createElement('div');
     document.body.appendChild(portalContainer);
@@ -1031,7 +966,6 @@ describe('ReactDOMLegacyFiber', () => {
   });
 
   // Regression test for https://github.com/facebook/react/issues/19562
-  // @gate !disableLegacyMode
   it('does not fire mouseEnter twice when relatedTarget is the root node', () => {
     let ops = [];
     let target = null;
@@ -1082,7 +1016,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(ops).toEqual([]);
   });
 
-  // @gate !disableLegacyMode
   it('listens to events that do not exist in the Portal subtree', () => {
     const onClick = jest.fn();
 
@@ -1110,7 +1043,6 @@ describe('ReactDOMLegacyFiber', () => {
     }).toThrow('Target container is not a DOM element.');
   });
 
-  // @gate !disableLegacyMode
   it('should warn for non-functional event listeners', () => {
     class Example extends React.Component {
       render() {
@@ -1124,7 +1056,6 @@ describe('ReactDOMLegacyFiber', () => {
     );
   });
 
-  // @gate !disableLegacyMode
   it('should warn with a special message for `false` event listeners', () => {
     class Example extends React.Component {
       render() {
@@ -1140,7 +1071,6 @@ describe('ReactDOMLegacyFiber', () => {
     );
   });
 
-  // @gate !disableLegacyMode
   it('should not update event handlers until commit', () => {
     spyOnDev(console, 'error');
 
@@ -1230,15 +1160,14 @@ describe('ReactDOMLegacyFiber', () => {
     if (__DEV__) {
       expect(console.error).toHaveBeenCalledTimes(2);
       expect(console.error.mock.calls[0][0]).toMatch(
-        'ReactDOM.render has not been supported since React 18',
+        'ReactDOM.render is no longer supported in React 18',
       );
       expect(console.error.mock.calls[1][0]).toMatch(
-        'ReactDOM.render has not been supported since React 18',
+        'ReactDOM.render is no longer supported in React 18',
       );
     }
   });
 
-  // @gate !disableLegacyMode
   it('should not crash encountering low-priority tree', () => {
     ReactDOM.render(
       <div hidden={true}>
@@ -1248,7 +1177,6 @@ describe('ReactDOMLegacyFiber', () => {
     );
   });
 
-  // @gate !disableLegacyMode
   it('should not warn when rendering into an empty container', () => {
     ReactDOM.render(<div>foo</div>, container);
     expect(container.innerHTML).toBe('<div>foo</div>');
@@ -1258,8 +1186,7 @@ describe('ReactDOMLegacyFiber', () => {
     expect(container.innerHTML).toBe('<div>bar</div>');
   });
 
-  // @gate !disableLegacyMode
-  it('should warn when replacing a container which was manually updated outside of React', async () => {
+  it('should warn when replacing a container which was manually updated outside of React', () => {
     // when not messing with the DOM outside of React
     ReactDOM.render(<div key="1">foo</div>, container);
     ReactDOM.render(<div key="1">bar</div>, container);
@@ -1269,23 +1196,20 @@ describe('ReactDOMLegacyFiber', () => {
     // It's an error of type 'NotFoundError' with no message
     container.innerHTML = '<div>MEOW.</div>';
 
-    await expect(async () => {
-      await expect(async () => {
-        await act(() => {
-          ReactDOM.render(<div key="2">baz</div>, container);
-        });
-      }).rejects.toThrow('The node to be removed is not a child of this node.');
-    }).toErrorDev(
-      '' +
-        'It looks like the React-rendered content of this container was ' +
-        'removed without using React. This is not supported and will ' +
-        'cause errors. Instead, call ReactDOM.unmountComponentAtNode ' +
-        'to empty a container.',
-      {withoutStack: true},
-    );
+    expect(() => {
+      expect(() =>
+        ReactDOM.render(<div key="2">baz</div>, container),
+      ).toErrorDev(
+        '' +
+          'It looks like the React-rendered content of this container was ' +
+          'removed without using React. This is not supported and will ' +
+          'cause errors. Instead, call ReactDOM.unmountComponentAtNode ' +
+          'to empty a container.',
+        {withoutStack: true},
+      );
+    }).toThrowError();
   });
 
-  // @gate !disableLegacyMode
   it('should warn when doing an update to a container manually updated outside of React', () => {
     // when not messing with the DOM outside of React
     ReactDOM.render(<div>foo</div>, container);
@@ -1303,7 +1227,6 @@ describe('ReactDOMLegacyFiber', () => {
     );
   });
 
-  // @gate !disableLegacyMode
   it('should warn when doing an update to a container manually cleared outside of React', () => {
     // when not messing with the DOM outside of React
     ReactDOM.render(<div>foo</div>, container);
@@ -1321,7 +1244,6 @@ describe('ReactDOMLegacyFiber', () => {
     );
   });
 
-  // @gate !disableLegacyMode
   it('should render a text component with a text DOM node on the same document as the container', () => {
     // 1. Create a new document through the use of iframe
     // 2. Set up the spy to make asserts when a text component
@@ -1352,7 +1274,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(iframeContainer.appendChild).toHaveBeenCalledTimes(1);
   });
 
-  // @gate !disableLegacyMode
   it('should mount into a document fragment', () => {
     const fragment = document.createDocumentFragment();
     ReactDOM.render(<div>foo</div>, fragment);
@@ -1362,7 +1283,6 @@ describe('ReactDOMLegacyFiber', () => {
   });
 
   // Regression test for https://github.com/facebook/react/issues/12643#issuecomment-413727104
-  // @gate !disableLegacyMode
   it('should not diff memoized host components', () => {
     const inputRef = React.createRef();
     let didCallOnChange = false;
@@ -1421,7 +1341,6 @@ describe('ReactDOMLegacyFiber', () => {
     expect(didCallOnChange).toBe(true);
   });
 
-  // @gate !disableLegacyMode
   it('unmounted legacy roots should never clear newer root content from a container', () => {
     const ref = React.createRef();
 

@@ -20,12 +20,9 @@ import {
   getPublicRootInstance,
   createContainer,
   updateContainer,
-  flushSyncFromReconciler,
+  flushSync,
   injectIntoDevTools,
   batchedUpdates,
-  defaultOnUncaughtError,
-  defaultOnCaughtError,
-  defaultOnRecoverableError,
 } from 'react-reconciler/src/ReactFiberReconciler';
 import {findCurrentFiberUsingSlowPath} from 'react-reconciler/src/ReactFiberTreeReflection';
 import {
@@ -56,19 +53,20 @@ import {checkPropStringCoercion} from 'shared/CheckStringCoercion';
 import {getPublicInstance} from './ReactFiberConfigTestHost';
 import {ConcurrentRoot, LegacyRoot} from 'react-reconciler/src/ReactRootTags';
 import {
+  allowConcurrentByDefault,
   enableReactTestRendererWarning,
-  disableLegacyMode,
 } from 'shared/ReactFeatureFlags';
 
-// $FlowFixMe[prop-missing]: This is only in the development export.
 const act = React.act;
 
 // TODO: Remove from public bundle
 
 type TestRendererOptions = {
   createNodeMock: (element: React$Element<any>) => any,
+  isConcurrent: boolean,
   unstable_isConcurrent: boolean,
   unstable_strictMode: boolean,
+  unstable_concurrentUpdatesByDefault: boolean,
   ...
 };
 
@@ -105,9 +103,11 @@ function toJSON(inst: Instance | TextInstance): ReactTestRendererNode | null {
     case 'TEXT':
       return inst.text;
     case 'INSTANCE': {
+      /* eslint-disable no-unused-vars */
       // We don't include the `children` prop in JSON.
       // Instead, we will include the actual rendered children.
       const {children, ...props} = inst.props;
+      /* eslint-enable */
       let renderedChildren = null;
       if (inst.children && inst.children.length) {
         for (let i = 0; i < inst.children.length; i++) {
@@ -166,14 +166,10 @@ function flatten(arr) {
   const stack = [{i: 0, array: arr}];
   while (stack.length) {
     const n = stack.pop();
-    // $FlowFixMe[incompatible-use]
     while (n.i < n.array.length) {
-      // $FlowFixMe[incompatible-use]
       const el = n.array[n.i];
-      // $FlowFixMe[incompatible-use]
       n.i += 1;
       if (isArray(el)) {
-        // $FlowFixMe[incompatible-call]
         stack.push(n);
         stack.push({i: 0, array: el});
         break;
@@ -458,6 +454,13 @@ function propsMatch(props: Object, filter: Object): boolean {
   return true;
 }
 
+// $FlowFixMe[missing-local-annot]
+function onRecoverableError(error) {
+  // TODO: Expose onRecoverableError option to userspace
+  // eslint-disable-next-line react-internal/no-production-logging, react-internal/warning-args
+  console.error(error);
+}
+
 function create(
   element: React$Element<any>,
   options: TestRendererOptions,
@@ -469,35 +472,39 @@ function create(
   update(newElement: React$Element<any>): any,
   unmount(): void,
   getInstance(): React$Component<any, any> | PublicInstance | null,
-  unstable_flushSync: typeof flushSyncFromReconciler,
+  unstable_flushSync: typeof flushSync,
 } {
   if (__DEV__) {
-    if (
-      enableReactTestRendererWarning === true &&
-      global.IS_REACT_NATIVE_TEST_ENVIRONMENT !== true
-    ) {
-      console.error(
+    if (enableReactTestRendererWarning === true) {
+      console.warn(
         'react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer',
       );
     }
   }
 
   let createNodeMock = defaultTestOptions.createNodeMock;
-  const isConcurrentOnly =
-    disableLegacyMode === true &&
-    global.IS_REACT_NATIVE_TEST_ENVIRONMENT !== true;
-  let isConcurrent = isConcurrentOnly;
+  let isConcurrent = false;
   let isStrictMode = false;
+  let concurrentUpdatesByDefault = null;
   if (typeof options === 'object' && options !== null) {
     if (typeof options.createNodeMock === 'function') {
       // $FlowFixMe[incompatible-type] found when upgrading Flow
       createNodeMock = options.createNodeMock;
     }
-    if (isConcurrentOnly === false) {
-      isConcurrent = options.unstable_isConcurrent;
+    if (
+      options.unstable_isConcurrent === true ||
+      options.isConcurrent === true
+    ) {
+      isConcurrent = true;
     }
     if (options.unstable_strictMode === true) {
       isStrictMode = true;
+    }
+    if (allowConcurrentByDefault) {
+      if (options.unstable_concurrentUpdatesByDefault !== undefined) {
+        concurrentUpdatesByDefault =
+          options.unstable_concurrentUpdatesByDefault;
+      }
     }
   }
   let container = {
@@ -510,11 +517,9 @@ function create(
     isConcurrent ? ConcurrentRoot : LegacyRoot,
     null,
     isStrictMode,
-    false,
+    concurrentUpdatesByDefault,
     '',
-    defaultOnUncaughtError,
-    defaultOnCaughtError,
-    defaultOnRecoverableError,
+    onRecoverableError,
     null,
   );
 
@@ -591,7 +596,7 @@ function create(
       return getPublicRootInstance(root);
     },
 
-    unstable_flushSync: flushSyncFromReconciler,
+    unstable_flushSync: flushSync,
   };
 
   Object.defineProperty(
@@ -637,12 +642,19 @@ function wrapFiber(fiber: Fiber): ReactTestInstance {
 }
 
 // Enable ReactTestRenderer to be used to test DevTools integration.
-injectIntoDevTools();
+injectIntoDevTools({
+  findFiberByHostInstance: (() => {
+    throw new Error('TestRenderer does not support findFiberByHostInstance()');
+  }: any),
+  bundleType: __DEV__ ? 1 : 0,
+  version: ReactVersion,
+  rendererPackageName: 'react-test-renderer',
+});
 
 export {
   Scheduler as _Scheduler,
   create,
+  /* eslint-disable-next-line camelcase */
   batchedUpdates as unstable_batchedUpdates,
   act,
-  ReactVersion as version,
 };

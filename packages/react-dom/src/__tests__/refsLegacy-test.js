@@ -19,7 +19,6 @@ describe('root level refs with legacy APIs', () => {
     ReactDOM = require('react-dom');
   });
 
-  // @gate !disableLegacyMode
   it('attaches and detaches root refs', () => {
     let inst = null;
 

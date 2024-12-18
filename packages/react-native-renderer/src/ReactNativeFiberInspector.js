@@ -23,10 +23,7 @@ import {
 } from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
 import {enableGetInspectorDataForInstanceInProduction} from 'shared/ReactFeatureFlags';
 import {getClosestInstanceFromNode} from './ReactNativeComponentTree';
-import {
-  getNodeFromInternalInstanceHandle,
-  findNodeHandle,
-} from './ReactNativePublicCompat';
+import {getNodeFromInternalInstanceHandle} from './ReactNativePublicCompat';
 import {getStackByFiberInDevAndProd} from 'react-reconciler/src/ReactFiberComponentStack';
 
 const emptyObject = {};
@@ -38,7 +35,7 @@ if (__DEV__) {
 function createHierarchy(fiberHierarchy) {
   return fiberHierarchy.map(fiber => ({
     name: getComponentNameFromType(fiber.type),
-    getInspectorData: () => {
+    getInspectorData: findNodeHandle => {
       return {
         props: getHostProps(fiber),
         measure: callback => {
@@ -52,7 +49,10 @@ function createHierarchy(fiberHierarchy) {
           if (node) {
             nativeFabricUIManager.measure(node, callback);
           } else {
-            return UIManager.measure(getHostNode(fiber), callback);
+            return UIManager.measure(
+              getHostNode(fiber, findNodeHandle),
+              callback,
+            );
           }
         },
       };
@@ -60,7 +60,8 @@ function createHierarchy(fiberHierarchy) {
   }));
 }
 
-function getHostNode(fiber: Fiber | null) {
+// $FlowFixMe[missing-local-annot]
+function getHostNode(fiber: Fiber | null, findNodeHandle) {
   if (__DEV__ || enableGetInspectorDataForInstanceInProduction) {
     let hostNode;
     // look for children first for the hostNode
@@ -102,21 +103,13 @@ function getInspectorDataForInstance(
     }
 
     const fiber = findCurrentFiberUsingSlowPath(closestInstance);
-    if (fiber === null) {
-      // Might not be currently mounted.
-      return {
-        hierarchy: [],
-        props: emptyObject,
-        selectedIndex: null,
-        componentStack: '',
-      };
-    }
     const fiberHierarchy = getOwnerHierarchy(fiber);
     const instance = lastNonHostInstance(fiberHierarchy);
     const hierarchy = createHierarchy(fiberHierarchy);
     const props = getHostProps(instance);
     const selectedIndex = fiberHierarchy.indexOf(instance);
-    const componentStack = getStackByFiberInDevAndProd(fiber);
+    const componentStack =
+      fiber !== null ? getStackByFiberInDevAndProd(fiber) : '';
 
     return {
       closestInstance: instance,
@@ -132,7 +125,7 @@ function getInspectorDataForInstance(
   );
 }
 
-function getOwnerHierarchy(instance: Fiber) {
+function getOwnerHierarchy(instance: any) {
   const hierarchy: Array<$FlowFixMe> = [];
   traverseOwnerTreeUp(hierarchy, instance);
   return hierarchy;
@@ -150,17 +143,15 @@ function lastNonHostInstance(hierarchy) {
   return hierarchy[0];
 }
 
+// $FlowFixMe[missing-local-annot]
 function traverseOwnerTreeUp(
   hierarchy: Array<$FlowFixMe>,
-  instance: Fiber,
+  instance: any,
 ): void {
   if (__DEV__ || enableGetInspectorDataForInstanceInProduction) {
-    hierarchy.unshift(instance);
-    const owner = instance._debugOwner;
-    if (owner != null && typeof owner.tag === 'number') {
-      traverseOwnerTreeUp(hierarchy, (owner: any));
-    } else {
-      // TODO: Traverse Server Components owners.
+    if (instance) {
+      hierarchy.unshift(instance);
+      traverseOwnerTreeUp(hierarchy, instance._debugOwner);
     }
   }
 }
@@ -178,6 +169,7 @@ function getInspectorDataForViewTag(viewTag: number): InspectorData {
 }
 
 function getInspectorDataForViewAtPoint(
+  findNodeHandle: (componentOrHandle: any) => ?number,
   inspectedView: Object,
   locationX: number,
   locationY: number,
@@ -209,8 +201,6 @@ function getInspectorDataForViewAtPoint(
 
           closestInstance =
             internalInstanceHandle.stateNode.canonical.internalInstanceHandle;
-          const closestPublicInstance =
-            internalInstanceHandle.stateNode.canonical.publicInstance;
 
           // Note: this is deprecated and we want to remove it ASAP. Keeping it here for React DevTools compatibility for now.
           const nativeViewTag =
@@ -226,7 +216,6 @@ function getInspectorDataForViewAtPoint(
                 pointerY: locationY,
                 frame: {left: pageX, top: pageY, width, height},
                 touchedViewTag: nativeViewTag,
-                closestPublicInstance,
               });
             },
           );
@@ -246,7 +235,6 @@ function getInspectorDataForViewAtPoint(
             pointerY: locationY,
             frame: {left, top, width, height},
             touchedViewTag: nativeViewTag,
-            closestPublicInstance: nativeViewTag,
           });
         },
       );

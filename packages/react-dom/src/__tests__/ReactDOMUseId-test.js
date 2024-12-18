@@ -121,7 +121,7 @@ describe('useId', () => {
     return <div id={id}>{children}</div>;
   }
 
-  it('basic example', async () => {
+  test('basic example', async () => {
     function App() {
       return (
         <div>
@@ -162,7 +162,7 @@ describe('useId', () => {
     `);
   });
 
-  it('indirections', async () => {
+  test('indirections', async () => {
     function App() {
       // There are no forks in this tree, but the parent and the child should
       // have different ids.
@@ -207,7 +207,7 @@ describe('useId', () => {
     `);
   });
 
-  it('StrictMode double rendering', async () => {
+  test('StrictMode double rendering', async () => {
     const {StrictMode} = React;
 
     function App() {
@@ -236,7 +236,7 @@ describe('useId', () => {
     `);
   });
 
-  it('empty (null) children', async () => {
+  test('empty (null) children', async () => {
     // We don't treat empty children different from non-empty ones, which means
     // they get allocated a slot when generating ids. There's no inherent reason
     // to do this; Fiber happens to allocate a fiber for null children that
@@ -275,7 +275,7 @@ describe('useId', () => {
     `);
   });
 
-  it('large ids', async () => {
+  test('large ids', async () => {
     // The component in this test outputs a recursive tree of nodes with ids,
     // where the underlying binary representation is an alternating series of 1s
     // and 0s. In other words, they are all of the form 101010101.
@@ -325,7 +325,7 @@ describe('useId', () => {
     }
   });
 
-  it('multiple ids in a single component', async () => {
+  test('multiple ids in a single component', async () => {
     function App() {
       const id1 = useId();
       const id2 = useId();
@@ -350,7 +350,7 @@ describe('useId', () => {
     `);
   });
 
-  it('local render phase updates', async () => {
+  test('local render phase updates', async () => {
     function App({swap}) {
       const [count, setCount] = useState(0);
       if (count < 3) {
@@ -375,7 +375,7 @@ describe('useId', () => {
     `);
   });
 
-  it('basic incremental hydration', async () => {
+  test('basic incremental hydration', async () => {
     function App() {
       return (
         <div>
@@ -416,7 +416,7 @@ describe('useId', () => {
     `);
   });
 
-  it('inserting/deleting siblings outside a dehydrated Suspense boundary', async () => {
+  test('inserting/deleting siblings outside a dehydrated Suspense boundary', async () => {
     const span = React.createRef(null);
     function App({swap}) {
       // Note: Using a dynamic array so these are treated as insertions and
@@ -500,7 +500,7 @@ describe('useId', () => {
     expect(span.current).toBe(dehydratedSpan);
   });
 
-  it('inserting/deleting siblings inside a dehydrated Suspense boundary', async () => {
+  test('inserting/deleting siblings inside a dehydrated Suspense boundary', async () => {
     const span = React.createRef(null);
     function App({swap}) {
       // Note: Using a dynamic array so these are treated as insertions and
@@ -575,7 +575,7 @@ describe('useId', () => {
     expect(span.current).toBe(dehydratedSpan);
   });
 
-  it('identifierPrefix option', async () => {
+  test('identifierPrefix option', async () => {
     function Child() {
       const id = useId();
       return <div>{id}</div>;

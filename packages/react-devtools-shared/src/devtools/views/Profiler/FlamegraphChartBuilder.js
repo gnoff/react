@@ -75,14 +75,8 @@ export function getChartData({
       throw Error(`Could not find node with id "${id}" in commit tree`);
     }
 
-    const {
-      children,
-      displayName,
-      hocDisplayNames,
-      key,
-      treeBaseDuration,
-      compiledWithForget,
-    } = node;
+    const {children, displayName, hocDisplayNames, key, treeBaseDuration} =
+      node;
 
     const actualDuration = fiberActualDurations.get(id) || 0;
     const selfDuration = fiberSelfDurations.get(id) || 0;
@@ -92,13 +86,11 @@ export function getChartData({
     const maybeKey = key !== null ? ` key="${key}"` : '';
 
     let maybeBadge = '';
-    const maybeForgetBadge = compiledWithForget ? '✨ ' : '';
-
     if (hocDisplayNames !== null && hocDisplayNames.length > 0) {
       maybeBadge = ` (${hocDisplayNames[0]})`;
     }
 
-    let label = `${maybeForgetBadge}${name}${maybeBadge}${maybeKey}`;
+    let label = `${name}${maybeBadge}${maybeKey}`;
     if (didRender) {
       label += ` (${formatDuration(selfDuration)}ms of ${formatDuration(
         actualDuration,

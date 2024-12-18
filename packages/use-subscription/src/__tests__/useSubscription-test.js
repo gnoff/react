@@ -19,7 +19,6 @@ let ReplaySubject;
 let assertLog;
 let waitForAll;
 let waitFor;
-let waitForPaint;
 
 describe('useSubscription', () => {
   beforeEach(() => {
@@ -38,7 +37,6 @@ describe('useSubscription', () => {
 
     const InternalTestUtils = require('internal-test-utils');
     waitForAll = InternalTestUtils.waitForAll;
-    waitForPaint = InternalTestUtils.waitForPaint;
     assertLog = InternalTestUtils.assertLog;
     waitFor = InternalTestUtils.waitFor;
   });
@@ -340,8 +338,6 @@ describe('useSubscription', () => {
       observableB.next('b-3');
     });
 
-    assertLog(['Grandchild: b-0', 'Child: b-3', 'Grandchild: b-3']);
-
     // Update again
     await act(() => root.render(<Parent observed={observableA} />));
 
@@ -349,7 +345,13 @@ describe('useSubscription', () => {
     // We expect the last emitted update to be rendered (because of the commit phase value check)
     // But the intermediate ones should be ignored,
     // And the final rendered output should be the higher-priority observable.
-    assertLog(['Child: a-0', 'Grandchild: a-0']);
+    assertLog([
+      'Grandchild: b-0',
+      'Child: b-3',
+      'Grandchild: b-3',
+      'Child: a-0',
+      'Grandchild: a-0',
+    ]);
     expect(log).toEqual([
       'Parent.componentDidMount',
       'Parent.componentDidUpdate',
@@ -436,9 +438,13 @@ describe('useSubscription', () => {
       observableA.next('a-2');
 
       // Update again
-      React.startTransition(() => {
+      if (gate(flags => flags.enableUnifiedSyncLane)) {
+        React.startTransition(() => {
+          root.render(<Parent observed={observableA} />);
+        });
+      } else {
         root.render(<Parent observed={observableA} />);
-      });
+      }
 
       // Flush everything and ensure that the correct subscribable is used
       await waitForAll([
@@ -597,7 +603,7 @@ describe('useSubscription', () => {
       React.startTransition(() => {
         mutate('C');
       });
-      await waitForPaint(['render:first:C', 'render:second:C']);
+      await waitFor(['render:first:C', 'render:second:C']);
       React.startTransition(() => {
         mutate('D');
       });

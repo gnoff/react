@@ -35,7 +35,7 @@ describe('ReactUpdatePriority', () => {
     return text;
   }
 
-  it('setState inside passive effect triggered by sync update should have default priority', async () => {
+  test('setState inside passive effect triggered by sync update should have default priority', async () => {
     const root = ReactNoop.createRoot();
 
     function App() {
@@ -56,7 +56,7 @@ describe('ReactUpdatePriority', () => {
     assertLog([2]);
   });
 
-  it('setState inside passive effect triggered by idle update should have idle priority', async () => {
+  test('setState inside passive effect triggered by idle update should have idle priority', async () => {
     const root = ReactNoop.createRoot();
 
     let setDefaultState;
@@ -81,32 +81,20 @@ describe('ReactUpdatePriority', () => {
       // Schedule another update at default priority
       setDefaultState(2);
 
-      if (gate(flags => flags.enableYieldingBeforePassive)) {
-        // The default update flushes first, because
-        await waitForPaint([
-          // Idle update is scheduled
-          'Idle update',
-        ]);
-        await waitForPaint([
-          // The default update flushes first, without including the idle update
-          'Idle: 1, Default: 2',
-        ]);
-      } else {
-        // The default update flushes first, because
-        await waitForPaint([
-          // Idle update is scheduled
-          'Idle update',
+      // The default update flushes first, because
+      await waitForPaint([
+        // Idle update is scheduled
+        'Idle update',
 
-          // The default update flushes first, without including the idle update
-          'Idle: 1, Default: 2',
-        ]);
-      }
+        // The default update flushes first, without including the idle update
+        'Idle: 1, Default: 2',
+      ]);
     });
     // Now the idle update has flushed
     assertLog(['Idle: 2, Default: 2']);
   });
 
-  it('continuous updates should interrupt transitions', async () => {
+  test('continuous updates should interrupt transitions', async () => {
     const root = ReactNoop.createRoot();
 
     let setCounter;

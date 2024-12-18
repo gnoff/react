@@ -162,7 +162,7 @@ describe('ReactConcurrentErrorRecovery', () => {
   const rejectText = rejectMostRecentTextCache;
 
   // @gate enableLegacyCache
-  it('errors during a refresh transition should not force fallbacks to display (suspend then error)', async () => {
+  test('errors during a refresh transition should not force fallbacks to display (suspend then error)', async () => {
     class ErrorBoundary extends React.Component {
       state = {error: null};
       static getDerivedStateFromError(error) {
@@ -220,7 +220,20 @@ describe('ReactConcurrentErrorRecovery', () => {
 
     // Because we're still suspended on A, we can't show an error boundary. We
     // should wait for A to resolve.
-    assertLog(['Suspend! [A2]', 'Loading...', 'Error! [B2]', 'Oops!']);
+    if (gate(flags => flags.replayFailedUnitOfWorkWithInvokeGuardedCallback)) {
+      assertLog([
+        'Suspend! [A2]',
+        'Loading...',
+
+        'Error! [B2]',
+        // This extra log happens when we replay the error
+        // in invokeGuardedCallback
+        'Error! [B2]',
+        'Oops!',
+      ]);
+    } else {
+      assertLog(['Suspend! [A2]', 'Loading...', 'Error! [B2]', 'Oops!']);
+    }
     // Remain on previous screen.
     expect(root).toMatchRenderedOutput('A1B1');
 
@@ -228,13 +241,31 @@ describe('ReactConcurrentErrorRecovery', () => {
     await act(() => {
       resolveText('A2');
     });
-    assertLog(['A2', 'Error! [B2]', 'Oops!', 'A2', 'Error! [B2]', 'Oops!']);
+    if (gate(flags => flags.replayFailedUnitOfWorkWithInvokeGuardedCallback)) {
+      assertLog([
+        'A2',
+        'Error! [B2]',
+        // This extra log happens when we replay the error
+        // in invokeGuardedCallback
+        'Error! [B2]',
+        'Oops!',
+
+        'A2',
+        'Error! [B2]',
+        // This extra log happens when we replay the error
+        // in invokeGuardedCallback
+        'Error! [B2]',
+        'Oops!',
+      ]);
+    } else {
+      assertLog(['A2', 'Error! [B2]', 'Oops!', 'A2', 'Error! [B2]', 'Oops!']);
+    }
     // Now we can show the error boundary that's wrapped around B.
     expect(root).toMatchRenderedOutput('A2Oops!');
   });
 
   // @gate enableLegacyCache
-  it('errors during a refresh transition should not force fallbacks to display (error then suspend)', async () => {
+  test('errors during a refresh transition should not force fallbacks to display (error then suspend)', async () => {
     class ErrorBoundary extends React.Component {
       state = {error: null};
       static getDerivedStateFromError(error) {
@@ -292,7 +323,20 @@ describe('ReactConcurrentErrorRecovery', () => {
 
     // Because we're still suspended on B, we can't show an error boundary. We
     // should wait for B to resolve.
-    assertLog(['Error! [A2]', 'Oops!', 'Suspend! [B2]', 'Loading...']);
+    if (gate(flags => flags.replayFailedUnitOfWorkWithInvokeGuardedCallback)) {
+      assertLog([
+        'Error! [A2]',
+        // This extra log happens when we replay the error
+        // in invokeGuardedCallback
+        'Error! [A2]',
+        'Oops!',
+
+        'Suspend! [B2]',
+        'Loading...',
+      ]);
+    } else {
+      assertLog(['Error! [A2]', 'Oops!', 'Suspend! [B2]', 'Loading...']);
+    }
     // Remain on previous screen.
     expect(root).toMatchRenderedOutput('A1B1');
 
@@ -300,13 +344,31 @@ describe('ReactConcurrentErrorRecovery', () => {
     await act(() => {
       resolveText('B2');
     });
-    assertLog(['Error! [A2]', 'Oops!', 'B2', 'Error! [A2]', 'Oops!', 'B2']);
+    if (gate(flags => flags.replayFailedUnitOfWorkWithInvokeGuardedCallback)) {
+      assertLog([
+        'Error! [A2]',
+        // This extra log happens when we replay the error
+        // in invokeGuardedCallback
+        'Error! [A2]',
+        'Oops!',
+        'B2',
+
+        'Error! [A2]',
+        // This extra log happens when we replay the error
+        // in invokeGuardedCallback
+        'Error! [A2]',
+        'Oops!',
+        'B2',
+      ]);
+    } else {
+      assertLog(['Error! [A2]', 'Oops!', 'B2', 'Error! [A2]', 'Oops!', 'B2']);
+    }
     // Now we can show the error boundary that's wrapped around B.
     expect(root).toMatchRenderedOutput('Oops!B2');
   });
 
   // @gate enableLegacyCache
-  it('suspending in the shell (outside a Suspense boundary) should not throw, warn, or log during a transition', async () => {
+  test('suspending in the shell (outside a Suspense boundary) should not throw, warn, or log during a transition', async () => {
     class ErrorBoundary extends React.Component {
       state = {error: null};
       static getDerivedStateFromError(error) {
@@ -356,7 +418,7 @@ describe('ReactConcurrentErrorRecovery', () => {
   });
 
   // @gate enableLegacyCache
-  it(
+  test(
     'errors during a suspended transition at the shell should not force ' +
       'fallbacks to display (error then suspend)',
     async () => {
@@ -397,14 +459,8 @@ describe('ReactConcurrentErrorRecovery', () => {
           );
         });
       });
-      assertLog([
-        'Suspend! [Async]',
-
-        ...(gate('enableSiblingPrerendering')
-          ? ['Caught an error: Oops!']
-          : []),
-      ]);
-      // The render suspended without committing the error.
+      assertLog(['Suspend! [Async]']);
+      // The render suspended without committing or surfacing the error.
       expect(root).toMatchRenderedOutput(null);
 
       // Try the reverse order, too: throw then suspend
@@ -420,13 +476,7 @@ describe('ReactConcurrentErrorRecovery', () => {
           );
         });
       });
-      assertLog([
-        'Suspend! [Async]',
-
-        ...(gate('enableSiblingPrerendering')
-          ? ['Caught an error: Oops!']
-          : []),
-      ]);
+      assertLog(['Suspend! [Async]']);
       expect(root).toMatchRenderedOutput(null);
 
       await act(async () => {

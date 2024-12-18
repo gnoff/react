@@ -7,6 +7,8 @@
  * @flow
  */
 
+import type {Element} from 'react-devtools-shared/src/frontend/types';
+
 import * as React from 'react';
 
 import Badge from './Badge';
@@ -15,20 +17,11 @@ import ForgetBadge from './ForgetBadge';
 import styles from './InspectedElementBadges.css';
 
 type Props = {
-  hocDisplayNames: null | Array<string>,
-  compiledWithForget: boolean,
+  element: Element,
 };
 
-export default function InspectedElementBadges({
-  hocDisplayNames,
-  compiledWithForget,
-}: Props): React.Node {
-  if (
-    !compiledWithForget &&
-    (hocDisplayNames == null || hocDisplayNames.length === 0)
-  ) {
-    return null;
-  }
+export default function InspectedElementBadges({element}: Props): React.Node {
+  const {hocDisplayNames, compiledWithForget} = element;
 
   return (
     <div className={styles.Root}>

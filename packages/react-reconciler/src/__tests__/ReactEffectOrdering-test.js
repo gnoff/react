@@ -8,6 +8,8 @@
  * @jest-environment node
  */
 
+/* eslint-disable no-func-assign */
+
 'use strict';
 
 let React;
@@ -34,7 +36,7 @@ describe('ReactEffectOrdering', () => {
     assertLog = InternalTestUtils.assertLog;
   });
 
-  it('layout unmounts on deletion are fired in parent -> child order', async () => {
+  test('layout unmounts on deletion are fired in parent -> child order', async () => {
     const root = ReactNoop.createRoot();
 
     function Parent() {
@@ -61,7 +63,7 @@ describe('ReactEffectOrdering', () => {
     assertLog(['Unmount parent', 'Unmount child']);
   });
 
-  it('passive unmounts on deletion are fired in parent -> child order', async () => {
+  test('passive unmounts on deletion are fired in parent -> child order', async () => {
     const root = ReactNoop.createRoot();
 
     function Parent() {

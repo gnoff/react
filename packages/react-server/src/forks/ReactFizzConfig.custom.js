@@ -26,8 +26,8 @@
 import type {Request} from 'react-server/src/ReactFizzServer';
 import type {TransitionStatus} from 'react-reconciler/src/ReactFiberConfig';
 
-declare const $$$config: any;
-export opaque type Destination = mixed;
+declare var $$$config: any;
+export opaque type Destination = mixed; // eslint-disable-line no-undef
 export opaque type RenderState = mixed;
 export opaque type HoistableState = mixed;
 export opaque type ResumableState = mixed;
@@ -37,12 +37,8 @@ export type {TransitionStatus};
 
 export const isPrimaryRenderer = false;
 
-export const supportsClientAPIs = true;
-
 export const supportsRequestStorage = false;
 export const requestStorage: AsyncLocalStorage<Request | void> = (null: any);
-
-export const bindToConsole = $$$config.bindToConsole;
 
 export const resetResumableState = $$$config.resetResumableState;
 export const completeResumableState = $$$config.completeResumableState;
@@ -51,6 +47,10 @@ export const makeId = $$$config.makeId;
 export const pushTextInstance = $$$config.pushTextInstance;
 export const pushStartInstance = $$$config.pushStartInstance;
 export const pushEndInstance = $$$config.pushEndInstance;
+export const pushStartCompletedSuspenseBoundary =
+  $$$config.pushStartCompletedSuspenseBoundary;
+export const pushEndCompletedSuspenseBoundary =
+  $$$config.pushEndCompletedSuspenseBoundary;
 export const pushSegmentFinale = $$$config.pushSegmentFinale;
 export const pushFormStateMarkerIsMatching =
   $$$config.pushFormStateMarkerIsMatching;
@@ -78,6 +78,7 @@ export const writeCompletedBoundaryInstruction =
   $$$config.writeCompletedBoundaryInstruction;
 export const writeClientRenderBoundaryInstruction =
   $$$config.writeClientRenderBoundaryInstruction;
+export const prepareHostDispatcher = $$$config.prepareHostDispatcher;
 export const NotPendingTransition = $$$config.NotPendingTransition;
 
 // -------------------------

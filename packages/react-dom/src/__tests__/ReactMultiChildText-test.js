@@ -58,7 +58,6 @@ const expectChildren = function (container, children) {
           continue;
         }
         textNode = outerNode.childNodes[mountIndex];
-        expect(textNode != null).toBe(true);
         expect(textNode.nodeType).toBe(3);
         expect(textNode.data).toBe(child);
         mountIndex++;
@@ -77,7 +76,7 @@ const expectChildren = function (container, children) {
  * faster to render and update.
  */
 describe('ReactMultiChildText', () => {
-  jest.setTimeout(30000);
+  jest.setTimeout(20000);
 
   it('should correctly handle all possible children for render and update', async () => {
     await expect(async () => {
@@ -169,16 +168,8 @@ describe('ReactMultiChildText', () => {
         ['', 'foo', <div>{true}{<div />}{1.2}{''}</div>, 'foo'], ['', 'foo', <div />, 'foo'],
       ]);
     }).toErrorDev([
-      'Each child in a list should have a unique "key" prop.',
-      'Each child in a list should have a unique "key" prop.',
-    ]);
-  });
-
-  it('should correctly handle bigint children for render and update', async () => {
-    // prettier-ignore
-    await testAllPermutations([
-      10n, '10',
-      [10n], ['10']
+      'Warning: Each child in a list should have a unique "key" prop.',
+      'Warning: Each child in a list should have a unique "key" prop.',
     ]);
   });
 

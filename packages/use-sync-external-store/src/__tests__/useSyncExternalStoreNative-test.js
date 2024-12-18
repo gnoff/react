@@ -33,7 +33,9 @@ describe('useSyncExternalStore (userspace shim, server rendering)', () => {
     // React 17.
     jest.mock('react', () => {
       const {
+        // eslint-disable-next-line no-unused-vars
         startTransition: _,
+        // eslint-disable-next-line no-unused-vars
         useSyncExternalStore: __,
         ...otherExports
       } = jest.requireActual('react');
@@ -102,7 +104,7 @@ describe('useSyncExternalStore (userspace shim, server rendering)', () => {
     };
   }
 
-  it('native version', async () => {
+  test('native version', async () => {
     const store = createExternalStore('client');
 
     function App() {
@@ -122,7 +124,8 @@ describe('useSyncExternalStore (userspace shim, server rendering)', () => {
     expect(root).toMatchRenderedOutput('client');
   });
 
-  it('Using isEqual to bailout', async () => {
+  // @gate !(enableUseRefAccessWarning && __DEV__)
+  test('Using isEqual to bailout', async () => {
     const store = createExternalStore({a: 0, b: 0});
 
     function A() {

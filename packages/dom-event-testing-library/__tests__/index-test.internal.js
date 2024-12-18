@@ -45,7 +45,7 @@ describe('createEventTarget', () => {
     resetActivePointers();
   });
 
-  it('returns expected API', () => {
+  test('returns expected API', () => {
     const target = createEventTarget(node);
     expect(target.node).toEqual(node);
     expect(Object.keys(target)).toMatchInlineSnapshot(`
@@ -77,7 +77,7 @@ describe('createEventTarget', () => {
    */
 
   describe('.blur()', () => {
-    it('default', () => {
+    test('default', () => {
       const target = createEventTarget(node);
       node.addEventListener('blur', e => {
         expect(e.relatedTarget).toMatchInlineSnapshot(`null`);
@@ -85,7 +85,7 @@ describe('createEventTarget', () => {
       target.blur();
     });
 
-    it('custom payload', () => {
+    test('custom payload', () => {
       const target = createEventTarget(node);
       node.addEventListener('blur', e => {
         expect(e.relatedTarget).toMatchInlineSnapshot(`null`);
@@ -95,7 +95,7 @@ describe('createEventTarget', () => {
   });
 
   describe('.click()', () => {
-    it('default', () => {
+    test('default', () => {
       const target = createEventTarget(node);
       node.addEventListener('click', e => {
         expect(e.altKey).toEqual(false);
@@ -122,7 +122,7 @@ describe('createEventTarget', () => {
       target.click();
     });
 
-    it('custom payload', () => {
+    test('custom payload', () => {
       const target = createEventTarget(node);
       node.addEventListener('click', e => {
         expect(e.altKey).toEqual(true);
@@ -162,7 +162,7 @@ describe('createEventTarget', () => {
   });
 
   describe('.focus()', () => {
-    it('default', () => {
+    test('default', () => {
       const target = createEventTarget(node);
       node.addEventListener('focus', e => {
         expect(e.relatedTarget).toMatchInlineSnapshot(`null`);
@@ -170,7 +170,7 @@ describe('createEventTarget', () => {
       target.blur();
     });
 
-    it('custom payload', () => {
+    test('custom payload', () => {
       const target = createEventTarget(node);
       node.addEventListener('focus', e => {
         expect(e.relatedTarget).toMatchInlineSnapshot(`null`);
@@ -180,7 +180,7 @@ describe('createEventTarget', () => {
   });
 
   describe('.keydown()', () => {
-    it('default', () => {
+    test('default', () => {
       const target = createEventTarget(node);
       node.addEventListener('keydown', e => {
         expect(e.altKey).toEqual(false);
@@ -195,7 +195,7 @@ describe('createEventTarget', () => {
       target.keydown();
     });
 
-    it('custom payload', () => {
+    test('custom payload', () => {
       const target = createEventTarget(node);
       node.addEventListener('keydown', e => {
         expect(e.altKey).toEqual(true);
@@ -217,7 +217,7 @@ describe('createEventTarget', () => {
   });
 
   describe('.keyup()', () => {
-    it('default', () => {
+    test('default', () => {
       const target = createEventTarget(node);
       node.addEventListener('keyup', e => {
         expect(e.altKey).toEqual(false);
@@ -232,7 +232,7 @@ describe('createEventTarget', () => {
       target.keydown();
     });
 
-    it('custom payload', () => {
+    test('custom payload', () => {
       const target = createEventTarget(node);
       node.addEventListener('keyup', e => {
         expect(e.altKey).toEqual(true);
@@ -254,7 +254,7 @@ describe('createEventTarget', () => {
   });
 
   describe('.scroll()', () => {
-    it('default', () => {
+    test('default', () => {
       const target = createEventTarget(node);
       node.addEventListener('scroll', e => {
         expect(e.type).toEqual('scroll');
@@ -264,7 +264,7 @@ describe('createEventTarget', () => {
   });
 
   describe('.virtualclick()', () => {
-    it('default', () => {
+    test('default', () => {
       const target = createEventTarget(node);
       node.addEventListener('click', e => {
         expect(e.altKey).toEqual(false);
@@ -291,7 +291,7 @@ describe('createEventTarget', () => {
       target.virtualclick();
     });
 
-    it('custom payload', () => {
+    test('custom payload', () => {
       const target = createEventTarget(node);
       node.addEventListener('click', e => {
         // expect most of the custom payload to be ignored
@@ -334,7 +334,7 @@ describe('createEventTarget', () => {
    * Other APIs
    */
 
-  it('.setBoundingClientRect()', () => {
+  test('.setBoundingClientRect()', () => {
     const target = createEventTarget(node);
     expect(node.getBoundingClientRect()).toMatchInlineSnapshot(`
       {

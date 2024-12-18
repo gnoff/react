@@ -8,17 +8,8 @@
  */
 
 import assign from 'shared/assign';
-import {disableDefaultPropsExceptForClasses} from 'shared/ReactFeatureFlags';
 
-export function resolveDefaultPropsOnNonClassComponent(
-  Component: any,
-  baseProps: Object,
-): Object {
-  if (disableDefaultPropsExceptForClasses) {
-    // Support for defaultProps is removed in React 19 for all types
-    // except classes.
-    return baseProps;
-  }
+export function resolveDefaultProps(Component: any, baseProps: Object): Object {
   if (Component && Component.defaultProps) {
     // Resolve default props. Taken from ReactElement
     const props = assign({}, baseProps);

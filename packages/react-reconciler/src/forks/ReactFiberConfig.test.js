@@ -8,4 +8,3 @@
  */
 
 export * from 'react-test-renderer/src/ReactFiberConfigTestHost';
-export * from 'react-client/src/ReactClientConsoleConfigPlain';

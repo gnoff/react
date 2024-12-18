@@ -3,7 +3,7 @@ const firefoxManifest = require('../react-devtools-extensions/firefox/manifest.j
 
 const minChromeVersion = parseInt(chromeManifest.minimum_chrome_version, 10);
 const minFirefoxVersion = parseInt(
-  firefoxManifest.browser_specific_settings.gecko.strict_min_version,
+  firefoxManifest.applications.gecko.strict_min_version,
   10,
 );
 validateVersion(minChromeVersion);

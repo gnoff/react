@@ -13,9 +13,23 @@ import type {
   TransitionTracingCallbacks,
 } from 'react-reconciler/src/ReactInternalTypes';
 
-import {isValidContainer} from 'react-dom-bindings/src/client/ReactDOMContainer';
+import {ReactDOMClientDispatcher} from 'react-dom-bindings/src/client/ReactFiberConfigDOM';
 import {queueExplicitHydrationTarget} from 'react-dom-bindings/src/events/ReactDOMEventReplaying';
 import {REACT_ELEMENT_TYPE} from 'shared/ReactSymbols';
+import {
+  enableFloat,
+  allowConcurrentByDefault,
+  disableCommentsAsDOMContainers,
+  enableAsyncActions,
+  enableFormActions,
+} from 'shared/ReactFeatureFlags';
+
+import ReactDOMSharedInternals from '../ReactDOMSharedInternals';
+const {Dispatcher} = ReactDOMSharedInternals;
+if (enableFloat && typeof document !== 'undefined') {
+  // Set the default dispatcher to the client dispatcher
+  Dispatcher.current = ReactDOMClientDispatcher;
+}
 
 export type RootType = {
   render(children: ReactNodeList): void,
@@ -25,23 +39,10 @@ export type RootType = {
 
 export type CreateRootOptions = {
   unstable_strictMode?: boolean,
+  unstable_concurrentUpdatesByDefault?: boolean,
   unstable_transitionCallbacks?: TransitionTracingCallbacks,
   identifierPrefix?: string,
-  onUncaughtError?: (
-    error: mixed,
-    errorInfo: {+componentStack?: ?string},
-  ) => void,
-  onCaughtError?: (
-    error: mixed,
-    errorInfo: {
-      +componentStack?: ?string,
-      +errorBoundary?: ?React$Component<any, any>,
-    },
-  ) => void,
-  onRecoverableError?: (
-    error: mixed,
-    errorInfo: {+componentStack?: ?string},
-  ) => void,
+  onRecoverableError?: (error: mixed) => void,
 };
 
 export type HydrateRootOptions = {
@@ -50,23 +51,10 @@ export type HydrateRootOptions = {
   onDeleted?: (suspenseNode: Comment) => void,
   // Options for all roots
   unstable_strictMode?: boolean,
+  unstable_concurrentUpdatesByDefault?: boolean,
   unstable_transitionCallbacks?: TransitionTracingCallbacks,
   identifierPrefix?: string,
-  onUncaughtError?: (
-    error: mixed,
-    errorInfo: {+componentStack?: ?string},
-  ) => void,
-  onCaughtError?: (
-    error: mixed,
-    errorInfo: {
-      +componentStack?: ?string,
-      +errorBoundary?: ?React$Component<any, any>,
-    },
-  ) => void,
-  onRecoverableError?: (
-    error: mixed,
-    errorInfo: {+componentStack?: ?string},
-  ) => void,
+  onRecoverableError?: (error: mixed) => void,
   formState?: ReactFormState<any, any> | null,
 };
 
@@ -76,20 +64,33 @@ import {
   unmarkContainerAsRoot,
 } from 'react-dom-bindings/src/client/ReactDOMComponentTree';
 import {listenToAllSupportedEvents} from 'react-dom-bindings/src/events/DOMPluginEventSystem';
-import {COMMENT_NODE} from 'react-dom-bindings/src/client/HTMLNodeType';
+import {
+  ELEMENT_NODE,
+  COMMENT_NODE,
+  DOCUMENT_NODE,
+  DOCUMENT_FRAGMENT_NODE,
+} from 'react-dom-bindings/src/client/HTMLNodeType';
 
 import {
   createContainer,
   createHydrationContainer,
   updateContainer,
-  updateContainerSync,
-  flushSyncWork,
+  flushSync,
   isAlreadyRendering,
-  defaultOnUncaughtError,
-  defaultOnCaughtError,
-  defaultOnRecoverableError,
 } from 'react-reconciler/src/ReactFiberReconciler';
 import {ConcurrentRoot} from 'react-reconciler/src/ReactRootTags';
+
+/* global reportError */
+const defaultOnRecoverableError =
+  typeof reportError === 'function'
+    ? // In modern browsers, reportError will dispatch an error event,
+      // emulating an uncaught JavaScript error.
+      reportError
+    : (error: mixed) => {
+        // In older browsers and test environments, fallback to console.error.
+        // eslint-disable-next-line react-internal/no-production-logging
+        console['error'](error);
+      };
 
 // $FlowFixMe[missing-this-annot]
 function ReactDOMRoot(internalRoot: FiberRoot) {
@@ -106,19 +107,17 @@ ReactDOMHydrationRoot.prototype.render = ReactDOMRoot.prototype.render =
     }
 
     if (__DEV__) {
-      // using a reference to `arguments` bails out of GCC optimizations which affect function arity
-      const args = arguments;
-      if (typeof args[1] === 'function') {
+      if (typeof arguments[1] === 'function') {
         console.error(
           'does not support the second callback argument. ' +
             'To execute a side effect after rendering, declare it in a component body with useEffect().',
         );
-      } else if (isValidContainer(args[1])) {
+      } else if (isValidContainer(arguments[1])) {
         console.error(
           'You passed a container to the second argument of root.render(...). ' +
             "You don't need to pass it again since you already passed it to create the root.",
         );
-      } else if (typeof args[1] !== 'undefined') {
+      } else if (typeof arguments[1] !== 'undefined') {
         console.error(
           'You passed a second argument to root.render(...) but it only accepts ' +
             'one argument.',
@@ -133,9 +132,7 @@ ReactDOMHydrationRoot.prototype.unmount = ReactDOMRoot.prototype.unmount =
   // $FlowFixMe[missing-this-annot]
   function (): void {
     if (__DEV__) {
-      // using a reference to `arguments` bails out of GCC optimizations which affect function arity
-      const args = arguments;
-      if (typeof args[0] === 'function') {
+      if (typeof arguments[0] === 'function') {
         console.error(
           'does not support a callback argument. ' +
             'To execute a side effect after rendering, declare it in a component body with useEffect().',
@@ -155,8 +152,9 @@ ReactDOMHydrationRoot.prototype.unmount = ReactDOMRoot.prototype.unmount =
           );
         }
       }
-      updateContainerSync(null, root, null, null);
-      flushSyncWork();
+      flushSync(() => {
+        updateContainer(null, root, null, null);
+      });
       unmarkContainerAsRoot(container);
     }
   };
@@ -171,11 +169,9 @@ export function createRoot(
 
   warnIfReactDOMContainerInDEV(container);
 
-  const concurrentUpdatesByDefaultOverride = false;
   let isStrictMode = false;
+  let concurrentUpdatesByDefaultOverride = false;
   let identifierPrefix = '';
-  let onUncaughtError = defaultOnUncaughtError;
-  let onCaughtError = defaultOnCaughtError;
   let onRecoverableError = defaultOnRecoverableError;
   let transitionCallbacks = null;
 
@@ -204,14 +200,14 @@ export function createRoot(
     if (options.unstable_strictMode === true) {
       isStrictMode = true;
     }
+    if (
+      allowConcurrentByDefault &&
+      options.unstable_concurrentUpdatesByDefault === true
+    ) {
+      concurrentUpdatesByDefaultOverride = true;
+    }
     if (options.identifierPrefix !== undefined) {
       identifierPrefix = options.identifierPrefix;
-    }
-    if (options.onUncaughtError !== undefined) {
-      onUncaughtError = options.onUncaughtError;
-    }
-    if (options.onCaughtError !== undefined) {
-      onCaughtError = options.onCaughtError;
     }
     if (options.onRecoverableError !== undefined) {
       onRecoverableError = options.onRecoverableError;
@@ -228,12 +224,11 @@ export function createRoot(
     isStrictMode,
     concurrentUpdatesByDefaultOverride,
     identifierPrefix,
-    onUncaughtError,
-    onCaughtError,
     onRecoverableError,
     transitionCallbacks,
   );
   markContainerAsRoot(root.current, container);
+  Dispatcher.current = ReactDOMClientDispatcher;
 
   const rootContainerElement: Document | Element | DocumentFragment =
     container.nodeType === COMMENT_NODE
@@ -281,11 +276,9 @@ export function hydrateRoot(
   // the hydration callbacks.
   const hydrationCallbacks = options != null ? options : null;
 
-  const concurrentUpdatesByDefaultOverride = false;
   let isStrictMode = false;
+  let concurrentUpdatesByDefaultOverride = false;
   let identifierPrefix = '';
-  let onUncaughtError = defaultOnUncaughtError;
-  let onCaughtError = defaultOnCaughtError;
   let onRecoverableError = defaultOnRecoverableError;
   let transitionCallbacks = null;
   let formState = null;
@@ -293,14 +286,14 @@ export function hydrateRoot(
     if (options.unstable_strictMode === true) {
       isStrictMode = true;
     }
+    if (
+      allowConcurrentByDefault &&
+      options.unstable_concurrentUpdatesByDefault === true
+    ) {
+      concurrentUpdatesByDefaultOverride = true;
+    }
     if (options.identifierPrefix !== undefined) {
       identifierPrefix = options.identifierPrefix;
-    }
-    if (options.onUncaughtError !== undefined) {
-      onUncaughtError = options.onUncaughtError;
-    }
-    if (options.onCaughtError !== undefined) {
-      onCaughtError = options.onCaughtError;
     }
     if (options.onRecoverableError !== undefined) {
       onRecoverableError = options.onRecoverableError;
@@ -308,8 +301,10 @@ export function hydrateRoot(
     if (options.unstable_transitionCallbacks !== undefined) {
       transitionCallbacks = options.unstable_transitionCallbacks;
     }
-    if (options.formState !== undefined) {
-      formState = options.formState;
+    if (enableAsyncActions && enableFormActions) {
+      if (options.formState !== undefined) {
+        formState = options.formState;
+      }
     }
   }
 
@@ -322,18 +317,42 @@ export function hydrateRoot(
     isStrictMode,
     concurrentUpdatesByDefaultOverride,
     identifierPrefix,
-    onUncaughtError,
-    onCaughtError,
     onRecoverableError,
     transitionCallbacks,
     formState,
   );
   markContainerAsRoot(root.current, container);
+  Dispatcher.current = ReactDOMClientDispatcher;
   // This can't be a comment node since hydration doesn't work on comment nodes anyway.
   listenToAllSupportedEvents(container);
 
   // $FlowFixMe[invalid-constructor] Flow no longer supports calling new on functions
   return new ReactDOMHydrationRoot(root);
+}
+
+export function isValidContainer(node: any): boolean {
+  return !!(
+    node &&
+    (node.nodeType === ELEMENT_NODE ||
+      node.nodeType === DOCUMENT_NODE ||
+      node.nodeType === DOCUMENT_FRAGMENT_NODE ||
+      (!disableCommentsAsDOMContainers &&
+        node.nodeType === COMMENT_NODE &&
+        (node: any).nodeValue === ' react-mount-point-unstable '))
+  );
+}
+
+// TODO: Remove this function which also includes comment nodes.
+// We only use it in places that are currently more relaxed.
+export function isValidContainerLegacy(node: any): boolean {
+  return !!(
+    node &&
+    (node.nodeType === ELEMENT_NODE ||
+      node.nodeType === DOCUMENT_NODE ||
+      node.nodeType === DOCUMENT_FRAGMENT_NODE ||
+      (node.nodeType === COMMENT_NODE &&
+        (node: any).nodeValue === ' react-mount-point-unstable '))
+  );
 }
 
 function warnIfReactDOMContainerInDEV(container: any) {

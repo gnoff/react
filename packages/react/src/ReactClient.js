@@ -10,6 +10,7 @@
 import ReactVersion from 'shared/ReactVersion';
 import {
   REACT_FRAGMENT_TYPE,
+  REACT_DEBUG_TRACING_MODE_TYPE,
   REACT_PROFILER_TYPE,
   REACT_STRICT_MODE_TYPE,
   REACT_SUSPENSE_TYPE,
@@ -17,6 +18,7 @@ import {
   REACT_LEGACY_HIDDEN_TYPE,
   REACT_OFFSCREEN_TYPE,
   REACT_SCOPE_TYPE,
+  REACT_CACHE_TYPE,
   REACT_TRACING_MARKER_TYPE,
 } from 'shared/ReactSymbols';
 
@@ -25,6 +27,7 @@ import {createRef} from './ReactCreateRef';
 import {forEach, map, count, toArray, only} from './ReactChildren';
 import {
   createElement,
+  createFactory,
   cloneElement,
   isValidElement,
 } from './jsx/ReactJSXElement';
@@ -35,12 +38,12 @@ import {memo} from './ReactMemo';
 import {cache} from './ReactCacheClient';
 import {postpone} from './ReactPostpone';
 import {
+  getCacheSignal,
   getCacheForType,
   useCallback,
   useContext,
   useEffect,
   useEffectEvent,
-  useResourceEffect,
   useImperativeHandle,
   useDebugValue,
   useInsertionEffect,
@@ -55,15 +58,13 @@ import {
   useId,
   useCacheRefresh,
   use,
+  useMemoCache,
   useOptimistic,
-  useActionState,
 } from './ReactHooks';
+
 import ReactSharedInternals from './ReactSharedInternalsClient';
 import {startTransition} from './ReactStartTransition';
 import {act} from './ReactAct';
-import {captureOwnerStack} from './ReactOwnerStack';
-import ReactCompilerRuntime from './ReactCompilerRuntime';
-import {enableUseResourceEffectHook} from 'shared/ReactFeatureFlags';
 
 const Children = {
   map,
@@ -94,7 +95,6 @@ export {
   useLayoutEffect,
   useMemo,
   useOptimistic,
-  useActionState,
   useSyncExternalStore,
   useReducer,
   useRef,
@@ -102,13 +102,15 @@ export {
   REACT_FRAGMENT_TYPE as Fragment,
   REACT_PROFILER_TYPE as Profiler,
   REACT_STRICT_MODE_TYPE as StrictMode,
+  REACT_DEBUG_TRACING_MODE_TYPE as unstable_DebugTracingMode,
   REACT_SUSPENSE_TYPE as Suspense,
   createElement,
   cloneElement,
   isValidElement,
   ReactVersion as version,
-  ReactSharedInternals as __CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE,
-  ReactCompilerRuntime as __COMPILER_RUNTIME,
+  ReactSharedInternals as __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,
+  // Deprecated behind disableCreateFactory
+  createFactory,
   // Concurrent Mode
   useTransition,
   startTransition,
@@ -116,17 +118,16 @@ export {
   REACT_SUSPENSE_LIST_TYPE as unstable_SuspenseList,
   REACT_LEGACY_HIDDEN_TYPE as unstable_LegacyHidden,
   REACT_OFFSCREEN_TYPE as unstable_Activity,
+  getCacheSignal as unstable_getCacheSignal,
   getCacheForType as unstable_getCacheForType,
   useCacheRefresh as unstable_useCacheRefresh,
+  REACT_CACHE_TYPE as unstable_Cache,
   use,
+  useMemoCache as unstable_useMemoCache,
   // enableScopeAPI
   REACT_SCOPE_TYPE as unstable_Scope,
   // enableTransitionTracing
   REACT_TRACING_MARKER_TYPE as unstable_TracingMarker,
   useId,
-  act, // DEV-only
-  captureOwnerStack, // DEV-only
+  act,
 };
-
-export const experimental_useResourceEffect: typeof useResourceEffect | void =
-  enableUseResourceEffectHook ? useResourceEffect : undefined;

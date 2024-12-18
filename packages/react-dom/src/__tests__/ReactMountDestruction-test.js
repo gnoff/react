@@ -49,7 +49,6 @@ describe('ReactMount', () => {
     });
   });
 
-  // @gate !disableLegacyMode
   it('should warn when unmounting a non-container root node', () => {
     const mainContainerDiv = document.createElement('div');
 
@@ -64,7 +63,7 @@ describe('ReactMount', () => {
     // Test that unmounting at a root node gives a helpful warning
     const rootDiv = mainContainerDiv.firstChild;
     expect(() => ReactDOM.unmountComponentAtNode(rootDiv)).toErrorDev(
-      "unmountComponentAtNode(): The node you're attempting to " +
+      "Warning: unmountComponentAtNode(): The node you're attempting to " +
         'unmount was rendered by React and is not a top-level container. You ' +
         'may have accidentally passed in a React root node instead of its ' +
         'container.',
@@ -72,7 +71,6 @@ describe('ReactMount', () => {
     );
   });
 
-  // @gate !disableLegacyMode
   it('should warn when unmounting a non-container, non-root node', () => {
     const mainContainerDiv = document.createElement('div');
 
@@ -89,7 +87,7 @@ describe('ReactMount', () => {
     // Test that unmounting at a non-root node gives a different warning
     const nonRootDiv = mainContainerDiv.firstChild.firstChild;
     expect(() => ReactDOM.unmountComponentAtNode(nonRootDiv)).toErrorDev(
-      "unmountComponentAtNode(): The node you're attempting to " +
+      "Warning: unmountComponentAtNode(): The node you're attempting to " +
         'unmount was rendered by React and is not a top-level container. ' +
         'Instead, have the parent component update its state and rerender in ' +
         'order to remove this component.',

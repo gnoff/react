@@ -25,7 +25,6 @@ describe('createReactNativeComponentClass', () => {
     ReactNative = require('react-native-renderer');
   });
 
-  // @gate !disableLegacyMode
   it('should register viewConfigs', () => {
     const textViewConfig = {
       validAttributes: {},

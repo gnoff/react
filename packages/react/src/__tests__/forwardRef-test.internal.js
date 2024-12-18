@@ -11,13 +11,16 @@
 
 describe('forwardRef', () => {
   let React;
+  let ReactFeatureFlags;
   let ReactNoop;
   let Scheduler;
   let waitForAll;
 
   beforeEach(() => {
     jest.resetModules();
+    ReactFeatureFlags = require('shared/ReactFeatureFlags');
 
+    ReactFeatureFlags.replayFailedUnitOfWorkWithInvokeGuardedCallback = false;
     React = require('react');
     ReactNoop = require('react-noop-renderer');
     Scheduler = require('scheduler');

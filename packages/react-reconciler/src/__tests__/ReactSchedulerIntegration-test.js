@@ -131,7 +131,7 @@ describe('ReactSchedulerIntegration', () => {
     await waitForAll(['D', 'E']);
   });
 
-  // @gate enableLegacyHidden
+  // @gate www
   it('idle updates are not blocked by offscreen work', async () => {
     function Text({text}) {
       Scheduler.log(text);

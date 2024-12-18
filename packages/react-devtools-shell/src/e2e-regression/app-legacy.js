@@ -15,7 +15,6 @@ function mountApp(App: () => React$Node) {
 
   ((document.body: any): HTMLBodyElement).appendChild(container);
 
-  // $FlowFixMe[prop-missing]: These are removed in 19.
   ReactDOM.render(<App />, container);
 }
 function mountTestApp() {

@@ -9,8 +9,6 @@
 
 import * as React from 'react';
 import {Fragment, useContext} from 'react';
-
-import InspectedElementBadges from '../Components/InspectedElementBadges';
 import {ProfilerContext} from './ProfilerContext';
 import {formatDuration} from './utils';
 import WhatChanged from './WhatChanged';
@@ -36,20 +34,10 @@ export default function HoveredFiberInfo({fiberData}: Props): React.Node {
   const {id, name} = fiberData;
   const {profilingCache} = profilerStore;
 
-  if (rootID === null || selectedCommitIndex === null) {
-    return null;
-  }
-
   const commitIndices = profilingCache.getFiberCommits({
-    fiberID: id,
-    rootID,
+    fiberID: ((id: any): number),
+    rootID: ((rootID: any): number),
   });
-
-  const {nodes} = profilingCache.getCommitTree({
-    rootID,
-    commitIndex: selectedCommitIndex,
-  });
-  const node = nodes.get(id);
 
   let renderDurationInfo = null;
   let i = 0;
@@ -63,8 +51,7 @@ export default function HoveredFiberInfo({fiberData}: Props): React.Node {
 
       renderDurationInfo = (
         <div key={commitIndex} className={styles.CurrentCommit}>
-          <strong>Duration:</strong> {formatDuration(selfDuration)}ms of{' '}
-          {formatDuration(actualDuration)}ms
+          {formatDuration(selfDuration)}ms of {formatDuration(actualDuration)}ms
         </div>
       );
 
@@ -76,27 +63,10 @@ export default function HoveredFiberInfo({fiberData}: Props): React.Node {
     <Fragment>
       <div className={styles.Toolbar}>
         <div className={styles.Component}>{name}</div>
-
-        {node != null && (
-          <div className={styles.BadgesContainer}>
-            <InspectedElementBadges
-              hocDisplayNames={node.hocDisplayNames}
-              compiledWithForget={node.compiledWithForget}
-            />
-
-            {node.compiledWithForget && (
-              <div>
-                ✨ This component has been auto-memoized by the React Compiler.
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className={styles.Content}>
-          {renderDurationInfo || <div>Did not client render.</div>}
-
-          <WhatChanged fiberID={id} />
-        </div>
+      </div>
+      <div className={styles.Content}>
+        {renderDurationInfo || <div>Did not render.</div>}
+        <WhatChanged fiberID={((id: any): number)} />
       </div>
     </Fragment>
   );

@@ -26,11 +26,9 @@ import ProfilerSettings from './ProfilerSettings';
 
 import styles from './SettingsModal.css';
 
-import type Store from 'react-devtools-shared/src/devtools/store';
+type TabID = 'general' | 'components' | 'profiler';
 
-type TabID = 'general' | 'debugging' | 'components' | 'profiler';
-
-export default function SettingsModal(): React.Node {
+export default function SettingsModal(_: {}): React.Node {
   const {isModalShowing, setIsModalShowing} = useContext(SettingsModalContext);
   const store = useContext(StoreContext);
   const {profilerStore} = store;
@@ -39,7 +37,7 @@ export default function SettingsModal(): React.Node {
   // Explicitly disallow it for now.
   const isProfilingSubscription = useMemo(
     () => ({
-      getCurrentValue: () => profilerStore.isProfilingBasedOnUserInput,
+      getCurrentValue: () => profilerStore.isProfiling,
       subscribe: (callback: Function) => {
         profilerStore.addListener('isProfiling', callback);
         return () => profilerStore.removeListener('isProfiling', callback);
@@ -56,14 +54,11 @@ export default function SettingsModal(): React.Node {
     return null;
   }
 
-  return <SettingsModalImpl store={store} />;
+  return <SettingsModalImpl />;
 }
 
-type ImplProps = {store: Store};
-
-function SettingsModalImpl({store}: ImplProps) {
-  const {setIsModalShowing, environmentNames, hookSettings} =
-    useContext(SettingsModalContext);
+function SettingsModalImpl(_: {}) {
+  const {setIsModalShowing} = useContext(SettingsModalContext);
   const dismissModal = useCallback(
     () => setIsModalShowing(false),
     [setIsModalShowing],
@@ -86,10 +81,11 @@ function SettingsModalImpl({store}: ImplProps) {
   let view = null;
   switch (selectedTabID) {
     case 'components':
-      view = <ComponentsSettings environmentNames={environmentNames} />;
+      view = <ComponentsSettings />;
       break;
+    // $FlowFixMe[incompatible-type] is this missing in TabID?
     case 'debugging':
-      view = <DebuggingSettings hookSettings={hookSettings} store={store} />;
+      view = <DebuggingSettings />;
       break;
     case 'general':
       view = <GeneralSettings />;

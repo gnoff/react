@@ -35,10 +35,12 @@ function printWarning(level, format, args) {
   if (__DEV__) {
     const React = require('react');
     const ReactSharedInternals =
-      React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
     // Defensive in case this is fired before React is initialized.
-    if (ReactSharedInternals != null && ReactSharedInternals.getCurrentStack) {
-      const stack = ReactSharedInternals.getCurrentStack();
+    if (ReactSharedInternals != null) {
+      const ReactDebugCurrentFrame =
+        ReactSharedInternals.ReactDebugCurrentFrame;
+      const stack = ReactDebugCurrentFrame.getStackAddendum();
       if (stack !== '') {
         format += '%s';
         args.push(stack);

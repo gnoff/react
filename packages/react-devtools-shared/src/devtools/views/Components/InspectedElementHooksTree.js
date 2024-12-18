@@ -9,7 +9,7 @@
 
 import {copy} from 'clipboard-js';
 import * as React from 'react';
-import {useCallback, useContext, useState} from 'react';
+import {useCallback, useContext, useRef, useState} from 'react';
 import {BridgeContext, StoreContext} from '../context';
 import Button from '../Button';
 import ButtonIcon from '../ButtonIcon';
@@ -19,6 +19,7 @@ import KeyValue from './KeyValue';
 import {getMetaValueLabel, serializeHooksForCopy} from '../utils';
 import Store from '../../store';
 import styles from './InspectedElementHooksTree.css';
+import useContextMenu from '../../ContextMenu/useContextMenu';
 import {meta} from '../../../hydration';
 import {getHookSourceLocationKey} from 'react-devtools-shared/src/hookNamesCache';
 import HookNamesModuleLoaderContext from 'react-devtools-shared/src/devtools/views/Components/HookNamesModuleLoaderContext';
@@ -80,7 +81,9 @@ export function InspectedElementHooksTree({
     return null;
   } else {
     return (
-      <div data-testname="InspectedElementHooksTree">
+      <div
+        className={styles.HooksTreeView}
+        data-testname="InspectedElementHooksTree">
         <div className={styles.HeaderRow}>
           <div className={styles.Header}>hooks</div>
           {typeof hookNamesModuleLoader === 'function' &&
@@ -178,6 +181,22 @@ function HookView({
     () => setIsOpen(prevIsOpen => !prevIsOpen),
     [],
   );
+
+  const contextMenuTriggerRef = useRef(null);
+
+  useContextMenu({
+    data: {
+      path: ['hooks', ...path],
+      type:
+        hook !== null &&
+        typeof hook === 'object' &&
+        hook.hasOwnProperty(meta.type)
+          ? hook[(meta.type: any)]
+          : typeof value,
+    },
+    id: 'InspectedElement',
+    ref: contextMenuTriggerRef,
+  });
 
   if (hook.hasOwnProperty(meta.inspected)) {
     // This Hook is too deep and hasn't been hydrated.
@@ -282,7 +301,7 @@ function HookView({
     if (isComplexDisplayValue) {
       return (
         <div className={styles.Hook}>
-          <div className={styles.NameValueRow}>
+          <div ref={contextMenuTriggerRef} className={styles.NameValueRow}>
             <ExpandCollapseToggle isOpen={isOpen} setIsOpen={setIsOpen} />
             <span
               onClick={toggleIsOpen}
@@ -319,7 +338,7 @@ function HookView({
     } else {
       return (
         <div className={styles.Hook}>
-          <div className={styles.NameValueRow}>
+          <div ref={contextMenuTriggerRef} className={styles.NameValueRow}>
             <ExpandCollapseToggle isOpen={isOpen} setIsOpen={setIsOpen} />
             <span
               onClick={toggleIsOpen}
@@ -375,7 +394,7 @@ function HookView({
             hookName={hookName}
             inspectedElement={inspectedElement}
             name={name}
-            path={path.concat(['value'])}
+            path={[]}
             pathRoot="hooks"
             store={store}
             value={value}

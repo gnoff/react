@@ -326,14 +326,12 @@ describe('ReactDOMServerIntegrationUserInteraction', () => {
 
     // skipping this test because React 15 does the wrong thing. it blows
     // away the user's typing in the textarea.
-    // eslint-disable-next-line jest/no-disabled-tests
-    it.skip('should not blow away user-entered text on successful reconnect to an uncontrolled textarea', () =>
+    xit('should not blow away user-entered text on successful reconnect to an uncontrolled textarea', () =>
       testUserInteractionBeforeClientRender(<textarea defaultValue="Hello" />));
 
     // skipping this test because React 15 does the wrong thing. it blows
     // away the user's typing in the textarea.
-    // eslint-disable-next-line jest/no-disabled-tests
-    it.skip('should not blow away user-entered text on successful reconnect to a controlled textarea', async () => {
+    xit('should not blow away user-entered text on successful reconnect to a controlled textarea', async () => {
       let changeCount = 0;
       await testUserInteractionBeforeClientRender(
         <ControlledTextArea onChange={() => changeCount++} />,

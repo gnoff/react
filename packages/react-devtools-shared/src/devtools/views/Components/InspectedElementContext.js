@@ -66,7 +66,7 @@ export type Props = {
 export function InspectedElementContextController({
   children,
 }: Props): React.Node {
-  const {inspectedElementID} = useContext(TreeStateContext);
+  const {selectedElementID} = useContext(TreeStateContext);
   const fetchFileWithCaching = useContext(FetchFileWithCachingContext);
   const bridge = useContext(BridgeContext);
   const store = useContext(StoreContext);
@@ -93,9 +93,7 @@ export function InspectedElementContextController({
   });
 
   const element =
-    inspectedElementID !== null
-      ? store.getElementByID(inspectedElementID)
-      : null;
+    selectedElementID !== null ? store.getElementByID(selectedElementID) : null;
 
   const alreadyLoadedHookNames =
     element != null && hasAlreadyLoadedHookNames(element);
@@ -175,6 +173,17 @@ export function InspectedElementContextController({
     },
     [setState, state],
   );
+
+  const inspectedElementRef = useRef<null | InspectedElement>(null);
+  useEffect(() => {
+    if (
+      inspectedElement !== null &&
+      inspectedElement.hooks !== null &&
+      inspectedElementRef.current !== inspectedElement
+    ) {
+      inspectedElementRef.current = inspectedElement;
+    }
+  }, [inspectedElement]);
 
   useEffect(() => {
     const purgeCachedMetadata = purgeCachedMetadataRef.current;

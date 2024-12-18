@@ -9,15 +9,6 @@
 
 'use strict';
 
-// polyfill missing JSDOM support
-class ToggleEvent extends Event {
-  constructor(type, eventInit) {
-    super(type, eventInit);
-    this.newState = eventInit.newState;
-    this.oldState = eventInit.oldState;
-  }
-}
-
 describe('SimpleEventPlugin', function () {
   let React;
   let ReactDOMClient;
@@ -139,9 +130,8 @@ describe('SimpleEventPlugin', function () {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  describe.each(['button', 'input', 'select', 'textarea'])(
-    '%s',
-    function (tagName) {
+  ['button', 'input', 'select', 'textarea'].forEach(function (tagName) {
+    describe(tagName, function () {
       it('should forward clicks when it starts out not disabled', async () => {
         const element = React.createElement(tagName, {
           onClick: onClick,
@@ -208,8 +198,8 @@ describe('SimpleEventPlugin', function () {
         const element = container.firstChild;
         await expectClickThru(element);
       });
-    },
-  );
+    });
+  });
 
   it('batches updates that occur as a result of a nested event dispatch', async () => {
     container = document.createElement('div');
@@ -478,117 +468,6 @@ describe('SimpleEventPlugin', function () {
         'wheel',
         'wheel',
       ]);
-    });
-
-    it('dispatches synthetic toggle events when the Popover API is used', async () => {
-      container = document.createElement('div');
-
-      const onToggle = jest.fn();
-      const root = ReactDOMClient.createRoot(container);
-      await act(() => {
-        root.render(
-          <>
-            <button popoverTarget="popover">Toggle popover</button>
-            <div id="popover" popover="" onToggle={onToggle}>
-              popover content
-            </div>
-          </>,
-        );
-      });
-
-      const target = container.querySelector('#popover');
-      target.dispatchEvent(
-        new ToggleEvent('toggle', {
-          bubbles: false,
-          cancelable: true,
-          oldState: 'closed',
-          newState: 'open',
-        }),
-      );
-
-      expect(onToggle).toHaveBeenCalledTimes(1);
-      let event = onToggle.mock.calls[0][0];
-      expect(event).toEqual(
-        expect.objectContaining({
-          oldState: 'closed',
-          newState: 'open',
-        }),
-      );
-
-      target.dispatchEvent(
-        new ToggleEvent('toggle', {
-          bubbles: false,
-          cancelable: true,
-          oldState: 'open',
-          newState: 'closed',
-        }),
-      );
-
-      expect(onToggle).toHaveBeenCalledTimes(2);
-      event = onToggle.mock.calls[1][0];
-      expect(event).toEqual(
-        expect.objectContaining({
-          oldState: 'open',
-          newState: 'closed',
-        }),
-      );
-    });
-
-    it('dispatches synthetic toggle events when <details> is used', async () => {
-      // This test just replays browser behavior.
-      // The real test would be if browsers dispatch ToggleEvent on <details>.
-      // This case only exists because MDN claims <details> doesn't receive ToggleEvent.
-      // However, Chrome dispatches ToggleEvent on <details> and the spec confirms that behavior: https://html.spec.whatwg.org/multipage/indices.html#event-toggle
-
-      container = document.createElement('div');
-
-      const onToggle = jest.fn();
-      const root = ReactDOMClient.createRoot(container);
-      await act(() => {
-        root.render(
-          <details id="details" onToggle={onToggle}>
-            <summary>Summary</summary>
-            Details
-          </details>,
-        );
-      });
-
-      const target = container.querySelector('#details');
-      target.dispatchEvent(
-        new ToggleEvent('toggle', {
-          bubbles: false,
-          cancelable: true,
-          oldState: 'closed',
-          newState: 'open',
-        }),
-      );
-
-      expect(onToggle).toHaveBeenCalledTimes(1);
-      let event = onToggle.mock.calls[0][0];
-      expect(event).toEqual(
-        expect.objectContaining({
-          oldState: 'closed',
-          newState: 'open',
-        }),
-      );
-
-      target.dispatchEvent(
-        new ToggleEvent('toggle', {
-          bubbles: false,
-          cancelable: true,
-          oldState: 'open',
-          newState: 'closed',
-        }),
-      );
-
-      expect(onToggle).toHaveBeenCalledTimes(2);
-      event = onToggle.mock.calls[1][0];
-      expect(event).toEqual(
-        expect.objectContaining({
-          oldState: 'open',
-          newState: 'closed',
-        }),
-      );
     });
   });
 });

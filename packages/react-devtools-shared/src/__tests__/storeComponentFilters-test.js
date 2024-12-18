@@ -224,17 +224,11 @@ describe('Store component filters', () => {
     `);
   });
 
-  // Disabled: filtering by path was removed, source is now determined lazily, including symbolication if applicable
   // @reactVersion >= 16.0
-  // eslint-disable-next-line jest/no-disabled-tests
-  it.skip('should filter by path', async () => {
-    // This component should use props object in order to throw for component stack generation
-    // See ReactComponentStackFrame:155 or DevToolsComponentStackFrame:147
-    const Component = props => {
-      return <div>{props.message}</div>;
-    };
+  it('should filter by path', async () => {
+    const Component = () => <div>Hi</div>;
 
-    await actAsync(async () => render(<Component message="Hi" />));
+    await actAsync(async () => render(<Component />));
     expect(store).toMatchInlineSnapshot(`
       [root]
         ▾ <Component>
@@ -248,7 +242,13 @@ describe('Store component filters', () => {
         ]),
     );
 
-    expect(store).toMatchInlineSnapshot(`[root]`);
+    // TODO: Filtering should work on component location.
+    // expect(store).toMatchInlineSnapshot(`[root]`);
+    expect(store).toMatchInlineSnapshot(`
+      [root]
+        ▾ <Component>
+            <div>
+    `);
 
     await actAsync(
       async () =>
@@ -420,8 +420,8 @@ describe('Store component filters', () => {
       });
 
       expect(store).toMatchInlineSnapshot(``);
-      expect(store.componentWithErrorCount).toBe(0);
-      expect(store.componentWithWarningCount).toBe(0);
+      expect(store.errorCount).toBe(0);
+      expect(store.warningCount).toBe(0);
 
       await actAsync(async () => (store.componentFilters = []));
       expect(store).toMatchInlineSnapshot(`
@@ -460,8 +460,8 @@ describe('Store component filters', () => {
           ]),
       );
       expect(store).toMatchInlineSnapshot(`[root]`);
-      expect(store.componentWithErrorCount).toBe(0);
-      expect(store.componentWithWarningCount).toBe(0);
+      expect(store.errorCount).toBe(0);
+      expect(store.warningCount).toBe(0);
 
       await actAsync(async () => (store.componentFilters = []));
       expect(store).toMatchInlineSnapshot(`
@@ -497,21 +497,23 @@ describe('Store component filters', () => {
           ]),
       );
 
-      utils.withErrorsOrWarningsIgnored(['test-only:'], () => {
-        utils.act(() => {
-          render(
-            <React.Fragment>
-              <ComponentWithError />
-              <ComponentWithWarning />
-              <ComponentWithWarningAndError />
-            </React.Fragment>,
-          );
-        }, false);
-      });
+      utils.act(
+        () =>
+          utils.withErrorsOrWarningsIgnored(['test-only:'], () => {
+            render(
+              <React.Fragment>
+                <ComponentWithError />
+                <ComponentWithWarning />
+                <ComponentWithWarningAndError />
+              </React.Fragment>,
+            );
+          }),
+        false,
+      );
 
       expect(store).toMatchInlineSnapshot(``);
-      expect(store.componentWithErrorCount).toBe(0);
-      expect(store.componentWithWarningCount).toBe(0);
+      expect(store.errorCount).toBe(0);
+      expect(store.warningCount).toBe(0);
 
       await actAsync(async () => (store.componentFilters = []));
       expect(store).toMatchInlineSnapshot(`
@@ -550,8 +552,8 @@ describe('Store component filters', () => {
           ]),
       );
       expect(store).toMatchInlineSnapshot(`[root]`);
-      expect(store.componentWithErrorCount).toBe(0);
-      expect(store.componentWithWarningCount).toBe(0);
+      expect(store.errorCount).toBe(0);
+      expect(store.warningCount).toBe(0);
 
       await actAsync(async () => (store.componentFilters = []));
       expect(store).toMatchInlineSnapshot(`

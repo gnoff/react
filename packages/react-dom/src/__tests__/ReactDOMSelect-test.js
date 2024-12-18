@@ -875,7 +875,7 @@ describe('ReactDOMSelect', () => {
         '(specify either the value prop, or the defaultValue prop, but not ' +
         'both). Decide between using a controlled or uncontrolled select ' +
         'element and remove one of these props. More info: ' +
-        'https://react.dev/link/controlled-components',
+        'https://reactjs.org/link/controlled-components',
     );
 
     await act(() => {
@@ -911,7 +911,9 @@ describe('ReactDOMSelect', () => {
     const container = document.createElement('div');
     const root = ReactDOMClient.createRoot(container);
     async function changeView() {
-      root.unmount();
+      await act(() => {
+        root.unmount();
+      });
     }
 
     const stub = (
@@ -963,7 +965,6 @@ describe('ReactDOMSelect', () => {
     expect(node.options[2].selected).toBe(false); // c
   });
 
-  // @gate !disableLegacyMode
   it('should allow controlling `value` in a nested legacy render', async () => {
     let selectNode;
 
@@ -1446,13 +1447,7 @@ describe('ReactDOMSelect', () => {
               </select>,
             );
           }),
-        ).rejects.toThrowError(
-          // eslint-disable-next-line no-undef
-          new AggregateError([
-            new TypeError('prod message'),
-            new TypeError('prod message'),
-          ]),
-        );
+        ).rejects.toThrowError(new TypeError('prod message'));
       }).toErrorDev([
         'The provided `value` attribute is an unsupported type TemporalLike.' +
           ' This value must be coerced to a string before using it here.',
@@ -1513,7 +1508,7 @@ describe('ReactDOMSelect', () => {
       ]);
     });
 
-    it('throws when given a Temporal.PlainDate-like defaultValue (both)', async () => {
+    it('throws when given a Temporal.PlainDate-like value (both)', async () => {
       const container = document.createElement('div');
       const root = ReactDOMClient.createRoot(container);
       await expect(async () => {
@@ -1692,7 +1687,7 @@ describe('ReactDOMSelect', () => {
           );
         });
       }).toErrorDev(
-        'You provided a `value` prop to a form ' +
+        'Warning: You provided a `value` prop to a form ' +
           'field without an `onChange` handler. This will render a read-only ' +
           'field. If the field should be mutable use `defaultValue`. ' +
           'Otherwise, set `onChange`.',
@@ -1713,7 +1708,7 @@ describe('ReactDOMSelect', () => {
           );
         });
       }).toErrorDev(
-        'You provided a `value` prop to a form ' +
+        'Warning: You provided a `value` prop to a form ' +
           'field without an `onChange` handler. This will render a read-only ' +
           'field. If the field should be mutable use `defaultValue`. ' +
           'Otherwise, set `onChange`.',
@@ -1734,7 +1729,7 @@ describe('ReactDOMSelect', () => {
           );
         });
       }).toErrorDev(
-        'You provided a `value` prop to a form ' +
+        'Warning: You provided a `value` prop to a form ' +
           'field without an `onChange` handler. This will render a read-only ' +
           'field. If the field should be mutable use `defaultValue`. ' +
           'Otherwise, set `onChange`.',
@@ -1755,7 +1750,7 @@ describe('ReactDOMSelect', () => {
           );
         });
       }).toErrorDev(
-        'You provided a `value` prop to a form ' +
+        'Warning: You provided a `value` prop to a form ' +
           'field without an `onChange` handler. This will render a read-only ' +
           'field. If the field should be mutable use `defaultValue`. ' +
           'Otherwise, set `onChange`.',

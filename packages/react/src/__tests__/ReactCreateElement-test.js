@@ -37,7 +37,11 @@ describe('ReactCreateElement', () => {
     const element = React.createElement(ComponentClass);
     expect(element.type).toBe(ComponentClass);
     expect(element.key).toBe(null);
-    expect(element.ref).toBe(null);
+    if (gate(flags => flags.enableRefAsProp)) {
+      expect(element.ref).toBe(null);
+    } else {
+      expect(element.ref).toBe(null);
+    }
     if (__DEV__) {
       expect(Object.isFrozen(element)).toBe(true);
       expect(Object.isFrozen(element.props)).toBe(true);
@@ -71,7 +75,7 @@ describe('ReactCreateElement', () => {
       'Child: `key` is not a prop. Trying to access it will result ' +
         'in `undefined` being returned. If you need to access the same ' +
         'value within the child component, you should pass it as a different ' +
-        'prop. (https://react.dev/link/special-props)',
+        'prop. (https://reactjs.org/link/special-props)',
     );
   });
 
@@ -81,8 +85,38 @@ describe('ReactCreateElement', () => {
       'div: `key` is not a prop. Trying to access it will result ' +
         'in `undefined` being returned. If you need to access the same ' +
         'value within the child component, you should pass it as a different ' +
-        'prop. (https://react.dev/link/special-props)',
+        'prop. (https://reactjs.org/link/special-props)',
       {withoutStack: true},
+    );
+  });
+
+  // @gate !enableRefAsProp
+  it('should warn when `ref` is being accessed', async () => {
+    class Child extends React.Component {
+      render() {
+        return React.createElement('div', null, this.props.ref);
+      }
+    }
+    class Parent extends React.Component {
+      render() {
+        return React.createElement(
+          'div',
+          null,
+          React.createElement(Child, {ref: React.createRef()}),
+        );
+      }
+    }
+    const root = ReactDOMClient.createRoot(document.createElement('div'));
+
+    await expect(async () => {
+      await act(() => {
+        root.render(React.createElement(Parent));
+      });
+    }).toErrorDev(
+      'Child: `ref` is not a prop. Trying to access it will result ' +
+        'in `undefined` being returned. If you need to access the same ' +
+        'value within the child component, you should pass it as a different ' +
+        'prop. (https://reactjs.org/link/special-props)',
     );
   });
 
@@ -90,7 +124,11 @@ describe('ReactCreateElement', () => {
     const element = React.createElement('div');
     expect(element.type).toBe('div');
     expect(element.key).toBe(null);
-    expect(element.ref).toBe(null);
+    if (gate(flags => flags.enableRefAsProp)) {
+      expect(element.ref).toBe(null);
+    } else {
+      expect(element.ref).toBe(null);
+    }
     if (__DEV__) {
       expect(Object.isFrozen(element)).toBe(true);
       expect(Object.isFrozen(element.props)).toBe(true);
@@ -141,13 +179,20 @@ describe('ReactCreateElement', () => {
       foo: '56',
     });
     expect(element.type).toBe(ComponentClass);
-    expect(() => expect(element.ref).toBe(ref)).toErrorDev(
-      'Accessing element.ref was removed in React 19',
-      {withoutStack: true},
-    );
-    const expectation = {foo: '56', ref};
-    Object.freeze(expectation);
-    expect(element.props).toEqual(expectation);
+    if (gate(flags => flags.enableRefAsProp)) {
+      expect(() => expect(element.ref).toBe(ref)).toErrorDev(
+        'Accessing element.ref is no longer supported',
+        {withoutStack: true},
+      );
+      const expectation = {foo: '56', ref};
+      Object.freeze(expectation);
+      expect(element.props).toEqual(expectation);
+    } else {
+      const expectation = {foo: '56'};
+      Object.freeze(expectation);
+      expect(element.props).toEqual(expectation);
+      expect(element.ref).toBe(ref);
+    }
   });
 
   it('extracts null key', () => {
@@ -173,7 +218,11 @@ describe('ReactCreateElement', () => {
     const element = React.createElement(ComponentClass, props);
     expect(element.type).toBe(ComponentClass);
     expect(element.key).toBe(null);
-    expect(element.ref).toBe(null);
+    if (gate(flags => flags.enableRefAsProp)) {
+      expect(element.ref).toBe(null);
+    } else {
+      expect(element.ref).toBe(null);
+    }
     if (__DEV__) {
       expect(Object.isFrozen(element)).toBe(true);
       expect(Object.isFrozen(element.props)).toBe(true);
@@ -185,7 +234,11 @@ describe('ReactCreateElement', () => {
     const elementA = React.createElement('div');
     const elementB = React.createElement('div', elementA.props);
     expect(elementB.key).toBe(null);
-    expect(elementB.ref).toBe(null);
+    if (gate(flags => flags.enableRefAsProp)) {
+      expect(elementB.ref).toBe(null);
+    } else {
+      expect(elementB.ref).toBe(null);
+    }
   });
 
   it('coerces the key to a string', () => {
@@ -195,7 +248,11 @@ describe('ReactCreateElement', () => {
     });
     expect(element.type).toBe(ComponentClass);
     expect(element.key).toBe('12');
-    expect(element.ref).toBe(null);
+    if (gate(flags => flags.enableRefAsProp)) {
+      expect(element.ref).toBe(null);
+    } else {
+      expect(element.ref).toBe(null);
+    }
     if (__DEV__) {
       expect(Object.isFrozen(element)).toBe(true);
       expect(Object.isFrozen(element.props)).toBe(true);
@@ -218,11 +275,7 @@ describe('ReactCreateElement', () => {
     }
     const root = ReactDOMClient.createRoot(document.createElement('div'));
     await act(() => root.render(React.createElement(Wrapper)));
-    if (__DEV__) {
-      expect(element._owner.stateNode).toBe(instance);
-    } else {
-      expect('_owner' in element).toBe(false);
-    }
+    expect(element._owner.stateNode).toBe(instance);
   });
 
   it('merges an additional argument onto the children prop', () => {
@@ -408,32 +461,5 @@ describe('ReactCreateElement', () => {
       root.render(React.createElement(Test, {value: +undefined}));
     });
     expect(test.props.value).toBeNaN();
-  });
-
-  it('warns if outdated JSX transform is detected', async () => {
-    // Warns if __self is detected, because that's only passed by a compiler
-    expect(() => {
-      React.createElement('div', {className: 'foo', __self: this});
-    }).toWarnDev(
-      'Your app (or one of its dependencies) is using an outdated ' +
-        'JSX transform.',
-      {
-        withoutStack: true,
-      },
-    );
-
-    // Only warns the first time. Subsequent elements don't warn.
-    React.createElement('div', {className: 'foo', __self: this});
-  });
-
-  it('do not warn about outdated JSX transform if `key` is present', () => {
-    // When a static "key" prop is defined _after_ a spread, the modern JSX
-    // transform outputs `createElement` instead of `jsx`. (This is because with
-    // `jsx`, a spread key always takes precedence over a static key, regardless
-    // of the order, whereas `createElement` respects the order.)
-    //
-    // To avoid a false positive warning, we skip the warning whenever a `key`
-    // prop is present.
-    React.createElement('div', {key: 'foo', __self: this});
   });
 });

@@ -11,12 +11,13 @@ import type {Fiber} from './ReactInternalTypes';
 
 import {getStackByFiberInDevAndProd} from './ReactFiberComponentStack';
 
-const CapturedStacks: WeakMap<any, CapturedValue<any>> = new WeakMap();
+const CapturedStacks: WeakMap<any, string> = new WeakMap();
 
-export type CapturedValue<+T> = {
+export type CapturedValue<T> = {
   +value: T,
   source: Fiber | null,
   stack: string | null,
+  digest: string | null,
 };
 
 export function createCapturedValueAtFiber<T>(
@@ -25,38 +26,39 @@ export function createCapturedValueAtFiber<T>(
 ): CapturedValue<T> {
   // If the value is an error, call this function immediately after it is thrown
   // so the stack is accurate.
+  let stack;
   if (typeof value === 'object' && value !== null) {
-    const existing = CapturedStacks.get(value);
-    if (existing !== undefined) {
-      return existing;
+    const capturedStack = CapturedStacks.get(value);
+    if (typeof capturedStack === 'string') {
+      stack = capturedStack;
+    } else {
+      stack = getStackByFiberInDevAndProd(source);
+      CapturedStacks.set(value, stack);
     }
-    const captured = {
-      value,
-      source,
-      stack: getStackByFiberInDevAndProd(source),
-    };
-    CapturedStacks.set(value, captured);
-    return captured;
   } else {
-    return {
-      value,
-      source,
-      stack: getStackByFiberInDevAndProd(source),
-    };
+    stack = getStackByFiberInDevAndProd(source);
   }
+
+  return {
+    value,
+    source,
+    stack,
+    digest: null,
+  };
 }
 
 export function createCapturedValueFromError(
   value: Error,
-  stack: null | string,
+  digest: ?string,
+  stack: ?string,
 ): CapturedValue<Error> {
-  const captured = {
+  if (typeof stack === 'string') {
+    CapturedStacks.set(value, stack);
+  }
+  return {
     value,
     source: null,
-    stack: stack,
+    stack: stack != null ? stack : null,
+    digest: digest != null ? digest : null,
   };
-  if (typeof stack === 'string') {
-    CapturedStacks.set(value, captured);
-  }
-  return captured;
 }

@@ -24,8 +24,8 @@ type SearchPosition = {
 type ResultPosition = {
   column: number,
   line: number,
-  sourceContent: string | null,
-  sourceURL: string | null,
+  sourceContent: string,
+  sourceURL: string,
 };
 
 export type SourceMapConsumerType = {
@@ -118,11 +118,18 @@ function BasicSourceMapConsumer(sourceMapJSON: BasicSourceMap) {
     const line = nearestEntry[2] + 1;
     const column = nearestEntry[3];
 
+    if (sourceContent === null || sourceURL === null) {
+      // TODO maybe fall back to the runtime source instead of throwing?
+      throw Error(
+        `Could not find original source for line:${lineNumber} and column:${columnNumber}`,
+      );
+    }
+
     return {
       column,
       line,
-      sourceContent: ((sourceContent: any): string | null),
-      sourceURL: ((sourceURL: any): string | null),
+      sourceContent: ((sourceContent: any): string),
+      sourceURL: ((sourceURL: any): string),
     };
   }
 

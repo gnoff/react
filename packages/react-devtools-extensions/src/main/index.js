@@ -21,12 +21,11 @@ import {
   setBrowserSelectionFromReact,
   setReactSelectionFromBrowser,
 } from './elementSelection';
-import {viewAttributeSource} from './sourceSelection';
-
 import {startReactPolling} from './reactPolling';
 import cloneStyleTags from './cloneStyleTags';
 import fetchFileWithCaching from './fetchFileWithCaching';
 import injectBackendManager from './injectBackendManager';
+import syncSavedPreferences from './syncSavedPreferences';
 import registerEventsLogger from './registerEventsLogger';
 import getProfilingFlags from './getProfilingFlags';
 import debounce from './debounce';
@@ -59,7 +58,7 @@ function createBridge() {
   });
 
   bridge.addListener(
-    'syncSelectionToBuiltinElementsPanel',
+    'syncSelectionToNativeElementsPanel',
     setBrowserSelectionFromReact,
   );
 
@@ -90,20 +89,15 @@ function createBridge() {
 function createBridgeAndStore() {
   createBridge();
 
-  const {isProfiling} = getProfilingFlags();
+  const {isProfiling, supportsProfiling} = getProfilingFlags();
 
   store = new Store(bridge, {
     isProfiling,
     supportsReloadAndProfile: __IS_CHROME__ || __IS_EDGE__,
+    supportsProfiling,
     // At this time, the timeline can only parse Chrome performance profiles.
     supportsTimeline: __IS_CHROME__,
     supportsTraceUpdates: true,
-    supportsInspectMatchingDOMElement: true,
-    supportsClickToInspect: true,
-  });
-
-  store.addListener('settingsUpdated', settings => {
-    chrome.storage.local.set(settings);
   });
 
   if (!isProfiling) {
@@ -118,17 +112,50 @@ function createBridgeAndStore() {
   const viewAttributeSourceFunction = (id, path) => {
     const rendererID = store.getRendererIDForElement(id);
     if (rendererID != null) {
-      viewAttributeSource(rendererID, id, path);
+      // Ask the renderer interface to find the specified attribute,
+      // and store it as a global variable on the window.
+      bridge.send('viewAttributeSource', {id, path, rendererID});
+
+      setTimeout(() => {
+        // Ask Chrome to display the location of the attribute,
+        // assuming the renderer found a match.
+        chrome.devtools.inspectedWindow.eval(`
+                if (window.$attribute != null) {
+                  inspect(window.$attribute);
+                }
+              `);
+      }, 100);
     }
   };
 
-  const viewElementSourceFunction = (source, symbolicatedSource) => {
-    const {sourceURL, line, column} = symbolicatedSource
-      ? symbolicatedSource
-      : source;
+  const viewElementSourceFunction = id => {
+    const rendererID = store.getRendererIDForElement(id);
+    if (rendererID != null) {
+      // Ask the renderer interface to determine the component function,
+      // and store it as a global variable on the window
+      bridge.send('viewElementSource', {id, rendererID});
 
-    // We use 1-based line and column, Chrome expects them 0-based.
-    chrome.devtools.panels.openResource(sourceURL, line - 1, column - 1);
+      setTimeout(() => {
+        // Ask Chrome to display the location of the component function,
+        // or a render method if it is a Class (ideally Class instance, not type)
+        // assuming the renderer found one.
+        chrome.devtools.inspectedWindow.eval(`
+                if (window.$type != null) {
+                  if (
+                    window.$type &&
+                    window.$type.prototype &&
+                    window.$type.prototype.isReactComponent
+                  ) {
+                    // inspect Component.render, not constructor
+                    inspect(window.$type.prototype.render);
+                  } else {
+                    // inspect Functional Component
+                    inspect(window.$type);
+                  }
+                }
+              `);
+      }, 100);
+    }
   };
 
   // TODO (Webpack 5) Hopefully we can remove this prop after the Webpack 5 migration.
@@ -156,13 +183,16 @@ function createBridgeAndStore() {
         store,
         warnIfUnsupportedVersionDetected: true,
         viewAttributeSourceFunction,
-        // Firefox doesn't support chrome.devtools.panels.openResource yet
-        canViewElementSourceFunction: () => __IS_CHROME__ || __IS_EDGE__,
         viewElementSourceFunction,
+        viewUrlSourceFunction,
       }),
     );
   };
 }
+
+const viewUrlSourceFunction = (url, line, col) => {
+  chrome.devtools.panels.openResource(url, line, col);
+};
 
 function ensureInitialHTMLIsCleared(container) {
   if (container._hasInitialHTMLBeenCleared) {
@@ -188,7 +218,7 @@ function createComponentsPanel() {
   }
 
   chrome.devtools.panels.create(
-    __IS_CHROME__ || __IS_EDGE__ ? 'Components ⚛' : 'Components',
+    __IS_CHROME__ || __IS_EDGE__ ? '⚛️ Components' : 'Components',
     __IS_EDGE__ ? 'icons/production.svg' : '',
     'panel.html',
     createdPanel => {
@@ -227,7 +257,7 @@ function createProfilerPanel() {
   }
 
   chrome.devtools.panels.create(
-    __IS_CHROME__ || __IS_EDGE__ ? 'Profiler ⚛' : 'Profiler',
+    __IS_CHROME__ || __IS_EDGE__ ? '⚛️ Profiler' : 'Profiler',
     __IS_EDGE__ ? 'icons/production.svg' : '',
     'panel.html',
     createdPanel => {
@@ -396,24 +426,22 @@ let root = null;
 
 let port = null;
 
+// Re-initialize saved filters on navigation,
+// since global values stored on window get reset in this case.
+chrome.devtools.network.onNavigated.addListener(syncSavedPreferences);
+
 // In case when multiple navigation events emitted in a short period of time
 // This debounced callback primarily used to avoid mounting React DevTools multiple times, which results
 // into subscribing to the same events from Bridge and window multiple times
 // In this case, we will handle `operations` event twice or more and user will see
 // `Cannot add node "1" because a node with that id is already in the Store.`
-const debouncedMountReactDevToolsCallback = debounce(
-  mountReactDevToolsWhenReactHasLoaded,
-  500,
-);
-
-// Clean up everything, but start mounting React DevTools panels if user stays at this page
-function onNavigatedToOtherPage() {
+const debouncedOnNavigatedListener = debounce(() => {
   performInTabNavigationCleanup();
-  debouncedMountReactDevToolsCallback();
-}
+  mountReactDevToolsWhenReactHasLoaded();
+}, 500);
 
 // Cleanup previous page state and remount everything
-chrome.devtools.network.onNavigated.addListener(onNavigatedToOtherPage);
+chrome.devtools.network.onNavigated.addListener(debouncedOnNavigatedListener);
 
 // Should be emitted when browser DevTools are closed
 if (__IS_FIREFOX__) {
@@ -425,4 +453,5 @@ if (__IS_FIREFOX__) {
 
 connectExtensionPort();
 
+syncSavedPreferences();
 mountReactDevToolsWhenReactHasLoaded();

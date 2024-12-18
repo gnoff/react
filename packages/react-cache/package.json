@@ -12,7 +12,8 @@
     "LICENSE",
     "README.md",
     "index.js",
-    "cjs/"
+    "cjs/",
+    "umd/"
   ],
   "peerDependencies": {
     "react": "^17.0.0"

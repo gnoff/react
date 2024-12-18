@@ -65,8 +65,11 @@ describe('SyntheticWheelEvent', () => {
       root.render(<div onWheel={onWheel} />);
     });
 
-    let event = new WheelEvent('wheel', {
+    let event = new MouseEvent('wheel', {
       bubbles: true,
+    });
+    // jsdom doesn't support these so we add them manually.
+    Object.assign(event, {
       deltaX: 10,
       deltaY: -50,
     });
@@ -75,7 +78,7 @@ describe('SyntheticWheelEvent', () => {
     event = new MouseEvent('wheel', {
       bubbles: true,
     });
-    // jsdom doesn't support these legacy Webkit properties so we add them manually.
+    // jsdom doesn't support these so we add them manually.
     Object.assign(event, {
       wheelDeltaX: -10,
       wheelDeltaY: 50,
@@ -103,7 +106,7 @@ describe('SyntheticWheelEvent', () => {
     });
 
     container.firstChild.dispatchEvent(
-      new WheelEvent('wheel', {
+      new MouseEvent('wheel', {
         bubbles: true,
         deltaX: 10,
         deltaY: -50,
@@ -111,7 +114,7 @@ describe('SyntheticWheelEvent', () => {
     );
 
     container.firstChild.dispatchEvent(
-      new WheelEvent('wheel', {
+      new MouseEvent('wheel', {
         bubbles: true,
         deltaX: 10,
         deltaY: -50,

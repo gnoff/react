@@ -39,10 +39,10 @@ import {decorateMany, forceUpdate, restoreMany} from './utils';
 
 import type {
   DevToolsHook,
-  GetElementIDForHostInstance,
+  GetFiberIDForNative,
   InspectedElementPayload,
   InstanceAndStyle,
-  HostInstance,
+  NativeType,
   PathFrame,
   PathMatch,
   RendererInterface,
@@ -142,44 +142,39 @@ export function attach(
   const internalInstanceToRootIDMap: WeakMap<InternalInstance, number> =
     new WeakMap();
 
-  let getElementIDForHostInstance: GetElementIDForHostInstance =
-    ((null: any): GetElementIDForHostInstance);
-  let findHostInstanceForInternalID: (id: number) => ?HostInstance;
-  let getNearestMountedDOMNode = (node: Element): null | Element => {
+  let getInternalIDForNative: GetFiberIDForNative =
+    ((null: any): GetFiberIDForNative);
+  let findNativeNodeForInternalID: (id: number) => ?NativeType;
+  let getFiberForNative = (node: NativeType) => {
     // Not implemented.
     return null;
   };
 
   if (renderer.ComponentTree) {
-    getElementIDForHostInstance = node => {
+    getInternalIDForNative = (node, findNearestUnfilteredAncestor) => {
       const internalInstance =
         renderer.ComponentTree.getClosestInstanceFromNode(node);
       return internalInstanceToIDMap.get(internalInstance) || null;
     };
-    findHostInstanceForInternalID = (id: number) => {
+    findNativeNodeForInternalID = (id: number) => {
       const internalInstance = idToInternalInstanceMap.get(id);
       return renderer.ComponentTree.getNodeFromInstance(internalInstance);
     };
-    getNearestMountedDOMNode = (node: Element): null | Element => {
-      const internalInstance =
-        renderer.ComponentTree.getClosestInstanceFromNode(node);
-      if (internalInstance != null) {
-        return renderer.ComponentTree.getNodeFromInstance(internalInstance);
-      }
-      return null;
+    getFiberForNative = (node: NativeType) => {
+      return renderer.ComponentTree.getClosestInstanceFromNode(node);
     };
   } else if (renderer.Mount.getID && renderer.Mount.getNode) {
-    getElementIDForHostInstance = node => {
+    getInternalIDForNative = (node, findNearestUnfilteredAncestor) => {
       // Not implemented.
       return null;
     };
-    findHostInstanceForInternalID = (id: number) => {
+    findNativeNodeForInternalID = (id: number) => {
       // Not implemented.
       return null;
     };
   }
 
-  function getDisplayNameForElementID(id: number): string | null {
+  function getDisplayNameForFiberID(id: number): string | null {
     const internalInstance = idToInternalInstanceMap.get(id);
     return internalInstance ? getData(internalInstance).displayName : null;
   }
@@ -771,7 +766,7 @@ export function attach(
       return null;
     }
 
-    const {key} = getData(internalInstance);
+    const {displayName, key} = getData(internalInstance);
     const type = getElementType(internalInstance);
 
     let context = null;
@@ -826,16 +821,18 @@ export function attach(
       // Toggle error boundary did not exist in legacy versions
       canToggleError: false,
       isErrored: false,
+      targetErrorBoundaryID: null,
 
       // Suspense did not exist in legacy versions
       canToggleSuspense: false,
 
       // Can view component source location.
       canViewSource: type === ElementTypeClass || type === ElementTypeFunction,
-      source: null,
 
       // Only legacy context exists in legacy versions.
       hasLegacyContext: true,
+
+      displayName: displayName,
 
       type: type,
 
@@ -869,12 +866,10 @@ export function attach(
       return;
     }
 
-    const displayName = getDisplayNameForElementID(id);
-
     const supportsGroup = typeof console.groupCollapsed === 'function';
     if (supportsGroup) {
       console.groupCollapsed(
-        `[Click to expand] %c<${displayName || 'Component'} />`,
+        `[Click to expand] %c<${result.displayName || 'Component'} />`,
         // --dom-tag-name-color is the CSS variable Chrome styles HTML elements with in the console.
         'color: var(--dom-tag-name-color); font-weight: normal;',
       );
@@ -888,9 +883,9 @@ export function attach(
     if (result.context !== null) {
       console.log('Context:', result.context);
     }
-    const hostInstance = findHostInstanceForInternalID(id);
-    if (hostInstance !== null) {
-      console.log('Node:', hostInstance);
+    const nativeNode = findNativeNodeForInternalID(id);
+    if (nativeNode !== null) {
+      console.log('Node:', nativeNode);
     }
     if (window.chrome || /firefox/i.test(navigator.userAgent)) {
       console.log(
@@ -902,31 +897,30 @@ export function attach(
     }
   }
 
-  function getElementAttributeByPath(
+  function prepareViewAttributeSource(
     id: number,
     path: Array<string | number>,
-  ): mixed {
+  ): void {
     const inspectedElement = inspectElementRaw(id);
     if (inspectedElement !== null) {
-      return getInObject(inspectedElement, path);
+      window.$attribute = getInObject(inspectedElement, path);
     }
-    return undefined;
   }
 
-  function getElementSourceFunctionById(id: number): null | Function {
+  function prepareViewElementSource(id: number): void {
     const internalInstance = idToInternalInstanceMap.get(id);
     if (internalInstance == null) {
       console.warn(`Could not find instance with id "${id}"`);
-      return null;
+      return;
     }
 
     const element = internalInstance._currentElement;
     if (element == null) {
       console.warn(`Could not find element with id "${id}"`);
-      return null;
+      return;
     }
 
-    return element.type;
+    global.$type = element.type;
   }
 
   function deletePath(
@@ -1073,11 +1067,6 @@ export function attach(
     // Not implemented.
   }
 
-  function getEnvironmentNames(): Array<string> {
-    // No RSC support.
-    return [];
-  }
-
   function setTraceUpdatesEnabled(enabled: boolean) {
     // Not implemented.
   }
@@ -1095,34 +1084,38 @@ export function attach(
     // Not implemented
   }
 
-  function clearErrorsForElementID(id: number) {
+  function clearErrorsForFiberID(id: number) {
     // Not implemented
   }
 
-  function clearWarningsForElementID(id: number) {
+  function clearWarningsForFiberID(id: number) {
     // Not implemented
   }
 
-  function hasElementWithId(id: number): boolean {
+  function patchConsoleForStrictMode() {}
+
+  function unpatchConsoleForStrictMode() {}
+
+  function hasFiberWithId(id: number): boolean {
     return idToInternalInstanceMap.has(id);
   }
 
   return {
     clearErrorsAndWarnings,
-    clearErrorsForElementID,
-    clearWarningsForElementID,
+    clearErrorsForFiberID,
+    clearWarningsForFiberID,
     cleanup,
     getSerializedElementValueByPath,
     deletePath,
     flushInitialOperations,
     getBestMatchForTrackedPath,
-    getDisplayNameForElementID,
-    getNearestMountedDOMNode,
-    getElementIDForHostInstance,
+    getDisplayNameForFiberID,
+    getFiberForNative,
+    getFiberIDForNative: getInternalIDForNative,
     getInstanceAndStyle,
-    findHostInstancesForElementID: (id: number) => {
-      const hostInstance = findHostInstanceForInternalID(id);
-      return hostInstance == null ? null : [hostInstance];
+    findNativeNodesForFiberID: (id: number) => {
+      const nativeNode = findNativeNodeForInternalID(id);
+      return nativeNode == null ? null : [nativeNode];
     },
     getOwnersList,
     getPathForElement,
@@ -1130,22 +1123,23 @@ export function attach(
     handleCommitFiberRoot,
     handleCommitFiberUnmount,
     handlePostCommitFiberRoot,
-    hasElementWithId,
+    hasFiberWithId,
     inspectElement,
     logElementToConsole,
     overrideError,
     overrideSuspense,
     overrideValueAtPath,
     renamePath,
-    getElementAttributeByPath,
-    getElementSourceFunctionById,
+    patchConsoleForStrictMode,
+    prepareViewAttributeSource,
+    prepareViewElementSource,
     renderer,
     setTraceUpdatesEnabled,
     setTrackedPath,
     startProfiling,
     stopProfiling,
     storeAsGlobal,
+    unpatchConsoleForStrictMode,
     updateComponentFilters,
-    getEnvironmentNames,
   };
 }

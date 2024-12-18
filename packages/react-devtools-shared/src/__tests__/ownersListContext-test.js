@@ -156,6 +156,7 @@ describe('OwnersListContext', () => {
     expect(await getOwnersListForOwner(firstChild)).toMatchInlineSnapshot(`
       [
         "Grandparent",
+        "Parent",
         "Child",
       ]
     `);

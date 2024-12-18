@@ -12,8 +12,6 @@
 
 let React;
 let ReactNoopPersistent;
-
-let act;
 let waitForAll;
 
 describe('ReactPersistent', () => {
@@ -22,7 +20,8 @@ describe('ReactPersistent', () => {
 
     React = require('react');
     ReactNoopPersistent = require('react-noop-renderer/persistent');
-    ({act, waitForAll} = require('internal-test-utils'));
+    const InternalTestUtils = require('internal-test-utils');
+    waitForAll = InternalTestUtils.waitForAll;
   });
 
   // Inlined from shared folder so we can run this test on a bundle.
@@ -213,26 +212,5 @@ describe('ReactPersistent', () => {
 
     // The original is unchanged.
     expect(newPortalChildren).toEqual([div(span(), 'Hello ', 'World')]);
-  });
-
-  it('remove children', async () => {
-    function Wrapper({children}) {
-      return children;
-    }
-
-    const root = ReactNoopPersistent.createRoot();
-    await act(() => {
-      root.render(
-        <Wrapper>
-          <inner />
-        </Wrapper>,
-      );
-    });
-    expect(root.getChildrenAsJSX()).toEqual(<inner />);
-
-    await act(() => {
-      root.render(<Wrapper />);
-    });
-    expect(root.getChildrenAsJSX()).toEqual(null);
   });
 });

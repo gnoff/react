@@ -13,36 +13,23 @@ let React;
 let ReactDOM;
 let PropTypes;
 let ReactDOMClient;
-let Scheduler;
-
-let act;
-let assertConsoleErrorDev;
-let assertLog;
 let root;
-let JSDOM;
+let Scheduler;
+let act;
+let assertLog;
 
 describe('ReactDOMFiber', () => {
   let container;
 
   beforeEach(() => {
     jest.resetModules();
-
-    // JSDOM needs to be setup with a TextEncoder and TextDecoder when used standalone
-    // https://github.com/jsdom/jsdom/issues/2524
-    (() => {
-      const {TextEncoder, TextDecoder} = require('util');
-      global.TextEncoder = TextEncoder;
-      global.TextDecoder = TextDecoder;
-      JSDOM = require('jsdom').JSDOM;
-    })();
-
     React = require('react');
     ReactDOM = require('react-dom');
     PropTypes = require('prop-types');
     ReactDOMClient = require('react-dom/client');
     Scheduler = require('scheduler');
     act = require('internal-test-utils').act;
-    ({assertConsoleErrorDev, assertLog} = require('internal-test-utils'));
+    assertLog = require('internal-test-utils').assertLog;
 
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -68,16 +55,6 @@ describe('ReactDOMFiber', () => {
 
     await act(async () => {
       root.render(<Box value={10} />);
-    });
-
-    expect(container.textContent).toEqual('10');
-  });
-
-  it('should render bigints as children', async () => {
-    const Box = ({value}) => <div>{value}</div>;
-
-    await act(async () => {
-      root.render(<Box value={10n} />);
     });
 
     expect(container.textContent).toEqual('10');
@@ -745,10 +722,6 @@ describe('ReactDOMFiber', () => {
     await act(async () => {
       root.render(<Parent />);
     });
-    assertConsoleErrorDev([
-      'Parent uses the legacy childContextTypes API which will soon be removed. Use React.createContext() instead.',
-      'Component uses the legacy contextTypes API which will soon be removed. Use React.createContext() with static contextType instead.',
-    ]);
     expect(container.innerHTML).toBe('');
     expect(portalContainer.innerHTML).toBe('<div>bar</div>');
   });
@@ -1124,13 +1097,11 @@ describe('ReactDOMFiber', () => {
     // It's an error of type 'NotFoundError' with no message
     container.innerHTML = '<div>MEOW.</div>';
 
-    await expect(async () => {
-      await act(() => {
-        ReactDOM.flushSync(() => {
-          root.render(<div key="2">baz</div>);
-        });
+    expect(() => {
+      ReactDOM.flushSync(() => {
+        root.render(<div key="2">baz</div>);
       });
-    }).rejects.toThrow('The node to be removed is not a child of this node');
+    }).toThrow('The node to be removed is not a child of this node');
   });
 
   it('should not warn when doing an update to a container manually updated outside of React', async () => {
@@ -1282,49 +1253,5 @@ describe('ReactDOMFiber', () => {
       );
     });
     expect(didCallOnChange).toBe(true);
-  });
-
-  it('should restore selection in the correct window', async () => {
-    // creating new JSDOM instance to get a second window as window.open is not implemented
-    // https://github.com/jsdom/jsdom/blob/c53efc81e75f38a0558fbf3ed75d30b78b4c4898/lib/jsdom/browser/Window.js#L987
-    const {window: newWindow} = new JSDOM('');
-    // creating a new container since the default cleanup expects the existing container to be in the document
-    const newContainer = newWindow.document.createElement('div');
-    newWindow.document.body.appendChild(newContainer);
-    root = ReactDOMClient.createRoot(newContainer);
-
-    const Test = () => {
-      const [reverse, setReverse] = React.useState(false);
-      const [items] = React.useState(() => ['a', 'b', 'c']);
-      const onClick = () => {
-        setReverse(true);
-      };
-
-      // shuffle the items so that the react commit needs to restore focus
-      // to the correct element after commit
-      const itemsToRender = reverse ? items.reverse() : items;
-
-      return (
-        <div>
-          {itemsToRender.map(item => (
-            <button onClick={onClick} key={item} id={item}>
-              {item}
-            </button>
-          ))}
-        </div>
-      );
-    };
-
-    await act(() => {
-      root.render(<Test />);
-    });
-
-    newWindow.document.getElementById('a').focus();
-    await act(() => {
-      newWindow.document.getElementById('a').click();
-    });
-
-    expect(newWindow.document.activeElement).not.toBe(newWindow.document.body);
-    expect(newWindow.document.activeElement.innerHTML).toBe('a');
   });
 });

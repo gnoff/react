@@ -7,8 +7,4 @@
  * @flow
  */
 
-export {
-  prerender,
-  resumeAndPrerender,
-  version,
-} from './src/server/react-dom-server.browser';
+export {prerender, version} from './src/server/react-dom-server.browser';

@@ -158,8 +158,7 @@ describe('EnterLeaveEventPlugin', () => {
   });
 
   // Test for https://github.com/facebook/react/issues/16763.
-  // @gate !disableLegacyMode
-  it('should call mouseEnter once from sibling rendered inside a rendered component in legacy roots', async () => {
+  it('should call mouseEnter once from sibling rendered inside a rendered component in legacy roots', done => {
     const mockFn = jest.fn();
 
     class Parent extends React.Component {
@@ -192,6 +191,8 @@ describe('EnterLeaveEventPlugin', () => {
             relatedTarget: this.firstEl.current,
           }),
         );
+        expect(mockFn.mock.calls.length).toBe(1);
+        done();
       }
 
       render() {
@@ -204,14 +205,10 @@ describe('EnterLeaveEventPlugin', () => {
       }
     }
 
-    await act(() => {
-      ReactDOM.render(<Parent />, container);
-    });
-    expect(mockFn.mock.calls.length).toBe(1);
+    ReactDOM.render(<Parent />, container);
   });
 
-  // @gate !disableLegacyMode
-  it('should call mouseEnter when pressing a non tracked React node in legacy root', async () => {
+  it('should call mouseEnter when pressing a non tracked React node in legacy root', done => {
     const mockFn = jest.fn();
 
     class Parent extends React.Component {
@@ -246,6 +243,8 @@ describe('EnterLeaveEventPlugin', () => {
             relatedTarget: this.siblingEl.current,
           }),
         );
+        expect(mockFn.mock.calls.length).toBe(1);
+        done();
       }
 
       render() {
@@ -257,10 +256,7 @@ describe('EnterLeaveEventPlugin', () => {
       }
     }
 
-    await act(() => {
-      ReactDOM.render(<Parent />, container);
-    });
-    expect(mockFn.mock.calls.length).toBe(1);
+    ReactDOM.render(<Parent />, container);
   });
 
   it('should work with portals outside of the root that has onMouseLeave', async () => {
@@ -295,7 +291,7 @@ describe('EnterLeaveEventPlugin', () => {
     expect(onMouseLeave).toHaveBeenCalledTimes(1);
   });
 
-  it('should work with portals that have onMouseEnter outside of the root', async () => {
+  it('should work with portals that have onMouseEnter outside of the root ', async () => {
     const divRef = React.createRef();
     const otherDivRef = React.createRef();
     const onMouseEnter = jest.fn();

@@ -26,8 +26,6 @@ let didWarnAboutLegacyLifecyclesAndDerivedState;
 let didWarnAboutUndefinedDerivedState;
 let didWarnAboutDirectlyAssigningPropsToState;
 let didWarnAboutContextTypeAndContextTypes;
-let didWarnAboutContextTypes;
-let didWarnAboutChildContextTypes;
 let didWarnAboutInvalidateContextType;
 let didWarnOnInvalidCallback;
 
@@ -38,8 +36,6 @@ if (__DEV__) {
   didWarnAboutDirectlyAssigningPropsToState = new Set<string>();
   didWarnAboutUndefinedDerivedState = new Set<string>();
   didWarnAboutContextTypeAndContextTypes = new Set<mixed>();
-  didWarnAboutContextTypes = new Set<mixed>();
-  didWarnAboutChildContextTypes = new Set<mixed>();
   didWarnAboutInvalidateContextType = new Set<mixed>();
   didWarnOnInvalidCallback = new Set<string>();
 }
@@ -296,7 +292,7 @@ export function constructClassInstance(
             'Unsafe legacy lifecycles will not be called for components using new component APIs.\n\n' +
               '%s uses %s but also contains the following legacy lifecycles:%s%s%s\n\n' +
               'The above lifecycles should be removed. Learn more about this warning here:\n' +
-              'https://react.dev/link/unsafe-component-lifecycles',
+              'https://reactjs.org/link/unsafe-component-lifecycles',
             componentName,
             newApiName,
             foundWillMountName !== null ? `\n  ${foundWillMountName}` : '',
@@ -357,6 +353,13 @@ function checkClassInstance(instance: any, ctor: any, newProps: any) {
         name,
       );
     }
+    if (instance.propTypes) {
+      console.error(
+        'propTypes was defined as an instance property on %s. Use a static ' +
+          'property to define propTypes instead.',
+        name,
+      );
+    }
     if (instance.contextType) {
       console.error(
         'contextType was defined as an instance property on %s. Use a static ' +
@@ -366,20 +369,17 @@ function checkClassInstance(instance: any, ctor: any, newProps: any) {
     }
 
     if (disableLegacyContext) {
-      if (ctor.childContextTypes && !didWarnAboutChildContextTypes.has(ctor)) {
-        didWarnAboutChildContextTypes.add(ctor);
+      if (ctor.childContextTypes) {
         console.error(
-          '%s uses the legacy childContextTypes API which was removed in React 19. ' +
-            'Use React.createContext() instead. (https://react.dev/link/legacy-context)',
+          '%s uses the legacy childContextTypes API which is no longer supported. ' +
+            'Use React.createContext() instead.',
           name,
         );
       }
-      if (ctor.contextTypes && !didWarnAboutContextTypes.has(ctor)) {
-        didWarnAboutContextTypes.add(ctor);
+      if (ctor.contextTypes) {
         console.error(
-          '%s uses the legacy contextTypes API which was removed in React 19. ' +
-            'Use React.createContext() with static contextType instead. ' +
-            '(https://react.dev/link/legacy-context)',
+          '%s uses the legacy contextTypes API which is no longer supported. ' +
+            'Use React.createContext() with static contextType instead.',
           name,
         );
       }
@@ -387,7 +387,7 @@ function checkClassInstance(instance: any, ctor: any, newProps: any) {
       if (instance.contextTypes) {
         console.error(
           'contextTypes was defined as an instance property on %s. Use a static ' +
-            'property to define contextTypes instead. (https://react.dev/link/legacy-context)',
+            'property to define contextTypes instead.',
           name,
         );
       }
@@ -401,23 +401,6 @@ function checkClassInstance(instance: any, ctor: any, newProps: any) {
         console.error(
           '%s declares both contextTypes and contextType static properties. ' +
             'The legacy contextTypes property will be ignored.',
-          name,
-        );
-      }
-      if (ctor.childContextTypes && !didWarnAboutChildContextTypes.has(ctor)) {
-        didWarnAboutChildContextTypes.add(ctor);
-        console.error(
-          '%s uses the legacy childContextTypes API which will soon be removed. ' +
-            'Use React.createContext() instead. (https://react.dev/link/legacy-context)',
-          name,
-        );
-      }
-      if (ctor.contextTypes && !didWarnAboutContextTypes.has(ctor)) {
-        didWarnAboutContextTypes.add(ctor);
-        console.error(
-          '%s uses the legacy contextTypes API which will soon be removed. ' +
-            'Use React.createContext() with static contextType instead. ' +
-            '(https://react.dev/link/legacy-context)',
           name,
         );
       }
@@ -556,7 +539,7 @@ function callComponentWillMount(type: any, instance: any) {
           console.warn(
             // keep this warning in sync with ReactStrictModeWarning.js
             'componentWillMount has been renamed, and is not recommended for use. ' +
-              'See https://react.dev/link/unsafe-component-lifecycles for details.\n\n' +
+              'See https://reactjs.org/link/unsafe-component-lifecycles for details.\n\n' +
               '* Move code from componentWillMount to componentDidMount (preferred in most cases) ' +
               'or the constructor.\n' +
               '\nPlease update the following components: %s',

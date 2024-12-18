@@ -7,9 +7,9 @@
  * @flow
  */
 
-export interface Reference {}
+interface Reference {}
 
-export type TaintEntry = {
+type TaintEntry = {
   message: string,
   count: number,
 };
@@ -23,5 +23,5 @@ export const TaintRegistryByteLengths: Set<number> = new Set();
 // When a value is finalized, it means that it has been removed from any global caches.
 // No future requests can get a handle on it but any ongoing requests can still have
 // a handle on it. It's still tainted until that happens.
-export type RequestCleanupQueue = Array<string | bigint>;
+type RequestCleanupQueue = Array<string | bigint>;
 export const TaintRegistryPendingRequests: Set<RequestCleanupQueue> = new Set();

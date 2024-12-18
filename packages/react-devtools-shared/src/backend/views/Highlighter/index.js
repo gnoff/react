@@ -7,6 +7,8 @@
  * @flow
  */
 
+import memoize from 'memoize-one';
+import throttle from 'lodash.throttle';
 import Agent from 'react-devtools-shared/src/backend/agent';
 import {hideOverlay, showOverlay} from './Highlighter';
 
@@ -23,13 +25,16 @@ export default function setupHighlighter(
   bridge: BackendBridge,
   agent: Agent,
 ): void {
-  bridge.addListener('clearHostInstanceHighlight', clearHostInstanceHighlight);
-  bridge.addListener('highlightHostInstance', highlightHostInstance);
-  bridge.addListener('shutdown', stopInspectingHost);
-  bridge.addListener('startInspectingHost', startInspectingHost);
-  bridge.addListener('stopInspectingHost', stopInspectingHost);
+  bridge.addListener(
+    'clearNativeElementHighlight',
+    clearNativeElementHighlight,
+  );
+  bridge.addListener('highlightNativeElement', highlightNativeElement);
+  bridge.addListener('shutdown', stopInspectingNative);
+  bridge.addListener('startInspectingNative', startInspectingNative);
+  bridge.addListener('stopInspectingNative', stopInspectingNative);
 
-  function startInspectingHost() {
+  function startInspectingNative() {
     registerListenersOnWindow(window);
   }
 
@@ -48,7 +53,7 @@ export default function setupHighlighter(
     }
   }
 
-  function stopInspectingHost() {
+  function stopInspectingNative() {
     hideOverlay(agent);
     removeListenersOnWindow(window);
     iframesListeningTo.forEach(function (frame) {
@@ -76,22 +81,22 @@ export default function setupHighlighter(
     }
   }
 
-  function clearHostInstanceHighlight() {
+  function clearNativeElementHighlight() {
     hideOverlay(agent);
   }
 
-  function highlightHostInstance({
+  function highlightNativeElement({
     displayName,
     hideAfterTimeout,
     id,
-    openBuiltinElementsPanel,
+    openNativeElementsPanel,
     rendererID,
     scrollIntoView,
   }: {
     displayName: string | null,
     hideAfterTimeout: boolean,
     id: number,
-    openBuiltinElementsPanel: boolean,
+    openNativeElementsPanel: boolean,
     rendererID: number,
     scrollIntoView: boolean,
     ...
@@ -105,12 +110,14 @@ export default function setupHighlighter(
     }
 
     // In some cases fiber may already be unmounted
-    if (!renderer.hasElementWithId(id)) {
+    if (!renderer.hasFiberWithId(id)) {
       hideOverlay(agent);
       return;
     }
 
-    const nodes = renderer.findHostInstancesForElementID(id);
+    const nodes: ?Array<HTMLElement> = (renderer.findNativeNodesForFiberID(
+      id,
+    ): any);
 
     if (nodes != null && nodes[0] != null) {
       const node = nodes[0];
@@ -123,9 +130,9 @@ export default function setupHighlighter(
 
       showOverlay(nodes, displayName, agent, hideAfterTimeout);
 
-      if (openBuiltinElementsPanel) {
+      if (openNativeElementsPanel) {
         window.__REACT_DEVTOOLS_GLOBAL_HOOK__.$0 = node;
-        bridge.send('syncSelectionToBuiltinElementsPanel');
+        bridge.send('syncSelectionToNativeElementsPanel');
       }
     } else {
       hideOverlay(agent);
@@ -136,9 +143,9 @@ export default function setupHighlighter(
     event.preventDefault();
     event.stopPropagation();
 
-    stopInspectingHost();
+    stopInspectingNative();
 
-    bridge.send('stopInspectingHost', true);
+    bridge.send('stopInspectingNative', true);
   }
 
   function onMouseEvent(event: MouseEvent) {
@@ -150,7 +157,7 @@ export default function setupHighlighter(
     event.preventDefault();
     event.stopPropagation();
 
-    selectElementForNode(getEventTarget(event));
+    selectFiberForNode(getEventTarget(event));
   }
 
   let lastHoveredNode: HTMLElement | null = null;
@@ -179,7 +186,7 @@ export default function setupHighlighter(
     // It will be inferred from DOM tag and Fiber owner.
     showOverlay([target], null, agent, false);
 
-    selectElementForNode(target);
+    selectFiberForNode(target);
   }
 
   function onPointerUp(event: MouseEvent) {
@@ -187,12 +194,18 @@ export default function setupHighlighter(
     event.stopPropagation();
   }
 
-  const selectElementForNode = (node: HTMLElement) => {
-    const id = agent.getIDForHostInstance(node);
-    if (id !== null) {
-      bridge.send('selectElement', id);
-    }
-  };
+  const selectFiberForNode = throttle(
+    memoize((node: HTMLElement) => {
+      const id = agent.getIDForNode(node);
+      if (id !== null) {
+        bridge.send('selectFiber', id);
+      }
+    }),
+    200,
+    // Don't change the selection in the very first 200ms
+    // because those are usually unintentional as you lift the cursor.
+    {leading: false},
+  );
 
   function getEventTarget(event: MouseEvent): HTMLElement {
     if (event.composed) {

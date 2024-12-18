@@ -20,7 +20,7 @@ let turbopackServerMap;
 let ReactServerDOMServer;
 let ReactServerDOMClient;
 
-describe('ReactFlightDOMTurbopackReply', () => {
+describe('ReactFlightDOMReply', () => {
   beforeEach(() => {
     jest.resetModules();
     // Simulate the condition resolution

@@ -9,6 +9,7 @@
 
 import * as React from 'react';
 import {
+  useContext,
   unstable_useCacheRefresh as useCacheRefresh,
   useTransition,
 } from 'react';
@@ -17,6 +18,7 @@ import ButtonIcon from '../ButtonIcon';
 import Store from '../../store';
 import sharedStyles from './InspectedElementSharedStyles.css';
 import styles from './InspectedElementErrorsAndWarningsTree.css';
+import {SettingsContext} from '../Settings/SettingsContext';
 import {
   clearErrorsForElement as clearErrorsForElementAPI,
   clearWarningsForElement as clearWarningsForElementAPI,
@@ -72,14 +74,12 @@ export default function InspectedElementErrorsAndWarningsTree({
     }
   };
 
-  if (!store.displayingErrorsAndWarningsEnabled) {
+  const {showInlineWarningsAndErrors} = useContext(SettingsContext);
+  if (!showInlineWarningsAndErrors) {
     return null;
   }
 
   const {errors, warnings} = inspectedElement;
-  if (errors.length === 0 && warnings.length === 0) {
-    return null;
-  }
 
   return (
     <React.Fragment>
@@ -136,7 +136,7 @@ function Tree({
     return null;
   }
   return (
-    <div className={className}>
+    <div className={`${sharedStyles.InspectedElementTree} ${className}`}>
       <div className={`${sharedStyles.HeaderRow} ${styles.HeaderRow}`}>
         <div className={sharedStyles.Header}>{label}</div>
         <Button

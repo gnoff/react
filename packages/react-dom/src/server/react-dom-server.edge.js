@@ -8,4 +8,4 @@
  */
 
 export * from './ReactDOMFizzServerEdge.js';
-export {prerender, resumeAndPrerender} from './ReactDOMFizzStaticEdge.js';
+export {prerender} from './ReactDOMFizzStaticEdge.js';

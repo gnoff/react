@@ -8,6 +8,7 @@
  */
 
 import type {
+  HostDispatcher,
   CrossOriginEnum,
   PreloadImplOptions,
   PreloadModuleImplOptions,
@@ -16,122 +17,118 @@ import type {
   PreinitModuleScriptOptions,
 } from 'react-dom/src/shared/ReactDOMTypes';
 
+import {enableFloat} from 'shared/ReactFeatureFlags';
+
 import {
   emitHint,
   getHints,
   resolveRequest,
 } from 'react-server/src/ReactFlightServer';
 
-import ReactDOMSharedInternals from 'shared/ReactDOMSharedInternals';
-
-const previousDispatcher =
-  ReactDOMSharedInternals.d; /* ReactDOMCurrentDispatcher */
-ReactDOMSharedInternals.d /* ReactDOMCurrentDispatcher */ = {
-  f /* flushSyncWork */: previousDispatcher.f /* flushSyncWork */,
-  r /* requestFormReset */: previousDispatcher.r /* requestFormReset */,
-  D /* prefetchDNS */: prefetchDNS,
-  C /* preconnect */: preconnect,
-  L /* preload */: preload,
-  m /* preloadModule */: preloadModule,
-  X /* preinitScript */: preinitScript,
-  S /* preinitStyle */: preinitStyle,
-  M /* preinitModuleScript */: preinitModuleScript,
+export const ReactDOMFlightServerDispatcher: HostDispatcher = {
+  prefetchDNS,
+  preconnect,
+  preload,
+  preloadModule,
+  preinitStyle,
+  preinitScript,
+  preinitModuleScript,
 };
 
 function prefetchDNS(href: string) {
-  if (typeof href === 'string' && href) {
-    const request = resolveRequest();
-    if (request) {
-      const hints = getHints(request);
-      const key = 'D|' + href;
-      if (hints.has(key)) {
-        // duplicate hint
-        return;
+  if (enableFloat) {
+    if (typeof href === 'string' && href) {
+      const request = resolveRequest();
+      if (request) {
+        const hints = getHints(request);
+        const key = 'D|' + href;
+        if (hints.has(key)) {
+          // duplicate hint
+          return;
+        }
+        hints.add(key);
+        emitHint(request, 'D', href);
       }
-      hints.add(key);
-      emitHint(request, 'D', href);
-    } else {
-      previousDispatcher.D(/* prefetchDNS */ href);
     }
   }
 }
 
 function preconnect(href: string, crossOrigin?: ?CrossOriginEnum) {
-  if (typeof href === 'string') {
-    const request = resolveRequest();
-    if (request) {
-      const hints = getHints(request);
+  if (enableFloat) {
+    if (typeof href === 'string') {
+      const request = resolveRequest();
+      if (request) {
+        const hints = getHints(request);
 
-      const key = `C|${crossOrigin == null ? 'null' : crossOrigin}|${href}`;
-      if (hints.has(key)) {
-        // duplicate hint
-        return;
+        const key = `C|${crossOrigin == null ? 'null' : crossOrigin}|${href}`;
+        if (hints.has(key)) {
+          // duplicate hint
+          return;
+        }
+        hints.add(key);
+        if (typeof crossOrigin === 'string') {
+          emitHint(request, 'C', [href, crossOrigin]);
+        } else {
+          emitHint(request, 'C', href);
+        }
       }
-      hints.add(key);
-      if (typeof crossOrigin === 'string') {
-        emitHint(request, 'C', [href, crossOrigin]);
-      } else {
-        emitHint(request, 'C', href);
-      }
-    } else {
-      previousDispatcher.C(/* preconnect */ href, crossOrigin);
     }
   }
 }
 
 function preload(href: string, as: string, options?: ?PreloadImplOptions) {
-  if (typeof href === 'string') {
-    const request = resolveRequest();
-    if (request) {
-      const hints = getHints(request);
-      let key = 'L';
-      if (as === 'image' && options) {
-        key += getImagePreloadKey(
-          href,
-          options.imageSrcSet,
-          options.imageSizes,
-        );
-      } else {
-        key += `[${as}]${href}`;
-      }
-      if (hints.has(key)) {
-        // duplicate hint
-        return;
-      }
-      hints.add(key);
+  if (enableFloat) {
+    if (typeof href === 'string') {
+      const request = resolveRequest();
+      if (request) {
+        const hints = getHints(request);
+        let key = 'L';
+        if (as === 'image' && options) {
+          key += getImagePreloadKey(
+            href,
+            options.imageSrcSet,
+            options.imageSizes,
+          );
+        } else {
+          key += `[${as}]${href}`;
+        }
+        if (hints.has(key)) {
+          // duplicate hint
+          return;
+        }
+        hints.add(key);
 
-      const trimmed = trimOptions(options);
-      if (trimmed) {
-        emitHint(request, 'L', [href, as, trimmed]);
-      } else {
-        emitHint(request, 'L', [href, as]);
+        const trimmed = trimOptions(options);
+        if (trimmed) {
+          emitHint(request, 'L', [href, as, trimmed]);
+        } else {
+          emitHint(request, 'L', [href, as]);
+        }
       }
-    } else {
-      previousDispatcher.L(/* preload */ href, as, options);
     }
   }
 }
 
 function preloadModule(href: string, options?: ?PreloadModuleImplOptions) {
-  if (typeof href === 'string') {
-    const request = resolveRequest();
-    if (request) {
-      const hints = getHints(request);
-      const key = 'm|' + href;
-      if (hints.has(key)) {
-        // duplicate hint
-        return;
-      }
-      hints.add(key);
+  if (enableFloat) {
+    if (typeof href === 'string') {
+      const request = resolveRequest();
+      if (request) {
+        const hints = getHints(request);
+        const key = 'm|' + href;
+        if (hints.has(key)) {
+          // duplicate hint
+          return;
+        }
+        hints.add(key);
 
-      const trimmed = trimOptions(options);
-      if (trimmed) {
-        return emitHint(request, 'm', [href, trimmed]);
-      } else {
-        return emitHint(request, 'm', href);
+        const trimmed = trimOptions(options);
+        if (trimmed) {
+          return emitHint(request, 'm', [href, trimmed]);
+        } else {
+          return emitHint(request, 'm', href);
+        }
       }
-    } else {
-      previousDispatcher.m(/* preloadModule */ href, options);
     }
   }
 }
@@ -141,82 +138,82 @@ function preinitStyle(
   precedence: ?string,
   options?: ?PreinitStyleOptions,
 ) {
-  if (typeof href === 'string') {
-    const request = resolveRequest();
-    if (request) {
-      const hints = getHints(request);
-      const key = 'S|' + href;
-      if (hints.has(key)) {
-        // duplicate hint
-        return;
-      }
-      hints.add(key);
+  if (enableFloat) {
+    if (typeof href === 'string') {
+      const request = resolveRequest();
+      if (request) {
+        const hints = getHints(request);
+        const key = 'S|' + href;
+        if (hints.has(key)) {
+          // duplicate hint
+          return;
+        }
+        hints.add(key);
 
-      const trimmed = trimOptions(options);
-      if (trimmed) {
-        return emitHint(request, 'S', [
-          href,
-          typeof precedence === 'string' ? precedence : 0,
-          trimmed,
-        ]);
-      } else if (typeof precedence === 'string') {
-        return emitHint(request, 'S', [href, precedence]);
-      } else {
-        return emitHint(request, 'S', href);
+        const trimmed = trimOptions(options);
+        if (trimmed) {
+          return emitHint(request, 'S', [
+            href,
+            typeof precedence === 'string' ? precedence : 0,
+            trimmed,
+          ]);
+        } else if (typeof precedence === 'string') {
+          return emitHint(request, 'S', [href, precedence]);
+        } else {
+          return emitHint(request, 'S', href);
+        }
       }
-    } else {
-      previousDispatcher.S(/* preinitStyle */ href, precedence, options);
     }
   }
 }
 
-function preinitScript(src: string, options?: ?PreinitScriptOptions) {
-  if (typeof src === 'string') {
-    const request = resolveRequest();
-    if (request) {
-      const hints = getHints(request);
-      const key = 'X|' + src;
-      if (hints.has(key)) {
-        // duplicate hint
-        return;
-      }
-      hints.add(key);
+function preinitScript(href: string, options?: ?PreinitScriptOptions) {
+  if (enableFloat) {
+    if (typeof href === 'string') {
+      const request = resolveRequest();
+      if (request) {
+        const hints = getHints(request);
+        const key = 'X|' + href;
+        if (hints.has(key)) {
+          // duplicate hint
+          return;
+        }
+        hints.add(key);
 
-      const trimmed = trimOptions(options);
-      if (trimmed) {
-        return emitHint(request, 'X', [src, trimmed]);
-      } else {
-        return emitHint(request, 'X', src);
+        const trimmed = trimOptions(options);
+        if (trimmed) {
+          return emitHint(request, 'X', [href, trimmed]);
+        } else {
+          return emitHint(request, 'X', href);
+        }
       }
-    } else {
-      previousDispatcher.X(/* preinitScript */ src, options);
     }
   }
 }
 
 function preinitModuleScript(
-  src: string,
+  href: string,
   options?: ?PreinitModuleScriptOptions,
 ) {
-  if (typeof src === 'string') {
-    const request = resolveRequest();
-    if (request) {
-      const hints = getHints(request);
-      const key = 'M|' + src;
-      if (hints.has(key)) {
-        // duplicate hint
-        return;
-      }
-      hints.add(key);
+  if (enableFloat) {
+    if (typeof href === 'string') {
+      const request = resolveRequest();
+      if (request) {
+        const hints = getHints(request);
+        const key = 'M|' + href;
+        if (hints.has(key)) {
+          // duplicate hint
+          return;
+        }
+        hints.add(key);
 
-      const trimmed = trimOptions(options);
-      if (trimmed) {
-        return emitHint(request, 'M', [src, trimmed]);
-      } else {
-        return emitHint(request, 'M', src);
+        const trimmed = trimOptions(options);
+        if (trimmed) {
+          return emitHint(request, 'M', [href, trimmed]);
+        } else {
+          return emitHint(request, 'M', href);
+        }
       }
-    } else {
-      previousDispatcher.M(/* preinitModuleScript */ src, options);
     }
   }
 }
@@ -238,7 +235,6 @@ function trimOptions<
   let hasProperties = false;
   const trimmed: T = ({}: any);
   for (const key in options) {
-    // $FlowFixMe[invalid-computed-prop]
     if (options[key] != null) {
       hasProperties = true;
       (trimmed: any)[key] = options[key];

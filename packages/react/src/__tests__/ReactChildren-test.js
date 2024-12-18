@@ -183,12 +183,11 @@ describe('ReactChildren', () => {
         {false}
         {null}
         {undefined}
-        {9n}
       </div>
     );
 
     function assertCalls() {
-      expect(callback).toHaveBeenCalledTimes(10);
+      expect(callback).toHaveBeenCalledTimes(9);
       expect(callback).toHaveBeenCalledWith(div, 0);
       expect(callback).toHaveBeenCalledWith(span, 1);
       expect(callback).toHaveBeenCalledWith(a, 2);
@@ -198,7 +197,6 @@ describe('ReactChildren', () => {
       expect(callback).toHaveBeenCalledWith(null, 6);
       expect(callback).toHaveBeenCalledWith(null, 7);
       expect(callback).toHaveBeenCalledWith(null, 8);
-      expect(callback).toHaveBeenCalledWith(9n, 9);
       callback.mockClear();
     }
 
@@ -217,7 +215,6 @@ describe('ReactChildren', () => {
       <a key=".2:$aNode" />,
       'string',
       1234,
-      9n,
     ]);
   });
 
@@ -301,7 +298,7 @@ describe('ReactChildren', () => {
     ]);
   });
 
-  it('should be called for each child in an iterable without keys', async () => {
+  it('should be called for each child in an iterable without keys', () => {
     const threeDivIterable = {
       '@@iterator': function () {
         let i = 0;
@@ -323,6 +320,11 @@ describe('ReactChildren', () => {
       return kid;
     });
 
+    let instance;
+    expect(() => (instance = <div>{threeDivIterable}</div>)).toErrorDev(
+      'Warning: Each child in a list should have a unique "key" prop.',
+    );
+
     function assertCalls() {
       expect(callback).toHaveBeenCalledTimes(3);
       expect(callback).toHaveBeenCalledWith(<div />, 0);
@@ -331,18 +333,7 @@ describe('ReactChildren', () => {
       callback.mockClear();
     }
 
-    let instance;
-    expect(() => {
-      instance = <div>{threeDivIterable}</div>;
-    }).toErrorDev(
-      // With the flag on this doesn't warn eagerly but only when rendered
-      gate(flag => flag.enableOwnerStacks)
-        ? []
-        : ['Each child in a list should have a unique "key" prop.'],
-    );
-
     React.Children.forEach(instance.props.children, callback, context);
-
     assertCalls();
 
     const mappedChildren = React.Children.map(
@@ -356,14 +347,6 @@ describe('ReactChildren', () => {
       <div key=".1" />,
       <div key=".2" />,
     ]);
-
-    const container = document.createElement('div');
-    const root = ReactDOMClient.createRoot(container);
-    await expect(async () => {
-      await act(() => {
-        root.render(instance);
-      });
-    }).toErrorDev('Each child in a list should have a unique "key" prop.');
   });
 
   it('should be called for each child in an iterable with keys', () => {
@@ -541,7 +524,7 @@ describe('ReactChildren', () => {
     expect(mappedChildren[0]).toBe(scopeTester);
   });
 
-  it('should be called for each child in array', () => {
+  it('should be called for each child', () => {
     const zero = <div key="keyZero" />;
     const one = null;
     const two = <div key="keyTwo" />;
@@ -603,7 +586,7 @@ describe('ReactChildren', () => {
     expect(mappedChildren[3]).toEqual(<div key=".$keyFour" />);
   });
 
-  it('should be called for each child in nested structure with mapping', () => {
+  it('should be called for each child in nested structure', () => {
     const zero = <div key="keyZero" />;
     const one = null;
     const two = <div key="keyTwo" />;
@@ -676,7 +659,7 @@ describe('ReactChildren', () => {
     expect(mappedChildren[3]).toEqual(<div key=".0:$keyFive" />);
   });
 
-  it('should retain key across two mappings with conditions', () => {
+  it('should retain key across two mappings', () => {
     const zeroForceKey = <div key="keyZero" />;
     const oneForceKey = <div key="keyOne" />;
 
@@ -866,137 +849,6 @@ describe('ReactChildren', () => {
     ]);
   });
 
-  it('warns for mapped list children without keys', async () => {
-    function ComponentRenderingMappedChildren({children}) {
-      return (
-        <div>
-          {React.Children.map(children, child => (
-            <div />
-          ))}
-        </div>
-      );
-    }
-
-    const container = document.createElement('div');
-    const root = ReactDOMClient.createRoot(container);
-    await expect(async () => {
-      await act(() => {
-        root.render(
-          <ComponentRenderingMappedChildren>
-            {[<div />]}
-          </ComponentRenderingMappedChildren>,
-        );
-      });
-    }).toErrorDev(['Each child in a list should have a unique "key" prop.']);
-  });
-
-  it('does not warn for mapped static children without keys', async () => {
-    function ComponentRenderingMappedChildren({children}) {
-      return (
-        <div>
-          {React.Children.map(children, child => (
-            <div />
-          ))}
-        </div>
-      );
-    }
-
-    const container = document.createElement('div');
-    const root = ReactDOMClient.createRoot(container);
-    await expect(async () => {
-      await act(() => {
-        root.render(
-          <ComponentRenderingMappedChildren>
-            <div />
-            <div />
-          </ComponentRenderingMappedChildren>,
-        );
-      });
-    }).toErrorDev([]);
-  });
-
-  it('warns for cloned list children without keys', async () => {
-    function ComponentRenderingClonedChildren({children}) {
-      return (
-        <div>
-          {React.Children.map(children, child => React.cloneElement(child))}
-        </div>
-      );
-    }
-
-    const container = document.createElement('div');
-    const root = ReactDOMClient.createRoot(container);
-    await expect(async () => {
-      await act(() => {
-        root.render(
-          <ComponentRenderingClonedChildren>
-            {[<div />]}
-          </ComponentRenderingClonedChildren>,
-        );
-      });
-    }).toErrorDev(['Each child in a list should have a unique "key" prop.']);
-  });
-
-  it('does not warn for cloned static children without keys', async () => {
-    function ComponentRenderingClonedChildren({children}) {
-      return (
-        <div>
-          {React.Children.map(children, child => React.cloneElement(child))}
-        </div>
-      );
-    }
-
-    const container = document.createElement('div');
-    const root = ReactDOMClient.createRoot(container);
-    await expect(async () => {
-      await act(() => {
-        root.render(
-          <ComponentRenderingClonedChildren>
-            <div />
-            <div />
-          </ComponentRenderingClonedChildren>,
-        );
-      });
-    }).toErrorDev([]);
-  });
-
-  it('warns for flattened list children without keys', async () => {
-    function ComponentRenderingFlattenedChildren({children}) {
-      return <div>{React.Children.toArray(children)}</div>;
-    }
-
-    const container = document.createElement('div');
-    const root = ReactDOMClient.createRoot(container);
-    await expect(async () => {
-      await act(() => {
-        root.render(
-          <ComponentRenderingFlattenedChildren>
-            {[<div />]}
-          </ComponentRenderingFlattenedChildren>,
-        );
-      });
-    }).toErrorDev(['Each child in a list should have a unique "key" prop.']);
-  });
-
-  it('does not warn for flattened static children without keys', async () => {
-    function ComponentRenderingFlattenedChildren({children}) {
-      return <div>{React.Children.toArray(children)}</div>;
-    }
-
-    const container = document.createElement('div');
-    const root = ReactDOMClient.createRoot(container);
-    await expect(async () => {
-      await act(() => {
-        root.render(
-          <ComponentRenderingFlattenedChildren>
-            <div />
-            <div />
-          </ComponentRenderingFlattenedChildren>,
-        );
-      });
-    }).toErrorDev([]);
-  });
-
   it('should escape keys', () => {
     const zero = <div key="1" />;
     const one = <div key="1=::=2" />;
@@ -1098,7 +950,7 @@ describe('ReactChildren', () => {
   });
 
   it('should render React.lazy after suspending', async () => {
-    const lazyElement = React.lazy(async () => ({default: <div key="hi" />}));
+    const lazyElement = React.lazy(async () => ({default: <div />}));
     function Component() {
       return React.Children.map([lazyElement], c =>
         React.cloneElement(c, {children: 'hi'}),
@@ -1114,7 +966,7 @@ describe('ReactChildren', () => {
   });
 
   it('should render cached Promises after suspending', async () => {
-    const promise = Promise.resolve(<div key="hi" />);
+    const promise = Promise.resolve(<div />);
     function Component() {
       return React.Children.map([promise], c =>
         React.cloneElement(c, {children: 'hi'}),
@@ -1158,11 +1010,9 @@ describe('ReactChildren', () => {
           root.render(<ComponentReturningArray />);
         });
       }).toErrorDev(
-        '' +
+        'Warning: ' +
           'Each child in a list should have a unique "key" prop.' +
-          '\n\nCheck the top-level render call using <ComponentReturningArray>. It was passed a child from ComponentReturningArray. ' +
-          'See https://react.dev/link/warning-keys for more information.' +
-          '\n    in div (at **)' +
+          ' See https://reactjs.org/link/warning-keys for more information.' +
           '\n    in ComponentReturningArray (at **)',
       );
     });
@@ -1189,11 +1039,10 @@ describe('ReactChildren', () => {
           root.render([<div />, <div />]);
         });
       }).toErrorDev(
-        '' +
+        'Warning: ' +
           'Each child in a list should have a unique "key" prop.' +
-          '\n\nCheck the top-level render call using <Root>. ' +
-          'See https://react.dev/link/warning-keys for more information.' +
-          '\n    in div (at **)',
+          ' See https://reactjs.org/link/warning-keys for more information.',
+        {withoutStack: true}, // There's nothing on the stack
       );
     });
   });

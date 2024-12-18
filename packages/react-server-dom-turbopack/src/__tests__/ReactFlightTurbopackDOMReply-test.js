@@ -9,8 +9,6 @@
 
 'use strict';
 
-import {patchMessageChannel} from '../../../../scripts/jest/patchMessageChannel';
-
 // Polyfills for test environment
 global.ReadableStream =
   require('web-streams-polyfill/ponyfill/es6').ReadableStream;
@@ -21,15 +19,10 @@ global.TextDecoder = require('util').TextDecoder;
 let turbopackServerMap;
 let ReactServerDOMServer;
 let ReactServerDOMClient;
-let ReactServerScheduler;
 
-describe('ReactFlightTurbopackDOMReply', () => {
+describe('ReactFlightDOMReply', () => {
   beforeEach(() => {
     jest.resetModules();
-
-    ReactServerScheduler = require('scheduler');
-    patchMessageChannel(ReactServerScheduler);
-
     // Simulate the condition resolution
     jest.mock('react', () => require('react/react.react-server'));
     jest.mock('react-server-dom-turbopack/server', () =>

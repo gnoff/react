@@ -14,6 +14,7 @@ import {
   REACT_FORWARD_REF_TYPE,
   REACT_FRAGMENT_TYPE,
   REACT_PROFILER_TYPE,
+  REACT_DEBUG_TRACING_MODE_TYPE,
   REACT_STRICT_MODE_TYPE,
   REACT_SUSPENSE_TYPE,
   REACT_SUSPENSE_LIST_TYPE,
@@ -22,19 +23,20 @@ import {
   REACT_SCOPE_TYPE,
   REACT_LEGACY_HIDDEN_TYPE,
   REACT_OFFSCREEN_TYPE,
+  REACT_CACHE_TYPE,
   REACT_TRACING_MARKER_TYPE,
 } from 'shared/ReactSymbols';
 import {
   enableScopeAPI,
+  enableCacheElement,
   enableTransitionTracing,
+  enableDebugTracing,
   enableLegacyHidden,
   enableRenderableContext,
 } from './ReactFeatureFlags';
 
 const REACT_CLIENT_REFERENCE: symbol = Symbol.for('react.client.reference');
 
-// This function is deprecated. Don't use. Only the renderer knows what a valid type is.
-// TODO: Delete this when enableOwnerStacks ships.
 export default function isValidElementType(type: mixed): boolean {
   if (typeof type === 'string' || typeof type === 'function') {
     return true;
@@ -44,12 +46,14 @@ export default function isValidElementType(type: mixed): boolean {
   if (
     type === REACT_FRAGMENT_TYPE ||
     type === REACT_PROFILER_TYPE ||
+    (enableDebugTracing && type === REACT_DEBUG_TRACING_MODE_TYPE) ||
     type === REACT_STRICT_MODE_TYPE ||
     type === REACT_SUSPENSE_TYPE ||
     type === REACT_SUSPENSE_LIST_TYPE ||
     (enableLegacyHidden && type === REACT_LEGACY_HIDDEN_TYPE) ||
     type === REACT_OFFSCREEN_TYPE ||
     (enableScopeAPI && type === REACT_SCOPE_TYPE) ||
+    (enableCacheElement && type === REACT_CACHE_TYPE) ||
     (enableTransitionTracing && type === REACT_TRACING_MARKER_TYPE)
   ) {
     return true;

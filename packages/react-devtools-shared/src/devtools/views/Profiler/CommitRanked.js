@@ -18,7 +18,7 @@ import HoveredFiberInfo from './HoveredFiberInfo';
 import {scale} from './utils';
 import {StoreContext} from '../context';
 import {SettingsContext} from '../Settings/SettingsContext';
-import {useHighlightHostInstance} from '../hooks';
+import {useHighlightNativeElement} from '../hooks';
 import Tooltip from './Tooltip';
 
 import styles from './CommitRanked.css';
@@ -99,8 +99,8 @@ function CommitRanked({chartData, commitTree, height, width}: Props) {
     useState<TooltipFiberData | null>(null);
   const {lineHeight} = useContext(SettingsContext);
   const {selectedFiberID, selectFiber} = useContext(ProfilerContext);
-  const {highlightHostInstance, clearHighlightHostInstance} =
-    useHighlightHostInstance();
+  const {highlightNativeElement, clearHighlightNativeElement} =
+    useHighlightNativeElement();
 
   const selectedFiberIndex = useMemo(
     () => getNodeIndex(chartData, selectedFiberID),
@@ -109,16 +109,16 @@ function CommitRanked({chartData, commitTree, height, width}: Props) {
 
   const handleElementMouseEnter = useCallback(
     ({id, name}: $FlowFixMe) => {
-      highlightHostInstance(id); // Highlight last hovered element.
+      highlightNativeElement(id); // Highlight last hovered element.
       setHoveredFiberData({id, name}); // Set hovered fiber data for tooltip
     },
-    [highlightHostInstance],
+    [highlightNativeElement],
   );
 
   const handleElementMouseLeave = useCallback(() => {
-    clearHighlightHostInstance(); // clear highlighting of element on mouse leave
+    clearHighlightNativeElement(); // clear highlighting of element on mouse leave
     setHoveredFiberData(null); // clear hovered fiber data for tooltip
-  }, [clearHighlightHostInstance]);
+  }, [clearHighlightNativeElement]);
 
   const itemData = useMemo<ItemData>(
     () => ({

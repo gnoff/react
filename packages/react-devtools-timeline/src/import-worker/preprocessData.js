@@ -202,7 +202,6 @@ function markWorkCompleted(
     );
   }
 
-  // $FlowFixMe[incompatible-use]
   const {measure, startTime} = stack.pop();
   if (!measure) {
     console.error('Could not find matching measure for type "%s".', type);

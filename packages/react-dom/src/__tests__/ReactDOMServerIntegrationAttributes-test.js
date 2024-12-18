@@ -11,6 +11,7 @@
 'use strict';
 
 const ReactDOMServerIntegrationUtils = require('./utils/ReactDOMServerIntegrationTestUtils');
+const ReactFeatureFlags = require('shared/ReactFeatureFlags');
 
 let React;
 let ReactDOM;
@@ -53,8 +54,13 @@ describe('ReactDOMServerIntegration', () => {
       });
 
       itRenders('empty src on img', async render => {
-        const e = await render(<img src="" />, 1);
-        expect(e.getAttribute('src')).toBe(null);
+        const e = await render(
+          <img src="" />,
+          ReactFeatureFlags.enableFilterEmptyStringAttributesDOM ? 1 : 0,
+        );
+        expect(e.getAttribute('src')).toBe(
+          ReactFeatureFlags.enableFilterEmptyStringAttributesDOM ? null : '',
+        );
       });
 
       itRenders('empty href on anchor', async render => {
@@ -72,9 +78,11 @@ describe('ReactDOMServerIntegration', () => {
           // errors during hydration.
           // So we use a <div> instead.
           <div href="" />,
-          1,
+          ReactFeatureFlags.enableFilterEmptyStringAttributesDOM ? 1 : 0,
         );
-        expect(e.getAttribute('href')).toBe(null);
+        expect(e.getAttribute('href')).toBe(
+          ReactFeatureFlags.enableFilterEmptyStringAttributesDOM ? null : '',
+        );
       });
 
       itRenders('no string prop with true value', async render => {
@@ -691,8 +699,13 @@ describe('ReactDOMServerIntegration', () => {
 
     itRenders('className for custom elements', async render => {
       const e = await render(<custom-element className="test" />, 0);
-      expect(e.getAttribute('className')).toBe(null);
-      expect(e.getAttribute('class')).toBe('test');
+      if (ReactFeatureFlags.enableCustomElementPropertySupport) {
+        expect(e.getAttribute('className')).toBe(null);
+        expect(e.getAttribute('class')).toBe('test');
+      } else {
+        expect(e.getAttribute('className')).toBe('test');
+        expect(e.getAttribute('class')).toBe(null);
+      }
     });
 
     itRenders('htmlFor property on is elements', async render => {
@@ -725,35 +738,20 @@ describe('ReactDOMServerIntegration', () => {
 
     itRenders('unknown boolean `true` attributes as strings', async render => {
       const e = await render(<custom-element foo={true} />);
-      expect(e.getAttribute('foo')).toBe('');
+      if (ReactFeatureFlags.enableCustomElementPropertySupport) {
+        expect(e.getAttribute('foo')).toBe('');
+      } else {
+        expect(e.getAttribute('foo')).toBe('true');
+      }
     });
 
     itRenders('unknown boolean `false` attributes as strings', async render => {
       const e = await render(<custom-element foo={false} />);
-      expect(e.getAttribute('foo')).toBe(null);
-    });
-
-    itRenders('new boolean `true` attributes', async render => {
-      const element = await render(<div inert={true} />, 0);
-
-      expect(element.getAttribute('inert')).toBe('');
-    });
-
-    itRenders('new boolean `""` attributes', async render => {
-      const element = await render(
-        <div inert="" />,
-        // Warns since this used to render `inert=""` like `inert={true}`
-        // but now renders it like `inert={false}`.
-        1,
-      );
-
-      expect(element.getAttribute('inert')).toBe(null);
-    });
-
-    itRenders('new boolean `false` attributes', async render => {
-      const element = await render(<div inert={false} />, 0);
-
-      expect(element.getAttribute('inert')).toBe(null);
+      if (ReactFeatureFlags.enableCustomElementPropertySupport) {
+        expect(e.getAttribute('foo')).toBe(null);
+      } else {
+        expect(e.getAttribute('foo')).toBe('false');
+      }
     });
 
     itRenders(

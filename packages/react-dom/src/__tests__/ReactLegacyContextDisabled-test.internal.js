@@ -97,11 +97,11 @@ describe('ReactLegacyContextDisabled', () => {
         );
       });
     }).toErrorDev([
-      'LegacyProvider uses the legacy childContextTypes API which was removed in React 19. ' +
+      'LegacyProvider uses the legacy childContextTypes API which is no longer supported. ' +
         'Use React.createContext() instead.',
-      'LegacyClsConsumer uses the legacy contextTypes API which was removed in React 19. ' +
+      'LegacyClsConsumer uses the legacy contextTypes API which is no longer supported. ' +
         'Use React.createContext() with static contextType instead.',
-      'LegacyFnConsumer uses the legacy contextTypes API which was removed in React 19. ' +
+      'LegacyFnConsumer uses the legacy contextTypes API which is no longer supported. ' +
         'Use React.createContext() with React.useContext() instead.',
     ]);
     expect(container.textContent).toBe('{}undefinedundefined');
@@ -137,11 +137,11 @@ describe('ReactLegacyContextDisabled', () => {
         container,
       );
     }).toErrorDev([
-      'LegacyProvider uses the legacy childContextTypes API which was removed in React 19. ' +
+      'LegacyProvider uses the legacy childContextTypes API which is no longer supported. ' +
         'Use React.createContext() instead.',
-      'LegacyClsConsumer uses the legacy contextTypes API which was removed in React 19. ' +
+      'LegacyClsConsumer uses the legacy contextTypes API which is no longer supported. ' +
         'Use React.createContext() with static contextType instead.',
-      'LegacyFnConsumer uses the legacy contextTypes API which was removed in React 19. ' +
+      'LegacyFnConsumer uses the legacy contextTypes API which is no longer supported. ' +
         'Use React.createContext() with React.useContext() instead.',
     ]);
     expect(text).toBe('<span>{}<!-- -->undefined<!-- -->undefined</span>');
@@ -233,7 +233,15 @@ describe('ReactLegacyContextDisabled', () => {
       );
     });
     expect(container.textContent).toBe('bbb');
-    expect(lifecycleContextLog).toEqual(['b', 'b', 'b']);
+    if (gate(flags => flags.enableLazyContextPropagation)) {
+      // In the lazy propagation implementation, we don't check if context
+      // changed until after shouldComponentUpdate is run.
+      expect(lifecycleContextLog).toEqual(['b', 'b', 'b']);
+    } else {
+      // In the eager implementation, a dirty flag was set when the parent
+      // changed, so we skipped sCU.
+      expect(lifecycleContextLog).toEqual(['b', 'b']);
+    }
     root.unmount();
   });
 });

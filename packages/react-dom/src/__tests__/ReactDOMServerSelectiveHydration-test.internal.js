@@ -1114,16 +1114,14 @@ describe('ReactDOMServerSelectiveHydration', () => {
       // Outer was hydrated earlier
       OuterTestUtils.assertLog([]);
 
-      // First Inner Mouse Enter fires then Outer Mouse Enter
-      assertLog(['Inner Mouse Enter', 'Outer Mouse Enter']);
-
       await act(() => {
         Scheduler.unstable_flushAllWithoutAsserting();
         OuterScheduler.unstable_flushAllWithoutAsserting();
         InnerScheduler.unstable_flushAllWithoutAsserting();
       });
 
-      assertLog([]);
+      // First Inner Mouse Enter fires then Outer Mouse Enter
+      assertLog(['Inner Mouse Enter', 'Outer Mouse Enter']);
     });
   });
 
@@ -1333,7 +1331,7 @@ describe('ReactDOMServerSelectiveHydration', () => {
     await waitForAll(['App', 'C', 'B', 'A']);
   });
 
-  // @gate www
+  // @gate experimental || www
   it('hydrates before an update even if hydration moves away from it', async () => {
     function Child({text}) {
       Scheduler.log(text);
@@ -1677,7 +1675,7 @@ describe('ReactDOMServerSelectiveHydration', () => {
     expect(initialSpan).toBe(spanRef);
   });
 
-  // @gate www
+  // @gate experimental || www
   it('can force hydration in response to continuous update', async () => {
     function Child({text}) {
       Scheduler.log(`Child ${text}`);
@@ -1746,7 +1744,7 @@ describe('ReactDOMServerSelectiveHydration', () => {
     expect(initialSpan).toBe(spanRef);
   });
 
-  // @gate www
+  // @gate experimental || www
   it('regression test: can unwind context on selective hydration interruption', async () => {
     const Context = React.createContext('DefaultContext');
 

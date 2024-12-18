@@ -7,19 +7,19 @@
  * @flow
  */
 
-import {enableTaint} from 'shared/ReactFeatureFlags';
+import {enableTaint, enableBinaryFlight} from 'shared/ReactFeatureFlags';
 
 import getPrototypeOf from 'shared/getPrototypeOf';
 
 import binaryToComparableString from 'shared/binaryToComparableString';
 
-import ReactSharedInternals from './ReactSharedInternalsServer';
+import ReactServerSharedInternals from './ReactServerSharedInternals';
 const {
   TaintRegistryObjects,
   TaintRegistryValues,
   TaintRegistryByteLengths,
   TaintRegistryPendingRequests,
-} = ReactSharedInternals;
+} = ReactServerSharedInternals;
 
 interface Reference {}
 
@@ -76,8 +76,8 @@ export function taintUniqueValue(
     // Use as is.
     entryValue = value;
   } else if (
-    value instanceof TypedArrayConstructor ||
-    value instanceof DataView
+    enableBinaryFlight &&
+    (value instanceof TypedArrayConstructor || value instanceof DataView)
   ) {
     // For now, we just convert binary data to a string so that we can just use the native
     // hashing in the Map implementation. It doesn't really matter what form the string

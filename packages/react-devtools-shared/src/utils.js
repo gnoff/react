@@ -9,23 +9,23 @@
 
 import LRU from 'lru-cache';
 import {
-  REACT_CONSUMER_TYPE,
-  REACT_CONTEXT_TYPE,
-  REACT_FORWARD_REF_TYPE,
-  REACT_FRAGMENT_TYPE,
-  REACT_LAZY_TYPE,
-  REACT_ELEMENT_TYPE,
-  REACT_LEGACY_ELEMENT_TYPE,
-  REACT_MEMO_TYPE,
-  REACT_PORTAL_TYPE,
-  REACT_PROFILER_TYPE,
-  REACT_PROVIDER_TYPE,
-  REACT_STRICT_MODE_TYPE,
-  REACT_SUSPENSE_LIST_TYPE,
-  REACT_SUSPENSE_TYPE,
-  REACT_TRACING_MARKER_TYPE,
+  isElement,
+  typeOf,
+  ContextConsumer,
+  ContextProvider,
+  ForwardRef,
+  Fragment,
+  Lazy,
+  Memo,
+  Portal,
+  Profiler,
+  StrictMode,
+  Suspense,
+} from 'react-is';
+import {
+  REACT_SUSPENSE_LIST_TYPE as SuspenseList,
+  REACT_TRACING_MARKER_TYPE as TracingMarker,
 } from 'shared/ReactSymbols';
-import {enableRenderableContext} from 'shared/ReactFeatureFlags';
 import {
   TREE_OPERATION_ADD,
   TREE_OPERATION_REMOVE,
@@ -36,9 +36,10 @@ import {
   TREE_OPERATION_UPDATE_TREE_BASE_DURATION,
   LOCAL_STORAGE_COMPONENT_FILTER_PREFERENCES_KEY,
   LOCAL_STORAGE_OPEN_IN_EDITOR_URL,
-  SESSION_STORAGE_RELOAD_AND_PROFILE_KEY,
-  SESSION_STORAGE_RECORD_CHANGE_DESCRIPTIONS_KEY,
-  SESSION_STORAGE_RECORD_TIMELINE_KEY,
+  LOCAL_STORAGE_SHOULD_BREAK_ON_CONSOLE_ERRORS,
+  LOCAL_STORAGE_SHOULD_APPEND_COMPONENT_STACK_KEY,
+  LOCAL_STORAGE_SHOW_INLINE_WARNINGS_AND_ERRORS_KEY,
+  LOCAL_STORAGE_HIDE_CONSOLE_LOGS_IN_STRICT_MODE,
 } from './constants';
 import {
   ComponentFilterElementType,
@@ -51,29 +52,19 @@ import {
   ElementTypeForwardRef,
   ElementTypeFunction,
   ElementTypeMemo,
-  ElementTypeVirtual,
 } from 'react-devtools-shared/src/frontend/types';
-import {
-  localStorageGetItem,
-  localStorageSetItem,
-  sessionStorageGetItem,
-  sessionStorageRemoveItem,
-  sessionStorageSetItem,
-} from 'react-devtools-shared/src/storage';
+import {localStorageGetItem, localStorageSetItem} from './storage';
 import {meta} from './hydration';
 import isArray from './isArray';
 
 import type {
   ComponentFilter,
   ElementType,
+  BrowserTheme,
   SerializedElement as SerializedElementFrontend,
   LRUCache,
 } from 'react-devtools-shared/src/frontend/types';
-import type {
-  ProfilingSettings,
-  SerializedElement as SerializedElementBackend,
-} from 'react-devtools-shared/src/backend/types';
-import {isSynchronousXHRSupported} from './backend/utils';
+import type {SerializedElement as SerializedElementBackend} from 'react-devtools-shared/src/backend/types';
 
 // $FlowFixMe[method-unbinding]
 const hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -382,6 +373,53 @@ export function filterOutLocationComponentFilters(
   return componentFilters.filter(f => f.type !== ComponentFilterLocation);
 }
 
+function parseBool(s: ?string): ?boolean {
+  if (s === 'true') {
+    return true;
+  }
+  if (s === 'false') {
+    return false;
+  }
+}
+
+export function castBool(v: any): ?boolean {
+  if (v === true || v === false) {
+    return v;
+  }
+}
+
+export function castBrowserTheme(v: any): ?BrowserTheme {
+  if (v === 'light' || v === 'dark' || v === 'auto') {
+    return v;
+  }
+}
+
+export function getAppendComponentStack(): boolean {
+  const raw = localStorageGetItem(
+    LOCAL_STORAGE_SHOULD_APPEND_COMPONENT_STACK_KEY,
+  );
+  return parseBool(raw) ?? true;
+}
+
+export function getBreakOnConsoleErrors(): boolean {
+  const raw = localStorageGetItem(LOCAL_STORAGE_SHOULD_BREAK_ON_CONSOLE_ERRORS);
+  return parseBool(raw) ?? false;
+}
+
+export function getHideConsoleLogsInStrictMode(): boolean {
+  const raw = localStorageGetItem(
+    LOCAL_STORAGE_HIDE_CONSOLE_LOGS_IN_STRICT_MODE,
+  );
+  return parseBool(raw) ?? false;
+}
+
+export function getShowInlineWarningsAndErrors(): boolean {
+  const raw = localStorageGetItem(
+    LOCAL_STORAGE_SHOW_INLINE_WARNINGS_AND_ERRORS_KEY,
+  );
+  return parseBool(raw) ?? true;
+}
+
 export function getDefaultOpenInEditorURL(): string {
   return typeof process.env.EDITOR_URL === 'string'
     ? process.env.EDITOR_URL
@@ -432,11 +470,9 @@ export function parseElementDisplayNameFromBackend(
     case ElementTypeForwardRef:
     case ElementTypeFunction:
     case ElementTypeMemo:
-    case ElementTypeVirtual:
       if (displayName.indexOf('(') >= 0) {
         const matches = displayName.match(/[^()]+/g);
         if (matches != null) {
-          // $FlowFixMe[incompatible-type]
           displayName = matches.pop();
           hocDisplayNames = matches;
         }
@@ -447,7 +483,6 @@ export function parseElementDisplayNameFromBackend(
   }
 
   return {
-    // $FlowFixMe[incompatible-return]
     formattedDisplayName: displayName,
     hocDisplayNames,
     compiledWithForget: false,
@@ -581,6 +616,10 @@ export function getDataType(data: Object): DataType {
     return 'undefined';
   }
 
+  if (isElement(data)) {
+    return 'react_element';
+  }
+
   if (typeof HTMLElement !== 'undefined' && data instanceof HTMLElement) {
     return 'html_element';
   }
@@ -602,12 +641,6 @@ export function getDataType(data: Object): DataType {
         return 'number';
       }
     case 'object':
-      if (
-        data.$$typeof === REACT_ELEMENT_TYPE ||
-        data.$$typeof === REACT_LEGACY_ELEMENT_TYPE
-      ) {
-        return 'react_element';
-      }
       if (isArray(data)) {
         return 'array';
       } else if (ArrayBuffer.isView(data)) {
@@ -662,84 +695,34 @@ export function getDataType(data: Object): DataType {
   }
 }
 
-// Fork of packages/react-is/src/ReactIs.js:30, but with legacy element type
-// Which has been changed in https://github.com/facebook/react/pull/28813
-function typeOfWithLegacyElementSymbol(object: any): mixed {
-  if (typeof object === 'object' && object !== null) {
-    const $$typeof = object.$$typeof;
-    switch ($$typeof) {
-      case REACT_ELEMENT_TYPE:
-      case REACT_LEGACY_ELEMENT_TYPE:
-        const type = object.type;
-
-        switch (type) {
-          case REACT_FRAGMENT_TYPE:
-          case REACT_PROFILER_TYPE:
-          case REACT_STRICT_MODE_TYPE:
-          case REACT_SUSPENSE_TYPE:
-          case REACT_SUSPENSE_LIST_TYPE:
-            return type;
-          default:
-            const $$typeofType = type && type.$$typeof;
-
-            switch ($$typeofType) {
-              case REACT_CONTEXT_TYPE:
-              case REACT_FORWARD_REF_TYPE:
-              case REACT_LAZY_TYPE:
-              case REACT_MEMO_TYPE:
-                return $$typeofType;
-              case REACT_CONSUMER_TYPE:
-                if (enableRenderableContext) {
-                  return $$typeofType;
-                }
-              // Fall through
-              case REACT_PROVIDER_TYPE:
-                if (!enableRenderableContext) {
-                  return $$typeofType;
-                }
-              // Fall through
-              default:
-                return $$typeof;
-            }
-        }
-      case REACT_PORTAL_TYPE:
-        return $$typeof;
-    }
-  }
-
-  return undefined;
-}
-
 export function getDisplayNameForReactElement(
   element: React$Element<any>,
 ): string | null {
-  const elementType = typeOfWithLegacyElementSymbol(element);
+  const elementType = typeOf(element);
   switch (elementType) {
-    case REACT_CONSUMER_TYPE:
+    case ContextConsumer:
       return 'ContextConsumer';
-    case REACT_PROVIDER_TYPE:
+    case ContextProvider:
       return 'ContextProvider';
-    case REACT_CONTEXT_TYPE:
-      return 'Context';
-    case REACT_FORWARD_REF_TYPE:
+    case ForwardRef:
       return 'ForwardRef';
-    case REACT_FRAGMENT_TYPE:
+    case Fragment:
       return 'Fragment';
-    case REACT_LAZY_TYPE:
+    case Lazy:
       return 'Lazy';
-    case REACT_MEMO_TYPE:
+    case Memo:
       return 'Memo';
-    case REACT_PORTAL_TYPE:
+    case Portal:
       return 'Portal';
-    case REACT_PROFILER_TYPE:
+    case Profiler:
       return 'Profiler';
-    case REACT_STRICT_MODE_TYPE:
+    case StrictMode:
       return 'StrictMode';
-    case REACT_SUSPENSE_TYPE:
+    case Suspense:
       return 'Suspense';
-    case REACT_SUSPENSE_LIST_TYPE:
+    case SuspenseList:
       return 'SuspenseList';
-    case REACT_TRACING_MARKER_TYPE:
+    case TracingMarker:
       return 'TracingMarker';
     default:
       const {type} = element;
@@ -806,10 +789,9 @@ export function formatDataForPreview(
     case 'html_element':
       return `<${truncateForDisplay(data.tagName.toLowerCase())} />`;
     case 'function':
-      if (typeof data.name === 'function' || data.name === '') {
-        return '() => {}';
-      }
-      return `${truncateForDisplay(data.name)}() {}`;
+      return truncateForDisplay(
+        `ƒ ${typeof data.name === 'function' ? '' : data.name}() {}`,
+      );
     case 'string':
       return `"${data}"`;
     case 'bigint':
@@ -972,59 +954,4 @@ export function backendToFrontendSerializedElementMapper(
     hocDisplayNames,
     compiledWithForget,
   };
-}
-
-// Chrome normalizes urls like webpack-internals:// but new URL don't, so cannot use new URL here.
-export function normalizeUrl(url: string): string {
-  return url.replace('/./', '/');
-}
-
-export function getIsReloadAndProfileSupported(): boolean {
-  // Notify the frontend if the backend supports the Storage API (e.g. localStorage).
-  // If not, features like reload-and-profile will not work correctly and must be disabled.
-  let isBackendStorageAPISupported = false;
-  try {
-    localStorage.getItem('test');
-    isBackendStorageAPISupported = true;
-  } catch (error) {}
-
-  return isBackendStorageAPISupported && isSynchronousXHRSupported();
-}
-
-// Expected to be used only by browser extension and react-devtools-inline
-export function getIfReloadedAndProfiling(): boolean {
-  return (
-    sessionStorageGetItem(SESSION_STORAGE_RELOAD_AND_PROFILE_KEY) === 'true'
-  );
-}
-
-export function getProfilingSettings(): ProfilingSettings {
-  return {
-    recordChangeDescriptions:
-      sessionStorageGetItem(SESSION_STORAGE_RECORD_CHANGE_DESCRIPTIONS_KEY) ===
-      'true',
-    recordTimeline:
-      sessionStorageGetItem(SESSION_STORAGE_RECORD_TIMELINE_KEY) === 'true',
-  };
-}
-
-export function onReloadAndProfile(
-  recordChangeDescriptions: boolean,
-  recordTimeline: boolean,
-): void {
-  sessionStorageSetItem(SESSION_STORAGE_RELOAD_AND_PROFILE_KEY, 'true');
-  sessionStorageSetItem(
-    SESSION_STORAGE_RECORD_CHANGE_DESCRIPTIONS_KEY,
-    recordChangeDescriptions ? 'true' : 'false',
-  );
-  sessionStorageSetItem(
-    SESSION_STORAGE_RECORD_TIMELINE_KEY,
-    recordTimeline ? 'true' : 'false',
-  );
-}
-
-export function onReloadAndProfileFlagsReset(): void {
-  sessionStorageRemoveItem(SESSION_STORAGE_RELOAD_AND_PROFILE_KEY);
-  sessionStorageRemoveItem(SESSION_STORAGE_RECORD_CHANGE_DESCRIPTIONS_KEY);
-  sessionStorageRemoveItem(SESSION_STORAGE_RECORD_TIMELINE_KEY);
 }

@@ -5,14 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import {invokeGuardedCallbackAndCatchFirstError} from 'shared/ReactErrorUtils';
 import isArray from 'shared/isArray';
-
-import {enableOwnerStacks} from 'shared/ReactFeatureFlags';
-
-import {runWithFiberInDEV} from 'react-reconciler/src/ReactCurrentFiber';
-
-let hasError = false;
-let caughtError = null;
 
 export let getFiberCurrentPropsFromNode = null;
 export let getInstanceFromNode = null;
@@ -45,15 +39,15 @@ function validateEventDispatches(event) {
     const listenersLen = listenersIsArr
       ? dispatchListeners.length
       : dispatchListeners
-        ? 1
-        : 0;
+      ? 1
+      : 0;
 
     const instancesIsArr = isArray(dispatchInstances);
     const instancesLen = instancesIsArr
       ? dispatchInstances.length
       : dispatchInstances
-        ? 1
-        : 0;
+      ? 1
+      : 0;
 
     if (instancesIsArr !== listenersIsArr || instancesLen !== listenersLen) {
       console.error('EventPluginUtils: Invalid `event`.');
@@ -68,17 +62,9 @@ function validateEventDispatches(event) {
  * @param {*} inst Internal component instance
  */
 export function executeDispatch(event, listener, inst) {
+  const type = event.type || 'unknown-event';
   event.currentTarget = getNodeFromInstance(inst);
-  try {
-    listener(event);
-  } catch (error) {
-    if (!hasError) {
-      hasError = true;
-      caughtError = error;
-    } else {
-      // TODO: Make sure this error gets logged somehow.
-    }
-  }
+  invokeGuardedCallbackAndCatchFirstError(type, listener, undefined, event);
   event.currentTarget = null;
 }
 
@@ -97,22 +83,10 @@ export function executeDispatchesInOrder(event) {
         break;
       }
       // Listeners and Instances are two parallel arrays that are always in sync.
-      const listener = dispatchListeners[i];
-      const instance = dispatchInstances[i];
-      if (__DEV__ && enableOwnerStacks && instance !== null) {
-        runWithFiberInDEV(instance, executeDispatch, event, listener, instance);
-      } else {
-        executeDispatch(event, listener, instance);
-      }
+      executeDispatch(event, dispatchListeners[i], dispatchInstances[i]);
     }
   } else if (dispatchListeners) {
-    const listener = dispatchListeners;
-    const instance = dispatchInstances;
-    if (__DEV__ && enableOwnerStacks && instance !== null) {
-      runWithFiberInDEV(instance, executeDispatch, event, listener, instance);
-    } else {
-      executeDispatch(event, listener, instance);
-    }
+    executeDispatch(event, dispatchListeners, dispatchInstances);
   }
   event._dispatchListeners = null;
   event._dispatchInstances = null;
@@ -195,13 +169,4 @@ export function executeDirectDispatch(event) {
  */
 export function hasDispatches(event) {
   return !!event._dispatchListeners;
-}
-
-export function rethrowCaughtError() {
-  if (hasError) {
-    const error = caughtError;
-    hasError = false;
-    caughtError = null;
-    throw error;
-  }
 }

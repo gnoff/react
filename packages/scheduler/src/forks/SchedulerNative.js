@@ -32,7 +32,7 @@ type NativeSchedulerType = {
   unstable_now: () => DOMHighResTimeStamp,
 };
 
-declare const nativeRuntimeScheduler: void | NativeSchedulerType;
+declare var nativeRuntimeScheduler: void | NativeSchedulerType;
 
 export const unstable_UserBlockingPriority: PriorityLevel =
   typeof nativeRuntimeScheduler !== 'undefined'
@@ -97,6 +97,9 @@ export const unstable_now: () => number | DOMHighResTimeStamp =
 export const unstable_next: any = throwNotImplemented;
 export const unstable_runWithPriority: any = throwNotImplemented;
 export const unstable_wrapCallback: any = throwNotImplemented;
+export const unstable_continueExecution: any = throwNotImplemented;
+export const unstable_pauseExecution: any = throwNotImplemented;
+export const unstable_getFirstCallbackNode: any = throwNotImplemented;
 export const unstable_forceFrameRate: any = throwNotImplemented;
 export const unstable_Profiling: any = null;
 

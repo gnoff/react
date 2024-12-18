@@ -7,6 +7,9 @@
  * @flow strict
  */
 
+import typeof * as ExportsType from './ReactFeatureFlags.native-fb-dynamic';
+import typeof * as DynamicFlagsType from 'ReactNativeInternalFeatureFlags';
+
 // In xplat, these flags are controlled by GKs. Because most GKs have some
 // population running in either mode, we should run our tests that way, too,
 //
@@ -15,15 +18,15 @@
 //
 // TODO: __VARIANT__ isn't supported for React Native flags yet. You can set the
 // flag here but it won't be set to `true` in any of our test runs. Need to
-// add a test configuration for React Native.
+// update the test configuration.
 
 export const alwaysThrottleRetries = __VARIANT__;
-export const enableObjectFiber = __VARIANT__;
-export const enableHiddenSubtreeInsertionEffectCleanup = __VARIANT__;
-export const enablePersistedModeClonedFlag = __VARIANT__;
-export const enableShallowPropDiffing = __VARIANT__;
+export const enableComponentStackLocations = __VARIANT__;
+export const enableDeferRootSchedulingToMicrotask = __VARIANT__;
+export const enableUseRefAccessWarning = __VARIANT__;
 export const passChildrenWhenCloningPersistedNodes = __VARIANT__;
-export const enableFabricCompleteRootInCommitPhase = __VARIANT__;
-export const enableSiblingPrerendering = __VARIANT__;
-export const enableUseResourceEffectHook = __VARIANT__;
-export const enableOwnerStacks = __VARIANT__;
+export const useMicrotasksForSchedulingInFabric = __VARIANT__;
+export const enableUnifiedSyncLane = __VARIANT__;
+
+// Flow magic to verify the exports of this file match the original version.
+((((null: any): ExportsType): DynamicFlagsType): ExportsType);

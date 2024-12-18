@@ -28,11 +28,11 @@ import {
 } from './ReactFiberLane';
 import {
   enableSuspenseCallback,
+  enableCache,
   enableProfilerCommitHooks,
   enableProfilerTimer,
   enableUpdaterTracking,
   enableTransitionTracing,
-  disableLegacyMode,
 } from 'shared/ReactFeatureFlags';
 import {initializeUpdateQueue} from './ReactFiberClassUpdateQueue';
 import {LegacyRoot, ConcurrentRoot} from './ReactRootTags';
@@ -51,12 +51,10 @@ function FiberRootNode(
   tag,
   hydrate: any,
   identifierPrefix: any,
-  onUncaughtError: any,
-  onCaughtError: any,
   onRecoverableError: any,
   formState: ReactFormState<any, any> | null,
 ) {
-  this.tag = disableLegacyMode ? ConcurrentRoot : tag;
+  this.tag = tag;
   this.containerInfo = containerInfo;
   this.pendingChildren = null;
   this.current = null;
@@ -74,7 +72,6 @@ function FiberRootNode(
   this.pendingLanes = NoLanes;
   this.suspendedLanes = NoLanes;
   this.pingedLanes = NoLanes;
-  this.warmLanes = NoLanes;
   this.expiredLanes = NoLanes;
   this.finishedLanes = NoLanes;
   this.errorRecoveryDisabledLanes = NoLanes;
@@ -86,12 +83,12 @@ function FiberRootNode(
   this.hiddenUpdates = createLaneMap(null);
 
   this.identifierPrefix = identifierPrefix;
-  this.onUncaughtError = onUncaughtError;
-  this.onCaughtError = onCaughtError;
   this.onRecoverableError = onRecoverableError;
 
-  this.pooledCache = null;
-  this.pooledCacheLanes = NoLanes;
+  if (enableCache) {
+    this.pooledCache = null;
+    this.pooledCacheLanes = NoLanes;
+  }
 
   if (enableSuspenseCallback) {
     this.hydrationCallbacks = null;
@@ -109,8 +106,8 @@ function FiberRootNode(
   }
 
   if (enableProfilerTimer && enableProfilerCommitHooks) {
-    this.effectDuration = -0;
-    this.passiveEffectDuration = -0;
+    this.effectDuration = 0;
+    this.passiveEffectDuration = 0;
   }
 
   if (enableUpdaterTracking) {
@@ -122,18 +119,13 @@ function FiberRootNode(
   }
 
   if (__DEV__) {
-    if (disableLegacyMode) {
-      // TODO: This varies by each renderer.
-      this._debugRootType = hydrate ? 'hydrateRoot()' : 'createRoot()';
-    } else {
-      switch (tag) {
-        case ConcurrentRoot:
-          this._debugRootType = hydrate ? 'hydrateRoot()' : 'createRoot()';
-          break;
-        case LegacyRoot:
-          this._debugRootType = hydrate ? 'hydrate()' : 'render()';
-          break;
-      }
+    switch (tag) {
+      case ConcurrentRoot:
+        this._debugRootType = hydrate ? 'hydrateRoot()' : 'createRoot()';
+        break;
+      case LegacyRoot:
+        this._debugRootType = hydrate ? 'hydrate()' : 'render()';
+        break;
     }
   }
 }
@@ -145,26 +137,13 @@ export function createFiberRoot(
   initialChildren: ReactNodeList,
   hydrationCallbacks: null | SuspenseHydrationCallbacks,
   isStrictMode: boolean,
+  concurrentUpdatesByDefaultOverride: null | boolean,
   // TODO: We have several of these arguments that are conceptually part of the
   // host config, but because they are passed in at runtime, we have to thread
   // them through the root constructor. Perhaps we should put them all into a
   // single type, like a DynamicHostConfig that is defined by the renderer.
   identifierPrefix: string,
-  onUncaughtError: (
-    error: mixed,
-    errorInfo: {+componentStack?: ?string},
-  ) => void,
-  onCaughtError: (
-    error: mixed,
-    errorInfo: {
-      +componentStack?: ?string,
-      +errorBoundary?: ?React$Component<any, any>,
-    },
-  ) => void,
-  onRecoverableError: (
-    error: mixed,
-    errorInfo: {+componentStack?: ?string},
-  ) => void,
+  onRecoverableError: null | ((error: mixed) => void),
   transitionCallbacks: null | TransitionTracingCallbacks,
   formState: ReactFormState<any, any> | null,
 ): FiberRoot {
@@ -174,8 +153,6 @@ export function createFiberRoot(
     tag,
     hydrate,
     identifierPrefix,
-    onUncaughtError,
-    onCaughtError,
     onRecoverableError,
     formState,
   ): any);
@@ -189,28 +166,41 @@ export function createFiberRoot(
 
   // Cyclic construction. This cheats the type system right now because
   // stateNode is any.
-  const uninitializedFiber = createHostRootFiber(tag, isStrictMode);
+  const uninitializedFiber = createHostRootFiber(
+    tag,
+    isStrictMode,
+    concurrentUpdatesByDefaultOverride,
+  );
   root.current = uninitializedFiber;
   uninitializedFiber.stateNode = root;
 
-  const initialCache = createCache();
-  retainCache(initialCache);
+  if (enableCache) {
+    const initialCache = createCache();
+    retainCache(initialCache);
 
-  // The pooledCache is a fresh cache instance that is used temporarily
-  // for newly mounted boundaries during a render. In general, the
-  // pooledCache is always cleared from the root at the end of a render:
-  // it is either released when render commits, or moved to an Offscreen
-  // component if rendering suspends. Because the lifetime of the pooled
-  // cache is distinct from the main memoizedState.cache, it must be
-  // retained separately.
-  root.pooledCache = initialCache;
-  retainCache(initialCache);
-  const initialState: RootState = {
-    element: initialChildren,
-    isDehydrated: hydrate,
-    cache: initialCache,
-  };
-  uninitializedFiber.memoizedState = initialState;
+    // The pooledCache is a fresh cache instance that is used temporarily
+    // for newly mounted boundaries during a render. In general, the
+    // pooledCache is always cleared from the root at the end of a render:
+    // it is either released when render commits, or moved to an Offscreen
+    // component if rendering suspends. Because the lifetime of the pooled
+    // cache is distinct from the main memoizedState.cache, it must be
+    // retained separately.
+    root.pooledCache = initialCache;
+    retainCache(initialCache);
+    const initialState: RootState = {
+      element: initialChildren,
+      isDehydrated: hydrate,
+      cache: initialCache,
+    };
+    uninitializedFiber.memoizedState = initialState;
+  } else {
+    const initialState: RootState = {
+      element: initialChildren,
+      isDehydrated: hydrate,
+      cache: (null: any), // not enabled yet
+    };
+    uninitializedFiber.memoizedState = initialState;
+  }
 
   initializeUpdateQueue(uninitializedFiber);
 

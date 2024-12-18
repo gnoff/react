@@ -1,7 +1,7 @@
 {
   "name": "react-dom-bindings",
   "description": "React implementation details for react-dom.",
-  "version": "19.1.0",
+  "version": "18.2.0",
   "private": true,
   "main": "index.js",
   "repository": {
@@ -16,8 +16,8 @@
   "bugs": {
     "url": "https://github.com/facebook/react/issues"
   },
-  "homepage": "https://react.dev/",
+  "homepage": "https://reactjs.org/",
   "peerDependencies": {
-    "react": "^19.0.0"
+    "react": "^18.2.0"
   }
 }

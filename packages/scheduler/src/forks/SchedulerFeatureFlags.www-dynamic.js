@@ -11,4 +11,14 @@
 // Use __VARIANT__ to simulate a GK. The tests will be run twice: once
 // with the __VARIANT__ set to `true`, and once set to `false`.
 
-export const enableRequestPaint = __VARIANT__;
+export const enableProfiling = __VARIANT__;
+
+export const enableIsInputPending = __VARIANT__;
+export const enableIsInputPendingContinuous = __VARIANT__;
+export const frameYieldMs = 5;
+export const continuousYieldMs = 10;
+export const maxYieldMs = 10;
+
+export const userBlockingPriorityTimeout = 250;
+export const normalPriorityTimeout = 5000;
+export const lowPriorityTimeout = 10000;

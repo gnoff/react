@@ -48,7 +48,7 @@ export function clearErrorsForElement({
   id: number,
   rendererID: number,
 }): void {
-  bridge.send('clearErrorsForElementID', {
+  bridge.send('clearErrorsForFiberID', {
     rendererID,
     id,
   });
@@ -63,7 +63,7 @@ export function clearWarningsForElement({
   id: number,
   rendererID: number,
 }): void {
-  bridge.send('clearWarningsForElementID', {
+  bridge.send('clearWarningsForFiberID', {
     rendererID,
     id,
   });
@@ -221,13 +221,13 @@ export function convertInspectedElementBackendToFrontend(
     canEditHooksAndRenamePaths,
     canToggleError,
     isErrored,
+    targetErrorBoundaryID,
     canToggleSuspense,
     canViewSource,
     hasLegacyContext,
     id,
     type,
     owners,
-    source,
     context,
     hooks,
     plugins,
@@ -250,6 +250,7 @@ export function convertInspectedElementBackendToFrontend(
     canEditHooksAndRenamePaths,
     canToggleError,
     isErrored,
+    targetErrorBoundaryID,
     canToggleSuspense,
     canViewSource,
     hasLegacyContext,
@@ -259,9 +260,7 @@ export function convertInspectedElementBackendToFrontend(
     rendererPackageName,
     rendererVersion,
     rootType,
-    // Previous backend implementations (<= 5.0.1) have a different interface for Source, with fileName.
-    // This gates the source features for only compatible backends: >= 5.0.2
-    source: source && source.sourceURL ? source : null,
+    source: null, // TODO: Load source location lazily.
     type,
     owners:
       owners === null

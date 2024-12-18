@@ -433,7 +433,7 @@ describe('ChangeEventPlugin', () => {
     expect(called2).toBe(1);
   });
 
-  it('should deduplicate input value change events', async () => {
+  it('should deduplicate input value change events', () => {
     let called = 0;
 
     function cb(e) {
@@ -441,81 +441,59 @@ describe('ChangeEventPlugin', () => {
       expect(e.type).toBe('change');
     }
 
-    const inputTypes = ['text', 'number', 'range'];
-    while (inputTypes.length) {
-      const type = inputTypes.pop();
+    let input;
+    ['text', 'number', 'range'].forEach(type => {
       called = 0;
-      let root = ReactDOMClient.createRoot(container);
-      let ref = {current: null};
-      await act(() => {
-        root.render(<input ref={ref} type={type} onChange={cb} />);
-      });
-      let input = ref.current;
-      await act(() => {
-        // Should be ignored (no change):
-        input.dispatchEvent(
-          new Event('change', {bubbles: true, cancelable: true}),
-        );
-        setUntrackedValue.call(input, '42');
-        input.dispatchEvent(
-          new Event('change', {bubbles: true, cancelable: true}),
-        );
-        // Should be ignored (no change):
-        input.dispatchEvent(
-          new Event('change', {bubbles: true, cancelable: true}),
-        );
-      });
+      input = ReactDOM.render(<input type={type} onChange={cb} />, container);
+      // Should be ignored (no change):
+      input.dispatchEvent(
+        new Event('change', {bubbles: true, cancelable: true}),
+      );
+      setUntrackedValue.call(input, '42');
+      input.dispatchEvent(
+        new Event('change', {bubbles: true, cancelable: true}),
+      );
+      // Should be ignored (no change):
+      input.dispatchEvent(
+        new Event('change', {bubbles: true, cancelable: true}),
+      );
       expect(called).toBe(1);
-      root.unmount();
+      ReactDOM.unmountComponentAtNode(container);
 
       called = 0;
-      root = ReactDOMClient.createRoot(container);
-      ref = {current: null};
-      await act(() => {
-        root.render(<input ref={ref} type={type} onChange={cb} />);
-      });
-      input = ref.current;
-      await act(() => {
-        // Should be ignored (no change):
-        input.dispatchEvent(
-          new Event('input', {bubbles: true, cancelable: true}),
-        );
-        setUntrackedValue.call(input, '42');
-        input.dispatchEvent(
-          new Event('input', {bubbles: true, cancelable: true}),
-        );
-        // Should be ignored (no change):
-        input.dispatchEvent(
-          new Event('input', {bubbles: true, cancelable: true}),
-        );
-      });
+      input = ReactDOM.render(<input type={type} onChange={cb} />, container);
+      // Should be ignored (no change):
+      input.dispatchEvent(
+        new Event('input', {bubbles: true, cancelable: true}),
+      );
+      setUntrackedValue.call(input, '42');
+      input.dispatchEvent(
+        new Event('input', {bubbles: true, cancelable: true}),
+      );
+      // Should be ignored (no change):
+      input.dispatchEvent(
+        new Event('input', {bubbles: true, cancelable: true}),
+      );
       expect(called).toBe(1);
-      root.unmount();
+      ReactDOM.unmountComponentAtNode(container);
 
       called = 0;
-      root = ReactDOMClient.createRoot(container);
-      ref = {current: null};
-      await act(() => {
-        root.render(<input ref={ref} type={type} onChange={cb} />);
-      });
-      input = ref.current;
-      await act(() => {
-        // Should be ignored (no change):
-        input.dispatchEvent(
-          new Event('change', {bubbles: true, cancelable: true}),
-        );
-        setUntrackedValue.call(input, '42');
-        input.dispatchEvent(
-          new Event('input', {bubbles: true, cancelable: true}),
-        );
-        // Should be ignored (no change):
-        input.dispatchEvent(
-          new Event('change', {bubbles: true, cancelable: true}),
-        );
-      });
+      input = ReactDOM.render(<input type={type} onChange={cb} />, container);
+      // Should be ignored (no change):
+      input.dispatchEvent(
+        new Event('change', {bubbles: true, cancelable: true}),
+      );
+      setUntrackedValue.call(input, '42');
+      input.dispatchEvent(
+        new Event('input', {bubbles: true, cancelable: true}),
+      );
+      // Should be ignored (no change):
+      input.dispatchEvent(
+        new Event('change', {bubbles: true, cancelable: true}),
+      );
       expect(called).toBe(1);
-      root.unmount();
-    }
+      ReactDOM.unmountComponentAtNode(container);
+    });
   });
 
   it('should listen for both change and input events when supported', async () => {

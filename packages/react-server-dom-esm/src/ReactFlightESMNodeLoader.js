@@ -9,9 +9,6 @@
 
 import * as acorn from 'acorn-loose';
 
-import readMappings from 'webpack-sources/lib/helpers/readMappings.js';
-import createMappingsSerializer from 'webpack-sources/lib/helpers/createMappingsSerializer.js';
-
 type ResolveContext = {
   conditions: Array<string>,
   parentURL: string | void,
@@ -98,102 +95,45 @@ export async function getSource(
   return defaultGetSource(url, context, defaultGetSource);
 }
 
-type ExportedEntry = {
-  localName: string,
-  exportedName: string,
-  type: null | string,
-  loc: {
-    start: {line: number, column: number},
-    end: {line: number, column: number},
-  },
-  originalLine: number,
-  originalColumn: number,
-  originalSource: number,
-  nameIndex: number,
-};
-
-function addExportedEntry(
-  exportedEntries: Array<ExportedEntry>,
-  localNames: Set<string>,
-  localName: string,
-  exportedName: string,
-  type: null | 'function',
-  loc: {
-    start: {line: number, column: number},
-    end: {line: number, column: number},
-  },
-) {
-  if (localNames.has(localName)) {
-    // If the same local name is exported more than once, we only need one of the names.
-    return;
-  }
-  exportedEntries.push({
-    localName,
-    exportedName,
-    type,
-    loc,
-    originalLine: -1,
-    originalColumn: -1,
-    originalSource: -1,
-    nameIndex: -1,
-  });
-}
-
-function addLocalExportedNames(
-  exportedEntries: Array<ExportedEntry>,
-  localNames: Set<string>,
-  node: any,
-) {
+function addLocalExportedNames(names: Map<string, string>, node: any) {
   switch (node.type) {
     case 'Identifier':
-      addExportedEntry(
-        exportedEntries,
-        localNames,
-        node.name,
-        node.name,
-        null,
-        node.loc,
-      );
+      names.set(node.name, node.name);
       return;
     case 'ObjectPattern':
       for (let i = 0; i < node.properties.length; i++)
-        addLocalExportedNames(exportedEntries, localNames, node.properties[i]);
+        addLocalExportedNames(names, node.properties[i]);
       return;
     case 'ArrayPattern':
       for (let i = 0; i < node.elements.length; i++) {
         const element = node.elements[i];
-        if (element)
-          addLocalExportedNames(exportedEntries, localNames, element);
+        if (element) addLocalExportedNames(names, element);
       }
       return;
     case 'Property':
-      addLocalExportedNames(exportedEntries, localNames, node.value);
+      addLocalExportedNames(names, node.value);
       return;
     case 'AssignmentPattern':
-      addLocalExportedNames(exportedEntries, localNames, node.left);
+      addLocalExportedNames(names, node.left);
       return;
     case 'RestElement':
-      addLocalExportedNames(exportedEntries, localNames, node.argument);
+      addLocalExportedNames(names, node.argument);
       return;
     case 'ParenthesizedExpression':
-      addLocalExportedNames(exportedEntries, localNames, node.expression);
+      addLocalExportedNames(names, node.expression);
       return;
   }
 }
 
 function transformServerModule(
   source: string,
-  program: any,
+  body: any,
   url: string,
-  sourceMap: any,
   loader: LoadFunction,
 ): string {
-  const body = program.body;
-
-  // This entry list needs to be in source location order.
-  const exportedEntries: Array<ExportedEntry> = [];
-  // Dedupe set.
-  const localNames: Set<string> = new Set();
+  // If the same local name is exported more than once, we only need one of the names.
+  const localNames: Map<string, string> = new Map();
+  const localTypes: Map<string, string> = new Map();
 
   for (let i = 0; i < body.length; i++) {
     const node = body[i];
@@ -203,24 +143,11 @@ function transformServerModule(
         break;
       case 'ExportDefaultDeclaration':
         if (node.declaration.type === 'Identifier') {
-          addExportedEntry(
-            exportedEntries,
-            localNames,
-            node.declaration.name,
-            'default',
-            null,
-            node.declaration.loc,
-          );
+          localNames.set(node.declaration.name, 'default');
         } else if (node.declaration.type === 'FunctionDeclaration') {
           if (node.declaration.id) {
-            addExportedEntry(
-              exportedEntries,
-              localNames,
-              node.declaration.id.name,
-              'default',
-              'function',
-              node.declaration.id.loc,
-            );
+            localNames.set(node.declaration.id.name, 'default');
+            localTypes.set(node.declaration.id.name, 'function');
           } else {
             // TODO: This needs to be rewritten inline because it doesn't have a local name.
           }
@@ -231,230 +158,41 @@ function transformServerModule(
           if (node.declaration.type === 'VariableDeclaration') {
             const declarations = node.declaration.declarations;
             for (let j = 0; j < declarations.length; j++) {
-              addLocalExportedNames(
-                exportedEntries,
-                localNames,
-                declarations[j].id,
-              );
+              addLocalExportedNames(localNames, declarations[j].id);
             }
           } else {
             const name = node.declaration.id.name;
-            addExportedEntry(
-              exportedEntries,
-              localNames,
-              name,
-              name,
-
-              node.declaration.type === 'FunctionDeclaration'
-                ? 'function'
-                : null,
-              node.declaration.id.loc,
-            );
+            localNames.set(name, name);
+            if (node.declaration.type === 'FunctionDeclaration') {
+              localTypes.set(name, 'function');
+            }
           }
         }
         if (node.specifiers) {
           const specifiers = node.specifiers;
           for (let j = 0; j < specifiers.length; j++) {
             const specifier = specifiers[j];
-            addExportedEntry(
-              exportedEntries,
-              localNames,
-              specifier.local.name,
-              specifier.exported.name,
-              null,
-              specifier.local.loc,
-            );
+            localNames.set(specifier.local.name, specifier.exported.name);
           }
         }
         continue;
     }
   }
-
-  let mappings =
-    sourceMap && typeof sourceMap.mappings === 'string'
-      ? sourceMap.mappings
-      : '';
-  let newSrc = source;
-
-  if (exportedEntries.length > 0) {
-    let lastSourceIndex = 0;
-    let lastOriginalLine = 0;
-    let lastOriginalColumn = 0;
-    let lastNameIndex = 0;
-    let sourceLineCount = 0;
-    let lastMappedLine = 0;
-
-    if (sourceMap) {
-      // We iterate source mapping entries and our matched exports in parallel to source map
-      // them to their original location.
-      let nextEntryIdx = 0;
-      let nextEntryLine = exportedEntries[nextEntryIdx].loc.start.line;
-      let nextEntryColumn = exportedEntries[nextEntryIdx].loc.start.column;
-      readMappings(
-        mappings,
-        (
-          generatedLine: number,
-          generatedColumn: number,
-          sourceIndex: number,
-          originalLine: number,
-          originalColumn: number,
-          nameIndex: number,
-        ) => {
-          if (
-            generatedLine > nextEntryLine ||
-            (generatedLine === nextEntryLine &&
-              generatedColumn > nextEntryColumn)
-          ) {
-            // We're past the entry which means that the best match we have is the previous entry.
-            if (lastMappedLine === nextEntryLine) {
-              // Match
-              exportedEntries[nextEntryIdx].originalLine = lastOriginalLine;
-              exportedEntries[nextEntryIdx].originalColumn = lastOriginalColumn;
-              exportedEntries[nextEntryIdx].originalSource = lastSourceIndex;
-              exportedEntries[nextEntryIdx].nameIndex = lastNameIndex;
-            } else {
-              // Skip if we didn't have any mappings on the exported line.
-            }
-            nextEntryIdx++;
-            if (nextEntryIdx < exportedEntries.length) {
-              nextEntryLine = exportedEntries[nextEntryIdx].loc.start.line;
-              nextEntryColumn = exportedEntries[nextEntryIdx].loc.start.column;
-            } else {
-              nextEntryLine = -1;
-              nextEntryColumn = -1;
-            }
-          }
-          lastMappedLine = generatedLine;
-          if (sourceIndex > -1) {
-            lastSourceIndex = sourceIndex;
-          }
-          if (originalLine > -1) {
-            lastOriginalLine = originalLine;
-          }
-          if (originalColumn > -1) {
-            lastOriginalColumn = originalColumn;
-          }
-          if (nameIndex > -1) {
-            lastNameIndex = nameIndex;
-          }
-        },
-      );
-      if (nextEntryIdx < exportedEntries.length) {
-        if (lastMappedLine === nextEntryLine) {
-          // Match
-          exportedEntries[nextEntryIdx].originalLine = lastOriginalLine;
-          exportedEntries[nextEntryIdx].originalColumn = lastOriginalColumn;
-          exportedEntries[nextEntryIdx].originalSource = lastSourceIndex;
-          exportedEntries[nextEntryIdx].nameIndex = lastNameIndex;
-        }
-      }
-
-      for (
-        let lastIdx = mappings.length - 1;
-        lastIdx >= 0 && mappings[lastIdx] === ';';
-        lastIdx--
-      ) {
-        // If the last mapped lines don't contain any segments, we don't get a callback from readMappings
-        // so we need to pad the number of mapped lines, with one for each empty line.
-        lastMappedLine++;
-      }
-
-      sourceLineCount = program.loc.end.line;
-      if (sourceLineCount < lastMappedLine) {
-        throw new Error(
-          'The source map has more mappings than there are lines.',
-        );
-      }
-      // If the original source string had more lines than there are mappings in the source map.
-      // Add some extra padding of unmapped lines so that any lines that we add line up.
-      for (
-        let extraLines = sourceLineCount - lastMappedLine;
-        extraLines > 0;
-        extraLines--
-      ) {
-        mappings += ';';
-      }
-    } else {
-      // If a file doesn't have a source map then we generate a blank source map that just
-      // contains the original content and segments pointing to the original lines.
-      sourceLineCount = 1;
-      let idx = -1;
-      while ((idx = source.indexOf('\n', idx + 1)) !== -1) {
-        sourceLineCount++;
-      }
-      mappings = 'AAAA' + ';AACA'.repeat(sourceLineCount - 1);
-      sourceMap = {
-        version: 3,
-        sources: [url],
-        sourcesContent: [source],
-        mappings: mappings,
-        sourceRoot: '',
-      };
-      lastSourceIndex = 0;
-      lastOriginalLine = sourceLineCount;
-      lastOriginalColumn = 0;
-      lastNameIndex = -1;
-      lastMappedLine = sourceLineCount;
-
-      for (let i = 0; i < exportedEntries.length; i++) {
-        // Point each entry to original location.
-        const entry = exportedEntries[i];
-        entry.originalSource = 0;
-        entry.originalLine = entry.loc.start.line;
-        // We use column zero since we do the short-hand line-only source maps above.
-        entry.originalColumn = 0; // entry.loc.start.column;
-      }
-    }
-
-    newSrc += '\n\n;';
-    newSrc +=
-      'import {registerServerReference} from "react-server-dom-esm/server";\n';
-    if (mappings) {
-      mappings += ';;';
-    }
-
-    const createMapping = createMappingsSerializer();
-
-    // Create an empty mapping pointing to where we last left off to reset the counters.
-    let generatedLine = 1;
-    createMapping(
-      generatedLine,
-      0,
-      lastSourceIndex,
-      lastOriginalLine,
-      lastOriginalColumn,
-      lastNameIndex,
-    );
-    for (let i = 0; i < exportedEntries.length; i++) {
-      const entry = exportedEntries[i];
-      generatedLine++;
-      if (entry.type !== 'function') {
-        // We first check if the export is a function and if so annotate it.
-        newSrc += 'if (typeof ' + entry.localName + ' === "function") ';
-      }
-      newSrc += 'registerServerReference(' + entry.localName + ',';
-      newSrc += JSON.stringify(url) + ',';
-      newSrc += JSON.stringify(entry.exportedName) + ');\n';
-
-      mappings += createMapping(
-        generatedLine,
-        0,
-        entry.originalSource,
-        entry.originalLine,
-        entry.originalColumn,
-        entry.nameIndex,
-      );
-    }
+  if (localNames.size === 0) {
+    return source;
   }
-
-  if (sourceMap) {
-    // Override with an new mappings and serialize an inline source map.
-    sourceMap.mappings = mappings;
-    newSrc +=
-      '//# sourceMappingURL=data:application/json;charset=utf-8;base64,' +
-      Buffer.from(JSON.stringify(sourceMap)).toString('base64');
-  }
-
+  let newSrc = source + '\n\n;';
+  newSrc +=
+    'import {registerServerReference} from "react-server-dom-esm/server";\n';
+  localNames.forEach(function (exported, local) {
+    if (localTypes.get(local) !== 'function') {
+      // We first check if the export is a function and if so annotate it.
+      newSrc += 'if (typeof ' + local + ' === "function") ';
+    }
+    newSrc += 'registerServerReference(' + local + ',';
+    newSrc += JSON.stringify(url) + ',';
+    newSrc += JSON.stringify(exported) + ');\n';
+  });
   return newSrc;
 }
 
@@ -569,13 +307,10 @@ async function parseExportNamesInto(
 }
 
 async function transformClientModule(
-  program: any,
+  body: any,
   url: string,
-  sourceMap: any,
   loader: LoadFunction,
 ): Promise<string> {
-  const body = program.body;
-
   const names: Array<string> = [];
 
   await parseExportNamesInto(body, names, url, loader);
@@ -594,9 +329,9 @@ async function transformClientModule(
       newSrc +=
         'throw new Error(' +
         JSON.stringify(
-          `Attempted to call the default export of ${url} from the server ` +
+          `Attempted to call the default export of ${url} from the server` +
             `but it's on the client. It's not possible to invoke a client function from ` +
-            `the server, it can only be rendered as a Component or passed to props of a ` +
+            `the server, it can only be rendered as a Component or passed to props of a` +
             `Client Component.`,
         ) +
         ');';
@@ -616,9 +351,6 @@ async function transformClientModule(
     newSrc += JSON.stringify(url) + ',';
     newSrc += JSON.stringify(name) + ');\n';
   }
-
-  // TODO: Generate source maps for Client Reference functions so they can point to their
-  // original locations.
   return newSrc;
 }
 
@@ -659,36 +391,12 @@ async function transformModuleIfNeeded(
     return source;
   }
 
-  let sourceMappingURL = null;
-  let sourceMappingStart = 0;
-  let sourceMappingEnd = 0;
-  let sourceMappingLines = 0;
-
-  let program;
+  let body;
   try {
-    program = acorn.parse(source, {
+    body = acorn.parse(source, {
       ecmaVersion: '2024',
       sourceType: 'module',
-      locations: true,
-      onComment(
-        block: boolean,
-        text: string,
-        start: number,
-        end: number,
-        startLoc: {line: number, column: number},
-        endLoc: {line: number, column: number},
-      ) {
-        if (
-          text.startsWith('# sourceMappingURL=') ||
-          text.startsWith('@ sourceMappingURL=')
-        ) {
-          sourceMappingURL = text.slice(19);
-          sourceMappingStart = start;
-          sourceMappingEnd = end;
-          sourceMappingLines = endLoc.line - startLoc.line;
-        }
-      },
-    });
+    }).body;
   } catch (x) {
     // eslint-disable-next-line react-internal/no-production-logging
     console.error('Error parsing %s %s', url, x.message);
@@ -697,8 +405,6 @@ async function transformModuleIfNeeded(
 
   let useClient = false;
   let useServer = false;
-
-  const body = program.body;
   for (let i = 0; i < body.length; i++) {
     const node = body[i];
     if (node.type !== 'ExpressionStatement' || !node.directive) {
@@ -722,38 +428,11 @@ async function transformModuleIfNeeded(
     );
   }
 
-  let sourceMap = null;
-  if (sourceMappingURL) {
-    const sourceMapResult = await loader(
-      sourceMappingURL,
-      // $FlowFixMe
-      {
-        format: 'json',
-        conditions: [],
-        importAssertions: {type: 'json'},
-        importAttributes: {type: 'json'},
-      },
-      loader,
-    );
-    const sourceMapString =
-      typeof sourceMapResult.source === 'string'
-        ? sourceMapResult.source
-        : // $FlowFixMe
-          sourceMapResult.source.toString('utf8');
-    sourceMap = JSON.parse(sourceMapString);
-
-    // Strip the source mapping comment. We'll re-add it below if needed.
-    source =
-      source.slice(0, sourceMappingStart) +
-      '\n'.repeat(sourceMappingLines) +
-      source.slice(sourceMappingEnd);
-  }
-
   if (useClient) {
-    return transformClientModule(program, url, sourceMap, loader);
+    return transformClientModule(body, url, loader);
   }
 
-  return transformServerModule(source, program, url, sourceMap, loader);
+  return transformServerModule(source, body, url, loader);
 }
 
 export async function transformSource(

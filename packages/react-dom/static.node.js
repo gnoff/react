@@ -9,6 +9,5 @@
 
 export {
   prerenderToNodeStream,
-  resumeAndPrerenderToNodeStream,
   version,
 } from './src/server/react-dom-server.node';

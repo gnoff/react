@@ -1,4 +1,5 @@
 let React;
+let ReactFeatureFlags;
 let ReactNoop;
 let Scheduler;
 let waitForAll;
@@ -11,6 +12,9 @@ let act;
 describe('ReactBlockingMode', () => {
   beforeEach(() => {
     jest.resetModules();
+    ReactFeatureFlags = require('shared/ReactFeatureFlags');
+
+    ReactFeatureFlags.replayFailedUnitOfWorkWithInvokeGuardedCallback = false;
     React = require('react');
     ReactNoop = require('react-noop-renderer');
     Scheduler = require('scheduler');
@@ -109,13 +113,7 @@ describe('ReactBlockingMode', () => {
       </Suspense>,
     );
 
-    await waitForAll([
-      'A',
-      'Suspend! [B]',
-      'Loading...',
-
-      ...(gate('enableSiblingPrerendering') ? ['A', 'Suspend! [B]', 'C'] : []),
-    ]);
+    await waitForAll(['A', 'Suspend! [B]', 'Loading...']);
     // In Legacy Mode, A and B would mount in a hidden primary tree. In
     // Concurrent Mode, nothing in the primary tree should mount. But the
     // fallback should mount immediately.
@@ -165,7 +163,17 @@ describe('ReactBlockingMode', () => {
     );
 
     // Now flush the first update
-    assertLog(['A1', 'B1']);
-    expect(root).toMatchRenderedOutput('A1B1');
+    if (gate(flags => flags.enableUnifiedSyncLane)) {
+      assertLog(['A1', 'B1']);
+      expect(root).toMatchRenderedOutput('A1B1');
+    } else {
+      // Only the second update should have flushed synchronously
+      assertLog(['B1']);
+      expect(root).toMatchRenderedOutput('A0B1');
+
+      // Now flush the first update
+      await waitForAll(['A1']);
+      expect(root).toMatchRenderedOutput('A1B1');
+    }
   });
 });

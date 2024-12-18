@@ -218,13 +218,11 @@ describe('ReactDOMServerIntegrationSelect', () => {
   itRenders('a select option with flattened children', async render => {
     const e = await render(
       <select value="bar" readOnly={true}>
-        <option value="bar">
-          A {'B'} {5n}
-        </option>
+        <option value="bar">A {'B'}</option>
       </select>,
     );
     const option = e.options[0];
-    expect(option.textContent).toBe('A B 5');
+    expect(option.textContent).toBe('A B');
     expect(option.value).toBe('bar');
     expect(option.selected).toBe(true);
   });
@@ -252,6 +250,7 @@ describe('ReactDOMServerIntegrationSelect', () => {
           <option value="first">First</option>
           <option value="true">True</option>
         </select>,
+        2,
       );
       expect(e.firstChild.selected).toBe(false);
       expect(e.lastChild.selected).toBe(true);
@@ -266,6 +265,7 @@ describe('ReactDOMServerIntegrationSelect', () => {
           <option value="first">First</option>
           <option value="undefined">Undefined</option>
         </select>,
+        2,
       );
       expect(e.firstChild.selected).toBe(true);
       expect(e.lastChild.selected).toBe(false);

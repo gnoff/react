@@ -44,93 +44,93 @@ describe('transform-react-version-pragma', () => {
   });
 
   // @reactVersion >= 17.9
-  it('reactVersion flag is on >=', () => {
+  test('reactVersion flag is on >=', () => {
     expect(shouldPass).toBe(true);
   });
 
   // @reactVersion >= 18.1
-  it('reactVersion flag is off >=', () => {
+  test('reactVersion flag is off >=', () => {
     expect(shouldPass).toBe(false);
   });
 
   // @reactVersion <= 18.1
-  it('reactVersion flag is on <=', () => {
+  test('reactVersion flag is on <=', () => {
     expect(shouldPass).toBe(true);
   });
 
   // @reactVersion <= 17.9
-  it('reactVersion flag is off <=', () => {
+  test('reactVersion flag is off <=', () => {
     expect(shouldPass).toBe(false);
   });
 
   // @reactVersion > 17.9
-  it('reactVersion flag is on >', () => {
+  test('reactVersion flag is on >', () => {
     expect(shouldPass).toBe(true);
   });
 
   // @reactVersion > 18.1
-  it('reactVersion flag is off >', () => {
+  test('reactVersion flag is off >', () => {
     expect(shouldPass).toBe(false);
   });
 
   // @reactVersion < 18.1
-  it('reactVersion flag is on <', () => {
+  test('reactVersion flag is on <', () => {
     expect(shouldPass).toBe(true);
   });
 
   // @reactVersion < 17.0.0
-  it('reactVersion flag is off <', () => {
+  test('reactVersion flag is off <', () => {
     expect(shouldPass).toBe(false);
   });
 
   // @reactVersion = 18.0
-  it('reactVersion flag is on =', () => {
+  test('reactVersion flag is on =', () => {
     expect(shouldPass).toBe(true);
   });
 
   // @reactVersion = 18.1
-  it('reactVersion flag is off =', () => {
+  test('reactVersion flag is off =', () => {
     expect(shouldPass).toBe(false);
   });
 
   /* eslint-disable jest/no-focused-tests */
 
   // @reactVersion >= 18.1
-  it.only('reactVersion fit', () => {
+  fit('reactVersion fit', () => {
     expect(shouldPass).toBe(false);
     expect(isFocused).toBe(true);
   });
 
   // @reactVersion <= 18.1
-  it.only('reactVersion test.only', () => {
+  test.only('reactVersion test.only', () => {
     expect(shouldPass).toBe(true);
     expect(isFocused).toBe(true);
   });
 
   // @reactVersion <= 18.1
   // @reactVersion <= 17.1
-  it('reactVersion multiple pragmas fail', () => {
+  test('reactVersion multiple pragmas fail', () => {
     expect(shouldPass).toBe(false);
     expect(isFocused).toBe(false);
   });
 
   // @reactVersion <= 18.1
   // @reactVersion >= 17.1
-  it('reactVersion multiple pragmas pass', () => {
+  test('reactVersion multiple pragmas pass', () => {
     expect(shouldPass).toBe(true);
     expect(isFocused).toBe(false);
   });
 
   // @reactVersion <= 18.1
   // @reactVersion <= 17.1
-  it.only('reactVersion focused multiple pragmas fail', () => {
+  test.only('reactVersion focused multiple pragmas fail', () => {
     expect(shouldPass).toBe(false);
     expect(isFocused).toBe(true);
   });
 
   // @reactVersion <= 18.1
   // @reactVersion >= 17.1
-  it.only('reactVersion focused multiple pragmas pass', () => {
+  test.only('reactVersion focused multiple pragmas pass', () => {
     expect(shouldPass).toBe(true);
     expect(isFocused).toBe(true);
   });

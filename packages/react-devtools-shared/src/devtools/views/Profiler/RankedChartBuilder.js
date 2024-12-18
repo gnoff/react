@@ -61,7 +61,7 @@ export function getChartData({
       throw Error(`Could not find node with id "${id}" in commit tree`);
     }
 
-    const {displayName, key, parentID, type, compiledWithForget} = node;
+    const {displayName, key, parentID, type} = node;
 
     // Don't show the root node in this chart.
     if (parentID === 0) {
@@ -72,7 +72,6 @@ export function getChartData({
 
     const name = displayName || 'Anonymous';
     const maybeKey = key !== null ? ` key="${key}"` : '';
-    const maybeForgetBadge = compiledWithForget ? '✨ ' : '';
 
     let maybeBadge = '';
     if (type === ElementTypeForwardRef) {
@@ -81,7 +80,7 @@ export function getChartData({
       maybeBadge = ' (Memo)';
     }
 
-    const label = `${maybeForgetBadge}${name}${maybeBadge}${maybeKey} (${formatDuration(
+    const label = `${name}${maybeBadge}${maybeKey} (${formatDuration(
       selfDuration,
     )}ms)`;
     chartNodes.push({

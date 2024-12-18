@@ -7,12 +7,13 @@
  * @flow
  */
 
+import type {Stack} from '../../utils';
 import type {SchedulingEvent} from 'react-devtools-timeline/src/types';
 
 import * as React from 'react';
 import Button from '../Button';
 import ButtonIcon from '../ButtonIcon';
-import ViewElementSourceContext from '../Components/ViewElementSourceContext';
+import ViewSourceContext from '../Components/ViewSourceContext';
 import {useContext} from 'react';
 import {TimelineContext} from 'react-devtools-timeline/src/TimelineContext';
 import {
@@ -31,11 +32,15 @@ type SchedulingEventProps = {
 };
 
 function SchedulingEventInfo({eventInfo}: SchedulingEventProps) {
-  const {canViewElementSourceFunction, viewElementSourceFunction} = useContext(
-    ViewElementSourceContext,
-  );
+  const {viewUrlSourceFunction} = useContext(ViewSourceContext);
   const {componentName, timestamp} = eventInfo;
   const componentStack = eventInfo.componentStack || null;
+
+  const viewSource = (source: ?Stack) => {
+    if (viewUrlSourceFunction != null && source != null) {
+      viewUrlSourceFunction(...source);
+    }
+  };
 
   return (
     <>
@@ -60,42 +65,17 @@ function SchedulingEventInfo({eventInfo}: SchedulingEventProps) {
               </div>
               <ul className={styles.List}>
                 {stackToComponentSources(componentStack).map(
-                  ([displayName, stack], index) => {
-                    if (stack == null) {
-                      return (
-                        <li key={index}>
-                          <Button
-                            className={styles.UnclickableSource}
-                            disabled={true}>
-                            {displayName}
-                          </Button>
-                        </li>
-                      );
-                    }
-
-                    // TODO: We should support symbolication here as well, but
-                    // symbolicating the whole stack can be expensive
-                    const [sourceURL, line, column] = stack;
-                    const source = {sourceURL, line, column};
-                    const canViewSource =
-                      canViewElementSourceFunction == null ||
-                      canViewElementSourceFunction(source, null);
-
-                    const viewSource =
-                      !canViewSource || viewElementSourceFunction == null
-                        ? () => null
-                        : () => viewElementSourceFunction(source, null);
-
+                  ([displayName, source], index) => {
                     return (
                       <li key={index}>
                         <Button
                           className={
-                            canViewSource
+                            source
                               ? styles.ClickableSource
                               : styles.UnclickableSource
                           }
-                          disabled={!canViewSource}
-                          onClick={viewSource}>
+                          disabled={!source}
+                          onClick={() => viewSource(source)}>
                           {displayName}
                         </Button>
                       </li>

@@ -12,7 +12,6 @@ let textCache;
 let waitFor;
 let waitForPaint;
 let assertLog;
-let use;
 
 describe('Activity Suspense', () => {
   beforeEach(() => {
@@ -28,7 +27,6 @@ describe('Activity Suspense', () => {
     useState = React.useState;
     useEffect = React.useEffect;
     startTransition = React.startTransition;
-    use = React.use;
 
     const InternalTestUtils = require('internal-test-utils');
     waitFor = InternalTestUtils.waitFor;
@@ -47,10 +45,10 @@ describe('Activity Suspense', () => {
       };
       textCache.set(text, newRecord);
     } else if (record.status === 'pending') {
-      const resolve = record.resolve;
+      const thenable = record.value;
       record.status = 'resolved';
       record.value = text;
-      resolve();
+      thenable.pings.forEach(t => t());
     }
   }
 
@@ -60,7 +58,7 @@ describe('Activity Suspense', () => {
       switch (record.status) {
         case 'pending':
           Scheduler.log(`Suspend! [${text}]`);
-          return use(record.value);
+          throw record.value;
         case 'rejected':
           throw record.value;
         case 'resolved':
@@ -68,19 +66,24 @@ describe('Activity Suspense', () => {
       }
     } else {
       Scheduler.log(`Suspend! [${text}]`);
-      let resolve;
-      const promise = new Promise(_resolve => {
-        resolve = _resolve;
-      });
+      const thenable = {
+        pings: [],
+        then(resolve) {
+          if (newRecord.status === 'pending') {
+            thenable.pings.push(resolve);
+          } else {
+            Promise.resolve().then(() => resolve(newRecord.value));
+          }
+        },
+      };
 
       const newRecord = {
         status: 'pending',
-        value: promise,
-        resolve,
+        value: thenable,
       };
       textCache.set(text, newRecord);
 
-      return use(promise);
+      throw thenable;
     }
   }
 
@@ -96,7 +99,7 @@ describe('Activity Suspense', () => {
   }
 
   // @gate enableActivity
-  it('basic example of suspending inside hidden tree', async () => {
+  test('basic example of suspending inside hidden tree', async () => {
     const root = ReactNoop.createRoot();
 
     function App() {
@@ -137,7 +140,7 @@ describe('Activity Suspense', () => {
     );
   });
 
-  // @gate enableLegacyHidden
+  // @gate www
   test('LegacyHidden does not handle suspense', async () => {
     const root = ReactNoop.createRoot();
 
@@ -171,57 +174,7 @@ describe('Activity Suspense', () => {
     );
   });
 
-  // @gate __DEV__ && enableActivity
-  test('Regression: Suspending on hide should not infinite loop.', async () => {
-    // This regression only repros in public act.
-    global.IS_REACT_ACT_ENVIRONMENT = true;
-    const root = ReactNoop.createRoot();
-
-    let setMode;
-    function Container({text}) {
-      const [mode, _setMode] = React.useState('visible');
-      setMode = _setMode;
-      useEffect(() => {
-        return () => {
-          Scheduler.log(`Clear [${text}]`);
-          textCache.delete(text);
-        };
-      });
-      return (
-        //$FlowFixMe
-        <Suspense fallback="Loading">
-          <Activity mode={mode}>
-            <AsyncText text={text} />
-          </Activity>
-        </Suspense>
-      );
-    }
-
-    await React.act(() => {
-      root.render(<Container text="hello" />);
-    });
-    assertLog([
-      'Suspend! [hello]',
-      ...(gate(flags => flags.enableSiblingPrerendering)
-        ? ['Suspend! [hello]']
-        : []),
-    ]);
-    expect(root).toMatchRenderedOutput('Loading');
-
-    await React.act(async () => {
-      await resolveText('hello');
-    });
-    assertLog(['hello']);
-    expect(root).toMatchRenderedOutput('hello');
-
-    await React.act(() => {
-      setMode('hidden');
-    });
-    assertLog(['Clear [hello]', 'Suspend! [hello]']);
-    expect(root).toMatchRenderedOutput('');
-  });
-
-  // @gate enableActivity
+  // @gate experimental || www
   test("suspending inside currently hidden tree that's switching to visible", async () => {
     const root = ReactNoop.createRoot();
 
@@ -262,11 +215,7 @@ describe('Activity Suspense', () => {
         );
       });
     });
-    assertLog([
-      'Open',
-      'Suspend! [Async]',
-      ...(gate(flags => flags.enableSiblingPrerendering) ? ['Loading...'] : []),
-    ]);
+    assertLog(['Open', 'Suspend! [Async]', 'Loading...']);
     // It should suspend with delay to prevent the already-visible Suspense
     // boundary from switching to a fallback
     expect(root).toMatchRenderedOutput(<span>Closed</span>);
@@ -275,10 +224,7 @@ describe('Activity Suspense', () => {
     await act(async () => {
       await resolveText('Async');
     });
-    assertLog([
-      ...(gate(flags => flags.enableSiblingPrerendering) ? ['Open'] : []),
-      'Async',
-    ]);
+    assertLog(['Open', 'Async']);
     expect(root).toMatchRenderedOutput(
       <>
         <span>Open</span>
@@ -330,11 +276,7 @@ describe('Activity Suspense', () => {
         );
       });
     });
-    assertLog([
-      'Open',
-      'Suspend! [Async]',
-      ...(gate(flags => flags.enableSiblingPrerendering) ? ['Loading...'] : []),
-    ]);
+    assertLog(['Open', 'Suspend! [Async]', 'Loading...']);
     // It should suspend with delay to prevent the already-visible Suspense
     // boundary from switching to a fallback
     expect(root).toMatchRenderedOutput(
@@ -377,7 +319,7 @@ describe('Activity Suspense', () => {
     );
   });
 
-  // @gate enableActivity
+  // @gate experimental || www
   test('update that suspends inside hidden tree', async () => {
     let setText;
     function Child() {
@@ -410,7 +352,7 @@ describe('Activity Suspense', () => {
     });
   });
 
-  // @gate enableActivity
+  // @gate experimental || www
   test('updates at multiple priorities that suspend inside hidden tree', async () => {
     let setText;
     let setStep;

@@ -64,11 +64,11 @@ describe('editing interface', () => {
 
       act(() =>
         ReactDOM.render(
-          React.createElement(ClassComponent, {
-            array: [1, 2, 3],
-            object: {nested: 'initial'},
-            shallow: 'initial',
-          }),
+          <ClassComponent
+            array={[1, 2, 3]}
+            object={{nested: 'initial'}}
+            shallow="initial"
+          />,
           document.createElement('div'),
         ),
       );
@@ -270,10 +270,7 @@ describe('editing interface', () => {
 
       act(() =>
         ReactDOM.render(
-          React.createElement(ClassComponent, {
-            object: {nested: 'initial'},
-            shallow: 'initial',
-          }),
+          <ClassComponent object={{nested: 'initial'}} shallow="initial" />,
           document.createElement('div'),
         ),
       );
@@ -492,11 +489,9 @@ describe('editing interface', () => {
 
       act(() =>
         ReactDOM.render(
-          React.createElement(
-            LegacyContextProvider,
-            null,
-            React.createElement(ClassComponent),
-          ),
+          <LegacyContextProvider>
+            <ClassComponent />
+          </LegacyContextProvider>,
           document.createElement('div'),
         ),
       );
